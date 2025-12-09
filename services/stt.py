@@ -5,9 +5,17 @@ Currently implements a placeholder interface for audio file processing.
 import google.generativeai as genai
 from typing import Union, BinaryIO
 import io
+import os
+import dotenv
+
+# Load environment variables from .env file
+dotenv.load_dotenv()
+
+# Retrieve the API key from environment variables
+LLM_KEY = os.getenv("LLM_KEY")
 
 # Configure the Google Generative AI API with your API key
-genai.configure(api_key="AIzaSyAvJi_6r8Hq5cbD4zz57fNhASaJ8Swfbuo")
+genai.configure(api_key=LLM_KEY)
 
 def process_audio_file(
     audio_input: Union[BinaryIO, bytes, io.BytesIO]
