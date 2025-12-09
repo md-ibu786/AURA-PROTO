@@ -26,12 +26,24 @@ def transform_transcript(topic: str, transcript: str) -> str:
     model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
     
     # define the prompt for transformation
+    # include the raw transcript explicitly in the prompt so the model can process it
+    # limit transcript length to avoid prompt overflow (trim if very long)
+    max_transcript_len = 40000
+    safe_transcript = transcript
+    if len(safe_transcript) > max_transcript_len:
+        safe_transcript = safe_transcript[-max_transcript_len:]
+        safe_transcript = "[TRUNCATED START]\n" + safe_transcript
+
     prompt = f"""
         SYSTEM ROLE:
         You are an Elite Academic Editor and Content Curator. Your primary function is to transform raw, noisy audio transcripts into pristine, high-fidelity lecture notes. You possess a deep understanding of academic discourse and are capable of distinguishing between core educational content and conversational noise.
 
         INPUT DATA:
-        1. *Raw Transcript:* A messy, verbatim text stream containing multiple speakers (Lecturer and Students), interruptions, and disfluencies.
+        1. *Raw Transcript:* Begin the section below with the raw transcript provided for processing.
+
+        RAW TRANSCRIPT:
+        {safe_transcript}
+
         2. *Target Topic:* "{topic}"
 
         PROCESSING PIPELINE:
@@ -65,7 +77,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
         EXECUTION
     """
     
-    # generate the transformed transcript
-    response = model.generate_text(prompt=prompt)
-    
+    # generate the transformed transcript with deterministic generation
+    response = model.generate_text(prompt=prompt, temperature=0.0)
+
     return response.text

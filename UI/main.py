@@ -40,23 +40,43 @@ def main():
     else:
         st.warning("Please enter a lecture topic of at least 3 characters to enable file upload.")
         uploaded_file = None
+
+    # Initialize session state for transcript and cleaned transcript
+    if 'transcript' not in st.session_state:
+        st.session_state['transcript'] = ""
+    if 'clean_transcript' not in st.session_state:
+        st.session_state['clean_transcript'] = ""
+    if 'uploaded_name' not in st.session_state:
+        st.session_state['uploaded_name'] = None
+    if 'last_topic' not in st.session_state:
+        st.session_state['last_topic'] = None
     
     # Process uploaded file
     if uploaded_file is not None:
+        # Reset session state when a new file is uploaded or topic changes
+        if st.session_state['uploaded_name'] != uploaded_file.name:
+            st.session_state['uploaded_name'] = uploaded_file.name
+            st.session_state['transcript'] = ""
+            st.session_state['clean_transcript'] = ""
+        if st.session_state['last_topic'] != topic:
+            st.session_state['last_topic'] = topic
+            st.session_state['clean_transcript'] = ""
+
         # Display file information
         st.success(f"File uploaded: {uploaded_file.name}")
         
-        result = ""
+        # Display existing transcript if present
+        if st.session_state['transcript']:
+            st.text_area("Transcript", value=st.session_state['transcript'], height=150)
+        
         # Process button
-        if st.button("Process Audio", type="primary"):
+        if st.button("Process Audio"):
             with st.spinner("Processing audio file..."):
                 try:
-                    # Call the backend processing function
-                    result = process_audio_file(uploaded_file)
-                    
-                    # Display result
-                    st.text_area("Transcript", result, height=150)
-                    
+                    # Call the backend processing function and persist in session state
+                    st.session_state['transcript'] = process_audio_file(uploaded_file)
+                    # Display the transcript
+                    st.text_area("Transcript", value=st.session_state['transcript'], height=150)
                 except Exception as e:
                     st.error(f"Error processing audio file: {str(e)}")
         
@@ -66,18 +86,21 @@ def main():
             st.write(f"**File size:** {uploaded_file.size} bytes")
             st.write(f"**File type:** {uploaded_file.type}")
 
-        if result:
-            if st.button("Summarize Notes", type="primary"):
+        # Summarize Notes button only available after transcript exists
+        if st.session_state['transcript']:
+            if st.button("Summarize Notes"):
                 with st.spinner("Summarizing audio file into readable notes"):
                     try:
-                        # Call the transcript transformation function
-                        clean_transcript = transform_transcript(topic, result)
-                        
+                        # Call the transcript transformation function and persist in session
+                        st.session_state['clean_transcript'] = transform_transcript(topic, st.session_state['transcript'])
                         # Display cleaned transcript
-                        st.text_area("Cleaned Transcript", clean_transcript, height=150)
+                        st.text_area("Cleaned Transcript", value=st.session_state['clean_transcript'], height=150)
 
                     except Exception as e:
                         st.error(f"Error processing audio file: {str(e)}")
+        # If cleaned transcript already exists, display it as well
+        elif st.session_state['clean_transcript']:
+            st.text_area("Cleaned Transcript", value=st.session_state['clean_transcript'], height=150)
 
 if __name__ == "__main__":
     main()
