@@ -88,8 +88,8 @@ def main():
 
         # Summarize Notes button only available after transcript exists
         if st.session_state['transcript']:
-            if st.button("Summarize Notes"):
-                with st.spinner("Summarizing audio file into readable notes"):
+            if st.button("Refine Transcript"):
+                with st.spinner("Refining transcript into readable notes"):
                     try:
                         # Call the transcript transformation function and persist in session
                         st.session_state['clean_transcript'] = transform_transcript(topic, st.session_state['transcript'])
