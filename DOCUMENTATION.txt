@@ -1,0 +1,465 @@
+================================================================================
+AURA-PROTO CODEBASE DOCUMENTATION
+================================================================================
+
+Last Updated: 2025-12-09
+Project Type: Audio Summarizer Application (Prototype)
+Technology Stack: Python, Streamlit
+================================================================================
+
+TABLE OF CONTENTS
+================================================================================
+1. PROJECT OVERVIEW
+2. ARCHITECTURE
+3. FILE STRUCTURE
+4. MODULES DOCUMENTATION
+   4.1. Main Application (main.py)
+   4.2. Speech-to-Text Service (services/stt.py)
+   4.3. User Interface (UI/summarizer-ui.py)
+5. DEPENDENCIES
+6. INSTALLATION GUIDE
+7. USAGE INSTRUCTIONS
+8. DEVELOPMENT ROADMAP
+9. KNOWN ISSUES AND LIMITATIONS
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+AURA-PROTO is a prototype audio summarizer application designed to:
+- Accept audio file uploads through a web interface
+- Process audio content using speech-to-text technology
+- Generate summaries of audio content (future implementation)
+
+Current Status: PROTOTYPE - Contains placeholder functionality for STT processing
+
+Purpose:
+This prototype serves as the foundation for a full-featured audio summarization
+tool that can help users quickly understand the content of audio files without
+listening to them entirely.
+
+================================================================================
+2. ARCHITECTURE
+================================================================================
+
+The application follows a simple client-server architecture:
+
+┌─────────────────────────────────────────────────────────────┐
+│                    Streamlit Frontend                        │
+│                 (UI/summarizer-ui.py)                        │
+│  - Web-based UI for file upload and interaction            │
+│  - User-friendly interface with drag-and-drop support      │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTPS/Localhost
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                  Backend STT Service                        │
+│                  (services/stt.py)                          │
+│  - Audio file processing                                   │
+│  - Speech-to-text conversion (placeholder)                 │
+│  - Text summarization (future)                             │
+└─────────────────────────────────────────────────────────────┘
+
+Key Features:
+- Modular design with separation of UI and backend services
+- Support for multiple audio formats
+- Extensible architecture for future enhancements
+
+================================================================================
+3. FILE STRUCTURE
+================================================================================
+
+AURA-PROTO/
+│
+├── main.py                          # Main application entry point
+├── requirements.txt                 # Python dependencies
+├── DOCUMENTATION.txt               # This documentation file
+│
+├── services/
+│   ├── __init__.py                  # Package initializer
+│   ├── stt.py                       # Speech-to-Text backend service
+│   └── __pycache__/                 # Python cache (generated)
+│
+└── UI/
+    ├── __init__.py                  # Package initializer
+    └── summarizer-ui.py             # Streamlit user interface
+
+Note: .venv/ directory contains Python virtual environment (not shown)
+
+================================================================================
+4. MODULES DOCUMENTATION
+================================================================================
+
+================================================================================
+4.1. Main Application (main.py)
+================================================================================
+
+File: main.py
+Status: EMPTY FILE (0 bytes)
+Last Modified: 2025-12-08 22:42
+
+Description:
+Currently, main.py is an empty placeholder file. Based on the project structure,
+this file is intended to be the main entry point for the application.
+
+Expected Implementation:
+- Application initialization
+- Configuration loading
+- Service orchestration
+- Main execution logic
+
+Note: The actual application entry point is currently UI/summarizer-ui.py
+
+================================================================================
+4.2. Speech-to-Text Service (services/stt.py)
+================================================================================
+
+File: services/stt.py
+Lines: 37
+Last Modified: 2025-12-08 22:42
+
+Module Purpose:
+Backend processing service for audio files. Currently implements placeholder
+functionality for speech-to-text conversion.
+
+Key Function:
+
+process_audio_file(audio_input: Union[BinaryIO, bytes, io.BytesIO]) -> str
+
+Parameters:
+- audio_input: Audio file data as file-like object, raw bytes, or BytesIO object
+
+Returns:
+- String: Confirmation message with filename
+
+Current Behavior:
+- Extracts filename from input if available
+- Prints confirmation to console
+- Returns success message
+
+Notes:
+- PLACEHOLDER FUNCTION - Actual STT logic not yet implemented
+- Designed to work with Streamlit's file uploader
+- Supports multiple input types for flexibility
+- Future enhancement needed for real speech-to-text processing
+
+Dependencies:
+- typing.Union for type hinting
+- typing.BinaryIO for file-like object typing
+- io.BytesIO for in-memory binary streams
+
+Error Handling:
+- Gracefully handles missing filename attribute
+- Returns generic "unknown_audio_file" if filename unavailable
+
+================================================================================
+4.3. User Interface (UI/summarizer-ui.py)
+================================================================================
+
+File: UI/summarizer-ui.py
+Lines: 65
+Last Modified: 2025-12-08 22:42
+
+Module Purpose:
+Streamlit-based web interface for the Audio Summarizer application. Provides
+user-friendly upload and processing interface.
+
+Key Features:
+
+1. Page Configuration:
+   - Title: "Audio Summarizer"
+   - Icon: 🎵
+   - Layout: Centered
+   - Description: Upload audio files for processing
+
+2. File Upload Support:
+   - Supported formats: MP3, WAV, M4A, FLAC, OGG
+   - Maximum file size: Default Streamlit limits
+   - Drag-and-drop interface
+
+3. File Processing:
+   - "Process Audio" button for manual processing control
+   - Loading spinner during processing
+   - Success/error feedback to user
+   - Detailed file information display
+
+4. File Details Display:
+   - Filename
+   - File size in bytes
+   - MIME type
+
+Functions:
+
+main() -> None
+- Main application entry point
+- Sets up Streamlit page configuration
+- Renders UI components
+- Handles user interactions
+- Calls backend processing service
+
+Dependencies:
+- streamlit (st): For UI components and web interface
+- sys: For modifying Python path
+- os: For path operations
+- services.stt.process_audio_file: Backend processing function
+
+System Integration:
+- Modifies sys.path to import from parent directory
+- Handles backend service communication
+- Gracefully catches and displays errors
+
+UI Components:
+- st.title(): Page title
+- st.markdown(): Descriptive text
+- st.file_uploader(): File selection widget
+- st.success()/st.error(): Status messages
+- st.button(): Process trigger
+- st.spinner(): Loading indicator
+- st.expander(): Collapsible details section
+
+Error Handling:
+- Try-except block around processing call
+- User-friendly error messages
+- Graceful handling of processing failures
+
+================================================================================
+5. DEPENDENCIES
+================================================================================
+
+Core Dependencies (from requirements.txt):
+- streamlit==1.52.1: Web application framework for the UI
+
+Note: The requirements.txt file has encoding issues and displays special
+characters. The dependency is streamlit version 1.52.1.
+
+Optional Dependencies for Future Development:
+- For actual STT implementation:
+  * SpeechRecognition: For speech-to-text conversion
+  * pydub: Audio file format conversion
+  * ffmpeg: Audio processing backend
+
+- For summarization features:
+  * transformers (Hugging Face): Text summarization models
+  * torch: Deep learning framework
+  * summarize or similar libraries
+
+- Additional audio processing:
+  * librosa: Audio analysis
+  * soundfile: Sound file I/O
+  * numpy: Numerical processing
+
+================================================================================
+6. INSTALLATION GUIDE
+================================================================================
+
+Prerequisites:
+- Python 3.8 or higher
+- pip (Python package manager)
+- Virtual environment tool (venv recommended)
+
+Installation Steps:
+
+1. Clone or download the codebase to your local machine
+
+2. Navigate to the project directory:
+   cd AURA-PROTO
+
+3. Create a virtual environment:
+   python -m venv .venv
+
+4. Activate the virtual environment:
+   - Windows: .venv\Scripts\activate
+   - Linux/Mac: source .venv/bin/activate
+
+5. Install dependencies:
+   pip install -r requirements.txt
+
+6. Run the application:
+   streamlit run UI/summarizer-ui.py
+
+7. Open your browser to the displayed URL (typically http://localhost:8501)
+
+Troubleshooting:
+- If Streamlit is not found, install it manually: pip install streamlit
+- For encoding issues with requirements.txt, manually install: pip install streamlit==1.52.1
+
+================================================================================
+7. USAGE INSTRUCTIONS
+================================================================================
+
+Starting the Application:
+1. Ensure virtual environment is activated
+2. Run: streamlit run UI/summarizer-ui.py
+3. Access the web interface through your browser
+
+Using the Audio Summarizer:
+
+1. File Upload:
+   - Click "Browse files" or drag and drop an audio file
+   - Select from supported formats: MP3, WAV, M4A, FLAC, OGG
+   - Wait for upload confirmation
+
+2. Verify File Details:
+   - Expand "File Details" section
+   - Confirm filename, size, and type
+
+3. Process Audio:
+   - Click "Process Audio" button
+   - Wait for processing to complete
+   - View results in the success/info messages
+
+4. Expected Output:
+   Currently displays: "Successfully received audio file: <filename>"
+   Future: Actual transcription and summary
+
+Browser Compatibility:
+- Chrome/Chromium (recommended)
+- Firefox
+- Safari
+- Edge
+
+================================================================================
+8. DEVELOPMENT ROADMAP
+================================================================================
+
+Phase 1: Prototype Completion [CURRENT]
+☑ Basic UI structure with Streamlit
+☑ File upload functionality
+☑ Backend service placeholder
+☑ Error handling framework
+
+Phase 2: Core STT Implementation [NEXT]
+□ Integrate speech recognition library (SpeechRecognition, Whisper, etc.)
+□ Implement actual audio file processing
+□ Add audio format conversion utilities
+□ Handle various audio codecs and sampling rates
+□ Implement progress tracking for long files
+
+Phase 3: Text Summarization
+□ Integrate text summarization models
+□ Implement extraction-based summarization
+□ Add abstractive summarization options
+□ Create summary formatting and presentation
+□ Support different summary lengths
+
+Phase 4: Enhanced Features
+□ Batch file processing
+□ Audio preprocessing (noise reduction, normalization)
+□ Speaker diarization
+□ Keyword extraction
+□ Export summaries (PDF, TXT, DOC)
+□ Multi-language support
+
+Phase 5: Performance & Scalability
+□ Optimize audio processing pipeline
+□ Implement caching for processed files
+□ Add support for large files
+□ Background processing tasks
+□ User authentication and file management
+
+================================================================================
+9. KNOWN ISSUES AND LIMITATIONS
+================================================================================
+
+Current Limitations:
+
+1. Placeholder STT Implementation:
+   - No actual speech-to-text processing
+   - Returns static confirmation message
+   - No audio content analysis
+
+2. Empty Main Entry Point:
+   - main.py is empty (0 bytes)
+   - Application entry is through UI/summarizer-ui.py
+
+3. Requirements File Encoding:
+   - requirements.txt has encoding issues
+   - Displays special characters instead of clean text
+   - Manual dependency installation may be needed
+
+4. No Real Processing:
+   - Audio files are not actually processed
+   - No transcription or summarization occurs
+   - Console only shows filename confirmation
+
+Technical Debt:
+- Missing unit tests
+- No configuration management
+- No logging framework
+- No error recovery mechanisms
+- Missing input validation
+
+Security Considerations:
+- No file size limits implemented
+- No file type validation beyond extension
+- No authentication or access control
+- Potential for abuse through large file uploads
+
+Performance Issues:
+- Currently processes files synchronously
+- No progress indication for real processing
+- No timeout handling
+- Memory usage not optimized for large files
+
+================================================================================
+10. FUTURE ENHANCEMENTS
+================================================================================
+
+High Priority:
+1. Implement actual STT processing
+2. Add text summarization capabilities
+3. Fix main.py to serve as proper entry point
+4. Create proper requirements.txt
+5. Add comprehensive error handling
+
+Medium Priority:
+1. Implement configuration management
+2. Add logging system
+3. Create unit tests
+4. Add input validation
+5. Implement file size limits
+
+Low Priority:
+1. Performance optimizations
+2. Multi-language support
+3. Advanced audio preprocessing
+4. User management system
+5. API endpoints for external access
+
+================================================================================
+11. CONTRIBUTING GUIDELINES
+================================================================================
+
+Development Setup:
+1. Fork the repository
+2. Create feature branches
+3. Follow Python PEP 8 style guidelines
+4. Add docstrings for all functions
+5. Include unit tests for new features
+
+Code Structure:
+- Keep UI and backend logic separate
+- Use type hints for all functions
+- Implement proper error handling
+- Add logging for debugging
+- Document public APIs
+
+Testing:
+- Test with various audio formats
+- Verify error handling
+- Check UI responsiveness
+- Validate cross-browser compatibility
+
+================================================================================
+12. CONTACT AND SUPPORT
+================================================================================
+
+For issues, questions, or contributions:
+- Review this documentation first
+- Check the current implementation
+- Test with provided examples
+- Submit detailed bug reports
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
