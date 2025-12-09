@@ -13,6 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.stt import process_audio_file
+from services.coc import transform_transcript
 
 def main():
     """Main application function."""
@@ -69,7 +70,11 @@ def main():
             if st.button("Summarize Notes", type="primary"):
                 with st.spinner("Summarizing audio file into readable notes"):
                     try:
-                        pass
+                        # Call the transcript transformation function
+                        clean_transcript = transform_transcript(topic, result)
+                        
+                        # Display cleaned transcript
+                        st.text_area("Cleaned Transcript", clean_transcript, height=150)
 
                     except Exception as e:
                         st.error(f"Error processing audio file: {str(e)}")
