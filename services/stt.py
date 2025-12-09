@@ -1,13 +1,13 @@
 """
-Speech-to-Text Backend Module
-
-This module provides the backend processing functionality for audio files.
+Speech-to-Text Backend ModuleTTThis module provides the backend processing functionality for audio files.
 Currently implements a placeholder interface for audio file processing.
 """
-
+import google.generativeai as genai
 from typing import Union, BinaryIO
 import io
 
+# Configure the Google Generative AI API with your API key
+genai.configure(api_key="AIzaSyAvJi_6r8Hq5cbD4zz57fNhASaJ8Swfbuo")
 
 def process_audio_file(
     audio_input: Union[BinaryIO, bytes, io.BytesIO]
@@ -20,17 +20,48 @@ def process_audio_file(
                     or raw bytes containing audio data
 
     Returns:
-        str: A success confirmation message with filename if available
+        str: A confirmation message indicating successful processing.
 
     Note:
         This is currently a placeholder function. Actual speech-to-text
         logic will be implemented in future iterations.
     """
-    # Extract filename if available (for file-like objects)
-    filename = getattr(audio_input, 'name', 'unknown_audio_file')
     
-    # Print confirmation to console
-    print(f"Audio file received: {filename}")
+    # upload the audio file using Google Generative AI API
+    audio_file = genai.upload_file(audio_input, mime_type="audio/wav")
+    
+    # usage of models/gemini-2.5-flash
+    model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
+    
+    # define the prompt for transcription
+    prompt = """
+        ROLE:
+        You are a precision transcription engine specialized in academic lectures. Your sole function is to convert the provided audio stream into text with 100% fidelity.
+
+        TASK:
+        Transcribe the accompanying audio file of a university lecture exactly as spoken.
+
+        STRICT CONSTRAINTS (MUST FOLLOW):
+        1. VERBATIM ONLY: Do not summarize, condense, or capture "key points." Write down every word spoken by the lecturer.
+        2. NO HALLUCINATION: If a segment is inaudible or unintelligible, mark it as [INAUDIBLE]. Do not invent words to complete sentences.
+        3. NO FILLER ADDITIONS: Do not add introductory phrases like "Here is the transcript" or "The lecturer says." Start directly with the first spoken word.
+        4. PRESERVE CONTEXT: Maintain the exact phrasing and terminology used by the lecturer, even if it seems grammatically imperfect. Do not "autocorrect" the lecturer's speech.
+        5. FORMATTING: Output the text as a continuous stream or naturally paragraphed text based on the speaker's pauses. Do not use bullet points or markdown headers unless the speaker explicitly dictates them.
+
+        OUTPUT:
+        Produce the raw transcript only.
+        
+        Begin!!
+    """
+    
+    # generate content using the uploaded audio file
+    # deterministic (recommended for transcription)
+    response = model.generate_content(
+        [audio_file, prompt],
+        generation_config={"temperature": 0.0},
+        request_options={"timeout": 600}
+    ).text
+    
     
     # Return success message
-    return f"Successfully received audio file: {filename}"
+    return response

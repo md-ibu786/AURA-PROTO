@@ -14,7 +14,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.stt import process_audio_file
 
-
 def main():
     """Main application function."""
     # Set page configuration
@@ -48,8 +47,7 @@ def main():
                     result = process_audio_file(uploaded_file)
                     
                     # Display result
-                    st.success("Processing complete!")
-                    st.info(result)
+                    st.text_area("Transcript", result, height=300)
                     
                 except Exception as e:
                     st.error(f"Error processing audio file: {str(e)}")
