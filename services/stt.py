@@ -64,11 +64,26 @@ def process_audio_file(
     
     # generate content using the uploaded audio file
     # deterministic (recommended for transcription)
-    response = model.generate_content(
+    api_response = model.generate_content(
         [audio_file, prompt],
         generation_config={"temperature": 0.0},
-        request_options={"timeout": 600}
-    ).text
+        request_options={"timeout": 600},
+        safety_settings=[
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
+    )
+
+    if not api_response.parts:
+        # Handle empty response (silence)
+        if api_response.candidates and api_response.candidates[0].finish_reason == 1:
+            return "[SILENCE]"
+
+        raise ValueError(f"Gemini blocked the transcription. Finish reason: {api_response.candidates[0].finish_reason if api_response.candidates else 'Unknown'}")
+
+    response = api_response.text
     
     
     # Return success message

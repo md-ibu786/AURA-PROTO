@@ -82,11 +82,29 @@ def transform_transcript(topic: str, transcript: str) -> str:
     """
     
     # generate the transformed transcript with deterministic generation
-    clean_transcript = model.generate_content(
+    response = model.generate_content(
         prompt,
         generation_config={"temperature": 0.0},
-        request_options={"timeout": 600}
-    ).text
+        request_options={"timeout": 600},
+        safety_settings=[
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
+    )
+
+    if not response.parts:
+        if response.prompt_feedback and response.prompt_feedback.block_reason:
+             raise ValueError(f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}")
+        
+        # Handle empty response (likely due to strict filtering)
+        if response.candidates and response.candidates[0].finish_reason == 1:
+             return "The model filtered out all content. The input might not match the strict academic criteria or the target topic."
+
+        raise ValueError(f"Gemini returned no content. Finish reason: {response.candidates[0].finish_reason if response.candidates else 'Unknown'}")
+
+    clean_transcript = response.text
 
     #prompt for audit
     audit_prompt = f""" 
@@ -143,11 +161,22 @@ def transform_transcript(topic: str, transcript: str) -> str:
         """
         
     # perform the audit
-    response = model.generate_content(
+    audit_response = model.generate_content(
         audit_prompt,
         generation_config={"temperature": 0.0},
-        request_options={"timeout": 600}
-    ).text
+        request_options={"timeout": 600},
+        safety_settings=[
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
+    )
+
+    if not audit_response.parts:
+         raise ValueError(f"Gemini blocked the audit content. Finish reason: {audit_response.candidates[0].finish_reason if audit_response.candidates else 'Unknown'}")
+
+    response = audit_response.text
 
     try:
         result = json.loads(response)
