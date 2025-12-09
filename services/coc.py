@@ -2,9 +2,52 @@ import google.generativeai as genai
 import os
 import dotenv
 import json
+import re
 
 # Load environment variables from .env file
 dotenv.load_dotenv()
+
+
+def clean_and_parse_json(text: str) -> dict:
+    """
+    Robustly parse JSON from LLM output that may contain markdown or extra text.
+    
+    Args:
+        text: The raw text from the LLM which may contain JSON.
+        
+    Returns:
+        Parsed JSON as a dictionary.
+        
+    Raises:
+        json.JSONDecodeError: If no valid JSON can be extracted.
+    """
+    # First, try parsing directly
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    
+    # Remove markdown code blocks if present
+    # Pattern matches ```json ... ``` or ``` ... ```
+    code_block_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+    match = re.search(code_block_pattern, text)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+    
+    # Try to find raw JSON object by matching outermost braces
+    brace_start = text.find('{')
+    brace_end = text.rfind('}')
+    if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
+        try:
+            return json.loads(text[brace_start:brace_end + 1])
+        except json.JSONDecodeError:
+            pass
+    
+    # If all else fails, raise the original error
+    raise json.JSONDecodeError("Could not extract valid JSON from response", text, 0)
 
 # Retrieve the API key from environment variables
 LLM_KEY = os.getenv("LLM_KEY")
@@ -106,59 +149,55 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
     clean_transcript = response.text
 
-    #prompt for audit
-    audit_prompt = f""" 
-        ### SYSTEM ROLE
-        You are a Senior Academic QA Specialist and Logic Auditor. Your mandate is to rigorously validate processed lecture transcripts for structural integrity, thematic relevance, and absolute cleanliness. You are the final quality gate before publication.
-
-        ### INPUT DATA
-        1. **Target Topic:** "{topic}"
-        2. **Candidate Transcript:** A text block processed by a cleaning algorithm.
-
-        ### AUDIT PROTOCOL
-        You must analyze the text against three strict quality vectors:
-
-        #### 1. The "Ghost" Vector (Artifact Detection)
-        - Scan for residual traces of unauthorized speakers (students, audience).
-        - Detect and flag administrative logistical chatter (e.g., "Can everyone see the board?", "Assignment due dates", "Is this on the exam?").
-        - **Constraint:** A clean transcript contains ZERO administrative or conversational metadata.
-
-        #### 2. The Relevance Vector (Topic Fidelity)
-        - Measure the semantic distance between the text and the **Target Topic**.
-        - Flag substantial deviations (e.g., a 200-word story about the lecturer's vacation).
-        - **Note:** Brief illustrative examples *are* permitted; total topic drift is not.
-
-        #### 3. The Logic Vector (Cohesion Analysis)
-        - Detect "Frankenstein sentences" (sentences stitched together incorrectly during cleaning).
-        - Identify logical gaps where an important premise seems missing (likely due to over-aggressive filtering).
-        - Check for sentence fragments or grammar failures.
-
-        ### PROCESSING & REPAIR RULES
-        - **If the text is clean:** Return it exactly as is.
-        - **If minor issues exist (punctuation, obvious fragments):** You are authorized to silently repair them in the `final_text` output.
-        - **If major issues exist (student interruptions, off-topic rants):** You must EXCISE the offending segment from `final_text` and log it in the `flags` array.
-
-        ### OUTPUT CONFIGURATION (Strict JSON)
-        You must return **valid, parsable JSON**. Do not include markdown fencing (```json) or conversational preamble.
-
-        **JSON Schema:**
-        {{
-          "final_text": "string (The fully polished, approved text content)",
-          "flags": [
+    # prompt for audit (build schema separately to avoid f-string brace issues)
+    schema_text = json.dumps(
             {
-              "type": "student_interruption" | "off_topic" | "administrative_chatter" | "logical_break" | "grammar_fix",
-              "snippet": "string (The exact text segment you removed or fixed)",
-              "severity": "low" | "high",
-              "message": "string (Why this was flagged/removed)"
-            }
-          ],
-          "is_clean": boolean (true if flags is empty or only contains minor grammar fixes; false if major deletions occurred),
-          "confidence_score": float (0.0 to 1.0, representing the semantic coherence of the final result)
-        }}
-        ### BEGIN AUDIT
-        candidate_transcript:
-        {clean_transcript}
-        """
+                    "final_text": "string (The fully polished, approved text content)",
+                    "flags": [
+                            {
+                                    "type": "student_interruption | off_topic | administrative_chatter | logical_break | grammar_fix",
+                                    "snippet": "string (The exact text segment you removed or fixed)",
+                                    "severity": "low | high",
+                                    "message": "string (Why this was flagged/removed)",
+                            }
+                    ],
+                    "is_clean": "boolean (true if flags is empty or only contains minor grammar fixes; false if major deletions occurred)",
+                    "confidence_score": "float (0.0 to 1.0, representing the semantic coherence of the final result)",
+            },
+            indent=2,
+    )
+    audit_prompt = f"""
+            ### SYSTEM ROLE
+            You are a Senior Academic QA Specialist and Logic Auditor. Your mandate is to rigorously validate processed lecture transcripts for structural integrity, thematic relevance, and absolute cleanliness. You are the final quality gate before publication.
+            ### INPUT DATA
+            1. **Target Topic:** "{topic}"
+            2. **Candidate Transcript:** A text block processed by a cleaning algorithm.
+            ### AUDIT PROTOCOL
+            You must analyze the text against three strict quality vectors:
+            #### 1. The "Ghost" Vector (Artifact Detection)
+            - Scan for residual traces of unauthorized speakers (students, audience).
+            - Detect and flag administrative logistical chatter (e.g., "Can everyone see the board?", "Assignment due dates", "Is this on the exam?").
+            - **Constraint:** A clean transcript contains ZERO administrative or conversational metadata.
+            #### 2. The Relevance Vector (Topic Fidelity)
+            - Measure the semantic distance between the text and the **Target Topic**.
+            - Flag substantial deviations (e.g., a 200-word story about the lecturer's vacation).
+            - **Note:** Brief illustrative examples *are* permitted; total topic drift is not.
+            #### 3. The Logic Vector (Cohesion Analysis)
+            - Detect "Frankenstein sentences" (sentences stitched together incorrectly during cleaning).
+            - Identify logical gaps where an important premise seems missing (likely due to over-aggressive filtering).
+            - Check for sentence fragments or grammar failures.
+            ### PROCESSING & REPAIR RULES
+            - **If the text is clean:** Return it exactly as is.
+            - **If minor issues exist (punctuation, obvious fragments):** You are authorized to silently repair them in the `final_text` output.
+            - **If major issues exist (student interruptions, off-topic rants):** You must EXCISE the offending segment from `final_text` and log it in the `flags` array.
+            ### OUTPUT CONFIGURATION (Strict JSON)
+            You must return **valid, parsable JSON**. Do not include markdown fencing (```json) or conversational preamble.
+            **JSON Schema:**
+            {schema_text}
+            ### BEGIN AUDIT
+            candidate_transcript:
+            {clean_transcript}
+            """
         
     # perform the audit
     audit_response = model.generate_content(
@@ -179,7 +218,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
     response = audit_response.text
 
     try:
-        result = json.loads(response)
+        result = clean_and_parse_json(response)
 
         print(f"Confidence Score: {result['confidence_score']}")
 
@@ -195,5 +234,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
         return final_output
 
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing failed: {e}")
+        print(f"Raw response was: {response[:500]}...")
         return "Error: Model failed to return valid JSON."
