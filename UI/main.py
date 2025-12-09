@@ -27,12 +27,18 @@ def main():
     st.title("Audio Summarizer")
     st.markdown("Upload an audio file to process and summarize its content.")
     
-    # File uploader widget
-    uploaded_file = st.file_uploader(
-        "Choose an audio file",
-        type=["mp3", "wav", "m4a", "flac", "ogg"],
-        help="Supported formats: MP3, WAV, M4A, FLAC, OGG"
-    )
+    # Topic input + file uploader (upload only allowed after entering topic)
+    topic = st.text_input("Topic of the lecture", value="", help="Specify the lecture topic to improve summarization")
+    is_valid_topic = len(topic.strip()) >= 3
+    if is_valid_topic:
+        uploaded_file = st.file_uploader(
+            "Choose an audio file",
+            type=["mp3", "wav", "m4a", "flac", "ogg"],
+            help="Supported formats: MP3, WAV, M4A, FLAC, OGG"
+        )
+    else:
+        st.warning("Please enter a lecture topic of at least 3 characters to enable file upload.")
+        uploaded_file = None
     
     # Process uploaded file
     if uploaded_file is not None:
