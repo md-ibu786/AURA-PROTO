@@ -14,6 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.stt import process_audio_file
 from services.coc import transform_transcript
+from services.summarizer import generate_university_notes
 
 def main():
     """Main application function."""
@@ -50,6 +51,8 @@ def main():
         st.session_state['uploaded_name'] = None
     if 'last_topic' not in st.session_state:
         st.session_state['last_topic'] = None
+    if 'summarized_notes' not in st.session_state:
+        st.session_state['summarized_notes'] = ""
     
     # Process uploaded file
     if uploaded_file is not None:
@@ -102,5 +105,19 @@ def main():
         elif st.session_state['clean_transcript']:
             st.text_area("Cleaned Transcript", value=st.session_state['clean_transcript'], height=150)
 
+        if st.session_state['clean_transcript']:
+            if st.button("Generate Summarized Notes"):
+                with st.spinner("Generating summarized notes..."):
+                    try:
+                        # Call the note generation function and persist in session
+                        st.session_state['summarized_notes'] = generate_university_notes(
+                            topic,
+                            st.session_state['clean_transcript']
+                        )
+                        # Display summarized notes
+                        st.text_area("Summarized Notes", value=st.session_state['summarized_notes'], height=300)
+
+                    except Exception as e:
+                        st.error(f"Error generating summarized notes: {str(e)}")
 if __name__ == "__main__":
     main()
