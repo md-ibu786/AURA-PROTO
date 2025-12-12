@@ -15,6 +15,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from services.stt import process_audio_file
 from services.coc import transform_transcript
 from services.summarizer import generate_university_notes
+from services.pdf_generator import create_pdf
 
 def main():
     """Main application function."""
@@ -114,10 +115,23 @@ def main():
                             topic,
                             st.session_state['clean_transcript']
                         )
-                        # Display summarized notes
-                        st.text_area("Summarized Notes", value=st.session_state['summarized_notes'], height=300)
-
                     except Exception as e:
                         st.error(f"Error generating summarized notes: {str(e)}")
+
+            if st.session_state['summarized_notes']:
+                # Display summarized notes
+                st.text_area("Summarized Notes", value=st.session_state['summarized_notes'], height=300)
+                
+                # Create PDF
+                pdf_filename = "lecture_notes.pdf"
+                create_pdf(st.session_state['summarized_notes'], topic, pdf_filename)
+                
+                with open(pdf_filename, "rb") as f:
+                    st.download_button(
+                        label="Download PDF",
+                        data=f,
+                        file_name=f"{topic}_notes.pdf",
+                        mime="application/pdf"
+                    )
 if __name__ == "__main__":
     main()

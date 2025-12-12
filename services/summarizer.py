@@ -37,7 +37,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         ### STYLE GUIDE
         * **Voice:** Use an authoritative, third-person objective voice (e.g., "The mechanism functions by..." instead of "The speaker explains that...").
         * **Register:** Formal Academic English. Eliminate conversational fillers, hesitation marks, or redundant speech patterns.
-        * **Formatting:** Use standard Markdown headers, bolding for emphasis, and clear paragraph breaks.
+        * **Formatting:** Use standard Markdown headers (# for main sections, ## for subsections). Use bolding (**text**) for key terms and definitions. Use standard dashes (-) for bullet points.
 
         ### PROCESS (CHAIN OF THOUGHT)
         Before generating the final output, perform the following steps internally:
@@ -47,29 +47,28 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
 
         ### FINAL OUTPUT STRUCTURE
 
-        # Course Module: {topic}
+        # COURSE MODULE: {topic}
 
-        ## 1. Executive Summary
+        ## 1. EXECUTIVE SUMMARY
         (A high-level, 200-word abstract synthesizing the central thesis and scope of the lecture.)
 
-        ## 2. Core Concepts & Theoretical Framework
+        ## 2. CORE CONCEPTS & THEORETICAL FRAMEWORK
         (Organize the body of the lecture into logical subsections. Repeat this block for each distinct subtopic found.)
 
-        ### 2.x [Subtopic Title]
-        * **Concept Definition:** (A precise definition based strictly on the text).
-        * **Elaboration & Mechanics:** (Synthesize the lecturer's explanation into comprehensive prose. Focus on the 'Why' and 'How'. Connect cause and effect.)
-        * **Illustrative Examples:** 
-            * *context:* (Detail specific analogies or case studies mentioned in the transcript. Present them as factual illustrations rather than quoting the speaker. Example: "This concept can be understood effectively through the analogy of...")
-            * *Augmentation:* If NO example or analogy exists in text and the concept is complex, add:
-                > **[Editor's Example/Analogy]:** (Insert your generated example or analogy here to clarify the abstract concept).
+        ### 2.x [SUBTOPIC TITLE]
+        * CONCEPT DEFINITION: (A precise definition based strictly on the text).
+        * ELABORATION & MECHANICS: (Synthesize the lecturer's explanation into comprehensive prose. Focus on the 'Why' and 'How'. Connect cause and effect.)
+        * ILLUSTRATIVE EXAMPLES: 
+            - Context: (Detail specific analogies or case studies mentioned in the transcript. Present them as factual illustrations rather than quoting the speaker. Example: "This concept can be understood effectively through the analogy of...")
+            - Augmentation: If NO example or analogy exists in text and the concept is complex, add:
+                > [EDITOR'S EXAMPLE/ANALOGY]: (Insert your generated example or analogy here to clarify the abstract concept).
 
-        ## 3. Technical Glossary
-        | Term | Contextual Definition |
-        | :--- | :--- |
-        | [Term A] | [Definition extracted from transcript] |
-        | [Term B] | [Definition extracted from transcript] |
+        ## 3. TECHNICAL GLOSSARY
+        (List key terms and their definitions in a clear list format, not a markdown table)
+        - [TERM A]: [Definition extracted from transcript]
+        - [TERM B]: [Definition extracted from transcript]
 
-        ## 4. Key Takeaways
+        ## 4. KEY TAKEAWAYS
         (Bullet points summarizing the 3-5 most critical learning objectives achieved in this lecture.)
         """
 
