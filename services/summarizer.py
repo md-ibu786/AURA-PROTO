@@ -56,6 +56,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         (Organize the body of the lecture into logical subsections. Repeat this block for each distinct subtopic found.)
 
         ### 2.x [SUBTOPIC TITLE]
+        
         * CONCEPT DEFINITION: (A precise definition based strictly on the text).
         * ELABORATION & MECHANICS: (Synthesize the lecturer's explanation into comprehensive prose. Focus on the 'Why' and 'How'. Connect cause and effect.)
         * ILLUSTRATIVE EXAMPLES: 
