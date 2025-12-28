@@ -2,24 +2,103 @@
 Speech-to-Text Backend ModuleTTThis module provides the backend processing functionality for audio files.
 Currently implements a placeholder interface for audio file processing.
 """
-import google.generativeai as genai
-from typing import Union, BinaryIO
+from typing import BinaryIO, Union
 import io
+import mimetypes
 import os
-import dotenv
+import subprocess
+import tempfile
 
-# Load environment variables from .env file
-dotenv.load_dotenv()
+from services.vertex_ai_client import (
+    GenerationConfig,
+    Part,
+    block_none_safety_settings,
+    generate_content,
+    get_model,
+)
 
-# Retrieve the API key from environment variables
-LLM_KEY = os.getenv("LLM_KEY")
 
-# Configure the Google Generative AI API with your API key
-genai.configure(api_key=LLM_KEY)
+def _read_audio_bytes(audio_input: Union[BinaryIO, bytes, io.BytesIO]) -> bytes:
+    if isinstance(audio_input, (bytes, bytearray)):
+        return bytes(audio_input)
+
+    # Streamlit UploadedFile supports getvalue(); prefer it to avoid
+    # consuming the stream for callers.
+    if hasattr(audio_input, "getvalue"):
+        data = audio_input.getvalue()
+        return bytes(data) if isinstance(data, (bytes, bytearray)) else bytes()
+
+    # File-like object
+    if hasattr(audio_input, "seek"):
+        try:
+            audio_input.seek(0)
+        except Exception:
+            pass
+
+    return audio_input.read()
+
+
+def _guess_mime_type(audio_input) -> str:
+    mime_type = "audio/wav"
+    if hasattr(audio_input, "type") and isinstance(getattr(audio_input, "type"), str):
+        return audio_input.type
+
+    if hasattr(audio_input, "name") and isinstance(getattr(audio_input, "name"), str):
+        guessed, _ = mimetypes.guess_type(audio_input.name)
+        if guessed:
+            return guessed
+
+    return mime_type
+
+
+def _ensure_wav_mono_16k(audio_bytes: bytes, mime_type: str, filename: str | None) -> tuple[bytes, str]:
+    # Vertex audio support is finicky across containers/codecs.
+    # Normalize aggressively to 16kHz mono WAV.
+    if mime_type in {"audio/wav", "audio/x-wav"}:
+        return audio_bytes, "audio/wav"
+
+    suffix = ".bin"
+    if filename:
+        _, ext = os.path.splitext(filename)
+        if ext:
+            suffix = ext
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_path = os.path.join(tmpdir, f"input{suffix}")
+        out_path = os.path.join(tmpdir, "output.wav")
+
+        with open(in_path, "wb") as f:
+            f.write(audio_bytes)
+
+        proc = subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i",
+                in_path,
+                "-ac",
+                "1",
+                "-ar",
+                "16000",
+                out_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            stderr_tail = (proc.stderr or "")[-1000:]
+            raise RuntimeError(f"ffmpeg conversion failed: {stderr_tail}")
+
+        with open(out_path, "rb") as f:
+            wav_bytes = f.read()
+
+    return wav_bytes, "audio/wav"
+
 
 def process_audio_file(
     audio_input: Union[BinaryIO, bytes, io.BytesIO]
 ) -> str:
+
     """
     Process an audio file and return a confirmation message.
 
@@ -35,11 +114,26 @@ def process_audio_file(
         logic will be implemented in future iterations.
     """
     
-    # upload the audio file using Google Generative AI API
-    audio_file = genai.upload_file(audio_input, mime_type="audio/wav")
-    
+    audio_bytes = _read_audio_bytes(audio_input)
+    if not audio_bytes:
+        raise ValueError(
+            "Audio input was empty. If using Streamlit, ensure the uploaded file "
+            "is only processed once (or use UploadedFile.getvalue())."
+        )
+
+    filename = (
+        getattr(audio_input, "name", None)
+        if not isinstance(audio_input, (bytes, bytearray))
+        else None
+    )
+    mime_type = _guess_mime_type(audio_input)
+    audio_bytes, mime_type = _ensure_wav_mono_16k(audio_bytes, mime_type, filename)
+
+    audio_part = Part.from_data(data=audio_bytes, mime_type=mime_type)
+
     # usage of models/gemini-2.5-flash
-    model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
+    model = get_model(model_name="models/gemini-2.5-flash")
+
     
     # define the prompt for transcription
     prompt = """
@@ -64,27 +158,29 @@ def process_audio_file(
     
     # generate content using the uploaded audio file
     # deterministic (recommended for transcription)
-    api_response = model.generate_content(
-        [audio_file, prompt],
-        generation_config={"temperature": 0.0},
-        request_options={"timeout": 600},
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
+    api_response = generate_content(
+        model,
+        [audio_part, Part.from_text(prompt)],
+        generation_config=GenerationConfig(temperature=0.0),
+        safety_settings=block_none_safety_settings(),
     )
 
-    if not api_response.parts:
+
+    response_text = getattr(api_response, "text", None)
+    if not response_text:
         # Handle empty response (silence)
-        if api_response.candidates and api_response.candidates[0].finish_reason == 1:
-            return "[SILENCE]"
+        candidates = getattr(api_response, "candidates", None) or []
+        if candidates:
+            finish_reason = getattr(candidates[0], "finish_reason", None)
+            if finish_reason == 1:
+                return "[SILENCE]"
+            raise ValueError(
+                "Gemini blocked the transcription. Finish reason: "
+                f"{finish_reason if finish_reason is not None else 'Unknown'}"
+            )
 
-        raise ValueError(f"Gemini blocked the transcription. Finish reason: {api_response.candidates[0].finish_reason if api_response.candidates else 'Unknown'}")
+        return "[SILENCE]"
 
-    response = api_response.text
-    
-    
-    # Return success message
-    return response
+    # Return transcription
+    return response_text
+

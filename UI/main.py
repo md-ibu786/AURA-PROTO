@@ -177,13 +177,6 @@ with col_status:
                 
                 # Step 1: Transcribe
                 status_text.text("🎧 Step 1/3: Transcribing audio...")
-                process_audio_file(uploaded_file) # Assuming this returns string, but current code puts it in session state?
-                # Wait, the original code assigned result = process_audio_file(...) and then put in state
-                # Let's check original imports: from services.stt import process_audio_file
-                
-                # Re-reading lines 170-172 of original:
-                # result = process_audio_file(st.session_state['uploaded_file'])
-                # st.session_state['transcript'] = result
                 
                 transcript_result = process_audio_file(uploaded_file)
                 st.session_state['transcript'] = transcript_result
@@ -233,12 +226,12 @@ col1, col2 = st.columns([1, 1])
 with col1:
     if st.session_state['transcript']:
         with st.expander("Transcript"):
-            st.text(st.session_state['transcript'][:500] + "..." if len(st.session_state['transcript']) > 500 else st.session_state['transcript'])
+            st.text(st.session_state['transcript'] + "..." if len(st.session_state['transcript']) > 500 else st.session_state['transcript'])
 
 with col2:
     if st.session_state['refined_transcript']:
         with st.expander("Refined Transcript"):
-            st.text(st.session_state['refined_transcript'][:500] + "..." if len(st.session_state['refined_transcript']) > 500 else st.session_state['refined_transcript'])
+            st.text(st.session_state['refined_transcript'] + "..." if len(st.session_state['refined_transcript']) > 500 else st.session_state['refined_transcript'])
 
 if st.session_state['summarized_notes']:
     st.markdown("### Summarized Notes")

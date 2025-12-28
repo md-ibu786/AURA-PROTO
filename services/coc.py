@@ -1,11 +1,12 @@
-import google.generativeai as genai
-import os
-import dotenv
 import json
 import re
 
-# Load environment variables from .env file
-dotenv.load_dotenv()
+from services.vertex_ai_client import (
+    GenerationConfig,
+    block_none_safety_settings,
+    generate_content,
+    get_model,
+)
 
 
 def clean_and_parse_json(text: str) -> dict:
@@ -49,14 +50,6 @@ def clean_and_parse_json(text: str) -> dict:
     # If all else fails, raise the original error
     raise json.JSONDecodeError("Could not extract valid JSON from response", text, 0)
 
-# Retrieve the API key from environment variables
-LLM_KEY = os.getenv("LLM_KEY")
-
-# Configure the Google Generative AI API with your API key
-genai.configure(api_key=LLM_KEY)
-
-# usage of models/gemini-2.5-flash
-model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
 
 def transform_transcript(topic: str, transcript: str) -> str:
     """
@@ -69,18 +62,12 @@ def transform_transcript(topic: str, transcript: str) -> str:
         str: The transformed transcript.
     """
     
-    # usage of models/gemini-2.5-flash
-    model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
+    # usage of models/gemini-3-flash-preview
+    model = get_model(model_name="models/gemini-3-flash-preview")
+
     
     # define the prompt for transformation
     # include the raw transcript explicitly in the prompt so the model can process it
-    # limit transcript length to avoid prompt overflow (trim if very long)
-    max_transcript_len = 40000
-    safe_transcript = transcript
-    if len(safe_transcript) > max_transcript_len:
-        safe_transcript = safe_transcript[-max_transcript_len:]
-        safe_transcript = "[TRUNCATED START]\n" + safe_transcript
-
     prompt = f"""
         SYSTEM ROLE:
         You are an Elite Academic Editor and Content Curator. Your primary function is to transform raw, noisy audio transcripts into pristine, high-fidelity lecture notes. You possess a deep understanding of academic discourse and are capable of distinguishing between core educational content and conversational noise.
@@ -89,7 +76,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
         1. *Raw Transcript:* Begin the section below with the raw transcript provided for processing.
 
         RAW TRANSCRIPT:
-        {safe_transcript}
+        {transcript}
 
         2. *Target Topic:* "{topic}"
 
@@ -125,29 +112,27 @@ def transform_transcript(topic: str, transcript: str) -> str:
     """
     
     # generate the transformed transcript with deterministic generation
-    response = model.generate_content(
+    response = generate_content(
+        model,
         prompt,
-        generation_config={"temperature": 0.0},
-        request_options={"timeout": 600},
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
+        generation_config=GenerationConfig(temperature=0.0),
+        safety_settings=block_none_safety_settings(),
     )
 
-    if not response.parts:
-        if response.prompt_feedback and response.prompt_feedback.block_reason:
-             raise ValueError(f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}")
-        
+    response_text = getattr(response, "text", None)
+    if not response_text:
+        if getattr(response, "prompt_feedback", None) and getattr(response.prompt_feedback, "block_reason", None):
+            raise ValueError(f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}")
+
         # Handle empty response (likely due to strict filtering)
-        if response.candidates and response.candidates[0].finish_reason == 1:
-             return "The model filtered out all content. The input might not match the strict academic criteria or the target topic."
+        candidates = getattr(response, "candidates", None) or []
+        if candidates and getattr(candidates[0], "finish_reason", None) == 1:
+            return "The model filtered out all content. The input might not match the strict academic criteria or the target topic."
 
-        raise ValueError(f"Gemini returned no content. Finish reason: {response.candidates[0].finish_reason if response.candidates else 'Unknown'}")
+        finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
+        raise ValueError(f"Gemini returned no content. Finish reason: {finish_reason}")
 
-    clean_transcript = response.text
+    clean_transcript = response_text
 
     # prompt for audit (build schema separately to avoid f-string brace issues)
     schema_text = json.dumps(
@@ -200,41 +185,29 @@ def transform_transcript(topic: str, transcript: str) -> str:
             """
         
     # perform the audit
-    audit_response = model.generate_content(
+    audit_response = generate_content(
+        model,
         audit_prompt,
-        generation_config={"temperature": 0.0},
-        request_options={"timeout": 600},
-        safety_settings=[
-            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-        ]
+        generation_config=GenerationConfig(temperature=0.0),
+        safety_settings=block_none_safety_settings(),
     )
 
-    if not audit_response.parts:
-         raise ValueError(f"Gemini blocked the audit content. Finish reason: {audit_response.candidates[0].finish_reason if audit_response.candidates else 'Unknown'}")
+    audit_text = getattr(audit_response, "text", None)
+    if not audit_text:
+        candidates = getattr(audit_response, "candidates", None) or []
+        finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
+        raise ValueError(f"Gemini blocked the audit content. Finish reason: {finish_reason}")
 
-    response = audit_response.text
+    response = audit_text
 
     try:
         result = clean_and_parse_json(response)
 
-        print(f"Confidence Score: {result['confidence_score']}")
-
-        if result.get('flags'):
-            print("⚠️ Flags Detected:")
-            for flag in result['flags']:
-                print(f"- [{flag['severity'].upper()}] {flag['message']} (Snippet: '{flag['snippet']}')")
-        else:
-            print("✅ Verification Passed. No flags.")
 
         # This 'final_text' is what goes into your database
         final_output = result['final_text']
 
         return final_output
 
-    except json.JSONDecodeError as e:
-        print(f"JSON parsing failed: {e}")
-        print(f"Raw response was: {response[:500]}...")
+    except json.JSONDecodeError:
         return "Error: Model failed to return valid JSON."

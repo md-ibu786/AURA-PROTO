@@ -1,23 +1,11 @@
-import google.generativeai as genai
-import os
-import dotenv
+from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
-dotenv.load_dotenv()
-
-# Retrieve the API key from environment variables
-LLM_KEY = os.getenv("LLM_KEY")
-
-# Configure the Google Generative AI API with your API key
-genai.configure(api_key=LLM_KEY)
 
 def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
-    """
-    Generates structured, university-grade notes from a cleaned transcript.
-    """
-    # Use 2.5 Flash for superior text synthesis and formatting
-    model = genai.GenerativeModel(model_name="models/gemini-2.5-flash")
-    
-    # Define the detailed prompt for note generation
+    """Generates structured, university-grade notes from a cleaned transcript."""
+
+    model = get_model(model_name="models/gemini-3-flash-preview")
+
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
         You are an Expert Academic Author and Curriculum Designer. Your task is to transform raw lecture transcripts into high-density, university-grade textbook chapters. You prioritize structural logic, rigorous definitions, and academic tone.
@@ -56,10 +44,10 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         (Organize the body of the lecture into logical subsections. Repeat this block for each distinct subtopic found.)
 
         ### 2.x [SUBTOPIC TITLE]
-        
+
         * CONCEPT DEFINITION: (A precise definition based strictly on the text).
         * ELABORATION & MECHANICS: (Synthesize the lecturer's explanation into comprehensive prose. Focus on the 'Why' and 'How'. Connect cause and effect.)
-        * ILLUSTRATIVE EXAMPLES: 
+        * ILLUSTRATIVE EXAMPLES:
             - Context: (Detail specific analogies or case studies mentioned in the transcript. Present them as factual illustrations rather than quoting the speaker. Example: "This concept can be understood effectively through the analogy of...")
             - Augmentation: If NO example or analogy exists in text and the concept is complex, add:
                 > [EDITOR'S EXAMPLE/ANALOGY]: (Insert your generated example or analogy here to clarify the abstract concept).
@@ -74,12 +62,11 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         """
 
     try:
-        response = model.generate_content(
+        response = generate_content(
+            model,
             note_taking_prompt,
-            generation_config={"temperature": 0.3}, # Low temp = strict adherence to facts
-            request_options={"timeout": 600}
+            generation_config=GenerationConfig(temperature=0.3),
         )
         return response.text
-        
     except Exception as e:
         return f"Note Generation Failed: {str(e)}"
