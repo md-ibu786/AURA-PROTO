@@ -100,21 +100,50 @@ def update_department(dept_id: int, dept: DepartmentUpdate):
 
 @router.delete("/departments/{dept_id}")
 def delete_department(dept_id: int):
-    """Delete a department (cascades to all child records)"""
+    """Delete a department (cascades to all child records AND deletes files)"""
+    import os
+    
     # Check if exists
     existing = execute_one("SELECT * FROM departments WHERE id = ?", (dept_id,))
     if not existing:
         raise HTTPException(status_code=404, detail="Department not found")
     
-    # Count child records that will be deleted
+    # Count child records
     sem_count = execute_one("SELECT COUNT(*) as cnt FROM semesters WHERE department_id = ?", (dept_id,))
     
+    # Cleanup Files: Find all notes under this department
+    # Note: Requires a JOIN or multiple queries. With SQLite/Simple schema, we can do a subquery
+    notes_to_delete = execute_query("""
+        SELECT n.pdf_url 
+        FROM notes n
+        JOIN modules m ON n.module_id = m.id
+        JOIN subjects s ON m.subject_id = s.id
+        JOIN semesters sem ON s.semester_id = sem.id
+        WHERE sem.department_id = ?
+    """, (dept_id,))
+
+    files_deleted = 0
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for note in notes_to_delete:
+        pdf_url = note.get('pdf_url')
+        if pdf_url:
+            try:
+                clean_path = pdf_url.lstrip('/')
+                file_path = os.path.join(base_dir, clean_path)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    files_deleted += 1
+            except Exception:
+                pass
+
     try:
         execute_query("DELETE FROM departments WHERE id = ?", (dept_id,))
         return {
             "message": "Department deleted (cascade)",
             "deleted_department": existing,
-            "cascaded_semesters": sem_count['cnt'] if sem_count else 0
+            "cascaded_semesters": sem_count['cnt'] if sem_count else 0,
+            "files_cleaned_up": files_deleted
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting department: {str(e)}")
@@ -172,19 +201,45 @@ def update_semester(sem_id: int, sem: SemesterUpdate):
 
 @router.delete("/semesters/{sem_id}")
 def delete_semester(sem_id: int):
-    """Delete a semester (cascades to subjects, modules, notes)"""
+    """Delete a semester (cascades to subjects, modules, notes AND deletes files)"""
+    import os
     existing = execute_one("SELECT * FROM semesters WHERE id = ?", (sem_id,))
     if not existing:
         raise HTTPException(status_code=404, detail="Semester not found")
     
     subj_count = execute_one("SELECT COUNT(*) as cnt FROM subjects WHERE semester_id = ?", (sem_id,))
     
+    # Cleanup Files
+    notes_to_delete = execute_query("""
+        SELECT n.pdf_url 
+        FROM notes n
+        JOIN modules m ON n.module_id = m.id
+        JOIN subjects s ON m.subject_id = s.id
+        WHERE s.semester_id = ?
+    """, (sem_id,))
+
+    files_deleted = 0
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for note in notes_to_delete:
+        pdf_url = note.get('pdf_url')
+        if pdf_url:
+            try:
+                clean_path = pdf_url.lstrip('/')
+                file_path = os.path.join(base_dir, clean_path)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    files_deleted += 1
+            except Exception:
+                pass
+
     try:
         execute_query("DELETE FROM semesters WHERE id = ?", (sem_id,))
         return {
             "message": "Semester deleted (cascade)",
             "deleted_semester": existing,
-            "cascaded_subjects": subj_count['cnt'] if subj_count else 0
+            "cascaded_subjects": subj_count['cnt'] if subj_count else 0,
+            "files_cleaned_up": files_deleted
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting semester: {str(e)}")
@@ -241,19 +296,44 @@ def update_subject(subj_id: int, subj: SubjectUpdate):
 
 @router.delete("/subjects/{subj_id}")
 def delete_subject(subj_id: int):
-    """Delete a subject (cascades to modules, notes)"""
+    """Delete a subject (cascades to modules, notes AND deletes files)"""
+    import os
     existing = execute_one("SELECT * FROM subjects WHERE id = ?", (subj_id,))
     if not existing:
         raise HTTPException(status_code=404, detail="Subject not found")
     
     mod_count = execute_one("SELECT COUNT(*) as cnt FROM modules WHERE subject_id = ?", (subj_id,))
     
+    # Cleanup Files
+    notes_to_delete = execute_query("""
+        SELECT n.pdf_url 
+        FROM notes n
+        JOIN modules m ON n.module_id = m.id
+        WHERE m.subject_id = ?
+    """, (subj_id,))
+
+    files_deleted = 0
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for note in notes_to_delete:
+        pdf_url = note.get('pdf_url')
+        if pdf_url:
+            try:
+                clean_path = pdf_url.lstrip('/')
+                file_path = os.path.join(base_dir, clean_path)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    files_deleted += 1
+            except Exception:
+                pass
+
     try:
         execute_query("DELETE FROM subjects WHERE id = ?", (subj_id,))
         return {
             "message": "Subject deleted (cascade)",
             "deleted_subject": existing,
-            "cascaded_modules": mod_count['cnt'] if mod_count else 0
+            "cascaded_modules": mod_count['cnt'] if mod_count else 0,
+            "files_cleaned_up": files_deleted
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting subject: {str(e)}")
@@ -310,19 +390,39 @@ def update_module(mod_id: int, mod: ModuleUpdate):
 
 @router.delete("/modules/{mod_id}")
 def delete_module(mod_id: int):
-    """Delete a module (cascades to notes)"""
+    """Delete a module (cascades to notes AND deletes files)"""
+    import os
     existing = execute_one("SELECT * FROM modules WHERE id = ?", (mod_id,))
     if not existing:
         raise HTTPException(status_code=404, detail="Module not found")
     
     note_count = execute_one("SELECT COUNT(*) as cnt FROM notes WHERE module_id = ?", (mod_id,))
     
+    # Cleanup Files
+    notes_to_delete = execute_query("SELECT pdf_url FROM notes WHERE module_id = ?", (mod_id,))
+
+    files_deleted = 0
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for note in notes_to_delete:
+        pdf_url = note.get('pdf_url')
+        if pdf_url:
+            try:
+                clean_path = pdf_url.lstrip('/')
+                file_path = os.path.join(base_dir, clean_path)
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    files_deleted += 1
+            except Exception:
+                pass
+
     try:
         execute_query("DELETE FROM modules WHERE id = ?", (mod_id,))
         return {
             "message": "Module deleted (cascade)",
             "deleted_module": existing,
-            "cascaded_notes": note_count['cnt'] if note_count else 0
+            "cascaded_notes": note_count['cnt'] if note_count else 0,
+            "files_cleaned_up": files_deleted
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting module: {str(e)}")
@@ -345,17 +445,45 @@ def update_note(note_id: int, note: NoteUpdate):
 
 @router.delete("/notes/{note_id}")
 def delete_note(note_id: int):
-    """Delete a note (does NOT delete the PDF file - manual cleanup needed)"""
+    """Delete a note AND its associated PDF file"""
+    import os
+    
+    # Check if exists
     existing = execute_one("SELECT * FROM notes WHERE id = ?", (note_id,))
     if not existing:
         raise HTTPException(status_code=404, detail="Note not found")
     
+    deleted_file = False
+    error_msg = None
+
+    # Try to delete the file
+    pdf_url = existing.get('pdf_url')
+    if pdf_url:
+        # Construct absolute path. 
+        # pdf_url is stored as "pdfs/filename.pdf" or similar relative path
+        # We need to resolve it relative to the PROJECT ROOT
+        try:
+            # Assuming api/hierarchy_crud.py is in /api, so up one level is root
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            # If pdf_url starts with /, remove it to join correctly
+            clean_path = pdf_url.lstrip('/')
+            file_path = os.path.join(base_dir, clean_path)
+            
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                deleted_file = True
+            else:
+                error_msg = f"File not found at {file_path}"
+        except Exception as e:
+            error_msg = f"Failed to delete file: {str(e)}"
+
     try:
         execute_query("DELETE FROM notes WHERE id = ?", (note_id,))
         return {
-            "message": "Note deleted from database",
+            "message": "Note deleted successfully",
             "deleted_note": existing,
-            "warning": "PDF file not deleted - requires manual cleanup"
+            "file_deleted": deleted_file,
+            "file_error": error_msg
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting note: {str(e)}")

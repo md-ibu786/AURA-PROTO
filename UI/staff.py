@@ -435,36 +435,5 @@ else:
 
 # ========== SIDEBAR TOOLS ==========
 with st.sidebar:
-    st.header("🛠️ Tools")
-    
-    if st.button("🧹 Cleanup PDFs", use_container_width=True):
-        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tools', 'cleanup_pdfs.py')
-        try:
-            res = subprocess.run([sys.executable, script], capture_output=True, text=True, timeout=60)
-            if res.stdout:
-                st.code(res.stdout)
-        except Exception as e:
-            st.error(str(e))
-    
-    if st.button("🗑️ Prune Missing Notes", use_container_width=True):
-        script = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tools', 'prune_missing_notes.py')
-        try:
-            res = subprocess.run([sys.executable, script], capture_output=True, text=True, timeout=60)
-            if res.stdout:
-                st.code(res.stdout)
-                st.session_state['prune_output'] = res.stdout
-        except Exception as e:
-            st.error(str(e))
-    
-    if st.session_state.get('prune_output'):
-        if st.checkbox("Confirm deletion"):
-            if st.button("⚠️ Execute Delete", use_container_width=True):
-                script = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'tools', 'prune_missing_notes.py')
-                try:
-                    res = subprocess.run([sys.executable, script, '--delete'], capture_output=True, text=True, timeout=60)
-                    if res.stdout:
-                        st.code(res.stdout)
-                    st.session_state.pop('prune_output', None)
-                except Exception as e:
-                    st.error(str(e))
+    st.info("ℹ️ System is now auto-cleaning files on deletion.")
 
