@@ -147,60 +147,82 @@ st.title("AURA-PROTO - Audio Summarizer")
 st.markdown("Upload an audio file to process and summarize its content.")
 
 # Input section
-col1, col2 = st.columns([1, 1])
+# Input section
+st.subheader("Start New Session")
+st.info("💡 **Tip:** Set the topic *before* uploading the audio file. Processing starts automatically upon upload.")
 
-with col1:
-    st.subheader("Input")
+col_input, col_status = st.columns([1, 1])
+
+with col_input:
     topic = st.text_input("Topic of the lecture", value="Artificial Intelligence")
     uploaded_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a", "flac", "ogg"])
-    
-    if uploaded_file:
-        st.session_state['uploaded_file'] = uploaded_file
-        st.success(f"File uploaded: {uploaded_file.name}")
 
-with col2:
-    st.subheader("Processing")
-    
-    col_a, col_b, col_c = st.columns(3)
-    
-    with col_a:
-        if st.button("Transcribe", use_container_width=True):
-            if st.session_state['uploaded_file']:
-                try:
-                    with st.spinner("Transcribing..."):
-                        result = process_audio_file(st.session_state['uploaded_file'])
-                        st.session_state['transcript'] = result
-                        st.success("Transcription complete!")
-                except Exception as e:
-                    st.error(f"Error processing audio file: {e}")
-            else:
-                st.warning("Please upload an audio file first.")
-    
-    with col_b:
-        if st.button("Refine", use_container_width=True):
-            if st.session_state['transcript']:
-                try:
-                    with st.spinner("Refining..."):
-                        result = transform_transcript(topic, st.session_state['transcript'])
-                        st.session_state['refined_transcript'] = result
-                        st.success("Refinement complete!")
-                except Exception as e:
-                    st.error(f"Error refining transcript: {e}")
-            else:
-                st.warning("Please transcribe first.")
-    
-    with col_c:
-        if st.button("Summarize", use_container_width=True):
-            if st.session_state['refined_transcript']:
-                try:
-                    with st.spinner("Summarizing..."):
-                        result = generate_university_notes(topic, st.session_state['refined_transcript'])
-                        st.session_state['summarized_notes'] = result
-                        st.success("Summarization complete!")
-                except Exception as e:
-                    st.error(f"Error generating summary: {e}")
-            else:
-                st.warning("Please refine transcript first.")
+# New session state for tracking processed file
+if 'last_processed_file' not in st.session_state:
+    st.session_state['last_processed_file'] = None
+
+with col_status:
+    if uploaded_file:
+        # Check if this is a new file or we need to re-process
+        # We use file name + size as a simple unique identifier proxy (or just name if size unstable in stream)
+        current_file_id = f"{uploaded_file.name}_{uploaded_file.size}"
+        
+        if st.session_state['last_processed_file'] != current_file_id:
+            st.session_state['uploaded_file'] = uploaded_file
+             
+            # AUTOMATED PIPELINE
+            try:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                
+                # Step 1: Transcribe
+                status_text.text("🎧 Step 1/3: Transcribing audio...")
+                process_audio_file(uploaded_file) # Assuming this returns string, but current code puts it in session state?
+                # Wait, the original code assigned result = process_audio_file(...) and then put in state
+                # Let's check original imports: from services.stt import process_audio_file
+                
+                # Re-reading lines 170-172 of original:
+                # result = process_audio_file(st.session_state['uploaded_file'])
+                # st.session_state['transcript'] = result
+                
+                transcript_result = process_audio_file(uploaded_file)
+                st.session_state['transcript'] = transcript_result
+                progress_bar.progress(33)
+                
+                # Step 2: Refine
+                status_text.text("✨ Step 2/3: Refining transcript...")
+                refined_result = transform_transcript(topic, transcript_result)
+                st.session_state['refined_transcript'] = refined_result
+                progress_bar.progress(66)
+                
+                # Step 3: Summarize
+                status_text.text("📝 Step 3/3: Generating university notes...")
+                notes_result = generate_university_notes(topic, refined_result)
+                st.session_state['summarized_notes'] = notes_result
+                progress_bar.progress(100)
+                
+                status_text.success("✅ All steps completed successfully!")
+                time.sleep(1) # Brief pause to show success
+                status_text.empty()
+                progress_bar.empty()
+                
+                # Mark as processed
+                st.session_state['last_processed_file'] = current_file_id
+                
+            except Exception as e:
+                st.error(f"❌ Error during processing: {e}")
+                # Reset processed state so they can try again if they fix it (e.g. re-upload)
+                st.session_state['last_processed_file'] = None
+        else:
+            st.success(f"✅ File '{uploaded_file.name}' processed.")
+    else:
+        # Reset state if file removed
+        if st.session_state['last_processed_file'] is not None:
+             st.session_state['last_processed_file'] = None
+             st.session_state['transcript'] = ""
+             st.session_state['refined_transcript'] = ""
+             st.session_state['summarized_notes'] = ""
+        st.info("Waiting for file upload...")
 
 # Results section
 st.divider()
