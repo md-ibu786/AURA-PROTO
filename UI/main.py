@@ -178,13 +178,16 @@ with col_status:
                 # Step 1: Transcribe
                 status_text.text("🎧 Step 1/3: Transcribing audio...")
                 
-                transcript_result = process_audio_file(uploaded_file)
-                st.session_state['transcript'] = transcript_result
+                transcript_data = process_audio_file(uploaded_file)
+                # Handle new dict return type from process_audio_file
+                transcript_text = transcript_data["text"] if isinstance(transcript_data, dict) else transcript_data
+                
+                st.session_state['transcript'] = transcript_text
                 progress_bar.progress(33)
                 
                 # Step 2: Refine
                 status_text.text("✨ Step 2/3: Refining transcript...")
-                refined_result = transform_transcript(topic, transcript_result)
+                refined_result = transform_transcript(topic, transcript_text)
                 st.session_state['refined_transcript'] = refined_result
                 progress_bar.progress(66)
                 
@@ -226,12 +229,13 @@ col1, col2 = st.columns([1, 1])
 with col1:
     if st.session_state['transcript']:
         with st.expander("Transcript"):
-            st.text(st.session_state['transcript'] + "..." if len(st.session_state['transcript']) > 500 else st.session_state['transcript'])
+            t_text = st.session_state['transcript']
+            st.text(t_text)
 
 with col2:
     if st.session_state['refined_transcript']:
         with st.expander("Refined Transcript"):
-            st.text(st.session_state['refined_transcript'] + "..." if len(st.session_state['refined_transcript']) > 500 else st.session_state['refined_transcript'])
+            st.text(st.session_state['refined_transcript'])
 
 if st.session_state['summarized_notes']:
     st.markdown("### Summarized Notes")

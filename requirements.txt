@@ -1,5 +1,6 @@
 streamlit==1.52.1
 google-generativeai
+deepgram-sdk
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 requests==2.31.0
