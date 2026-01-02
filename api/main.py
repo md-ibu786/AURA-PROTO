@@ -2,21 +2,63 @@
 FastAPI app for hierarchy and notes explorer
 Run with: uvicorn main:app --reload
 """
+# Load environment variables from .env file BEFORE other imports
+from dotenv import load_dotenv
+import os
+
+# Load .env from project root (one level up from api/)
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
+
+# Fix relative GOOGLE_APPLICATION_CREDENTIALS path to absolute
+gac = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
+if gac and not os.path.isabs(gac):
+    # Resolve relative to project root
+    abs_gac = os.path.normpath(os.path.join(project_root, gac))
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = abs_gac
+    print(f"[DEBUG] Resolved GOOGLE_APPLICATION_CREDENTIALS to: {abs_gac}")
+    print(f"[DEBUG] File exists: {os.path.exists(abs_gac)}")
+else:
+    print(f"[DEBUG] GOOGLE_APPLICATION_CREDENTIALS = {gac}")
+
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 try:
     from hierarchy import get_all_departments, get_semesters_by_department, get_subjects_by_semester, get_modules_by_subject
     from notes_explorer import router as notes_router
     from hierarchy_crud import router as crud_router
+    from explorer import router as explorer_router
+    from audio_processing import router as audio_router
 except ImportError:
     from api.hierarchy import get_all_departments, get_semesters_by_department, get_subjects_by_semester, get_modules_by_subject
     from api.notes_explorer import router as notes_router
     from api.hierarchy_crud import router as crud_router
+    from api.explorer import router as explorer_router
+    from api.audio_processing import router as audio_router
 
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
+
+# CORS configuration for React frontend
+origins = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # Alternative React dev port
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(notes_router)
 app.include_router(crud_router)
-
-# Serve local pdfs folder for development (mounted at /pdfs)
+app.include_router(explorer_router)
+app.include_router(audio_router)
 from fastapi.staticfiles import StaticFiles
 import os
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
