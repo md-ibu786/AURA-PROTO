@@ -1,25 +1,66 @@
-/**
- * Explorer Page - Main file browser interface
- */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useExplorerStore } from '../stores';
 import { getExplorerTree } from '../api';
+import * as api from '../api';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Header } from '../components/layout/Header';
 import { GridView } from '../components/explorer/GridView';
 import { ListView } from '../components/explorer/ListView';
 import { ContextMenu } from '../components/explorer/ContextMenu';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
 
 export default function ExplorerPage() {
-    const { viewMode, currentPath, contextMenuPosition, closeContextMenu, creatingNodeType } = useExplorerStore();
+    const {
+        viewMode,
+        currentPath,
+        contextMenuPosition,
+        closeContextMenu,
+        creatingNodeType,
+        deleteDialogOpen,
+        nodeToDelete,
+        closeDeleteDialog
+    } = useExplorerStore();
+
+    const queryClient = useQueryClient();
 
     // Fetch hierarchy tree
     const { data: tree = [], isLoading, error } = useQuery({
         queryKey: ['explorer', 'tree'],
         queryFn: () => getExplorerTree(5),
     });
+
+    const handleDeleteConfirm = async () => {
+        if (!nodeToDelete) return;
+
+        const { id, type } = nodeToDelete;
+        closeDeleteDialog();
+
+        try {
+            switch (type) {
+                case 'department':
+                    await api.deleteDepartment(id);
+                    break;
+                case 'semester':
+                    await api.deleteSemester(id);
+                    break;
+                case 'subject':
+                    await api.deleteSubject(id);
+                    break;
+                case 'module':
+                    await api.deleteModule(id);
+                    break;
+                case 'note':
+                    await api.deleteNote(id);
+                    break;
+            }
+
+            await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
+        } catch (error) {
+            alert(`Failed to delete: ${(error as Error).message}`);
+        }
+    };
 
     // Get current folder's children to display
     const getCurrentChildren = (): FileSystemNode[] => {
@@ -100,6 +141,14 @@ export default function ExplorerPage() {
             </main>
 
             {contextMenuPosition && <ContextMenu />}
+
+            <ConfirmDialog
+                isOpen={deleteDialogOpen}
+                title="Confirm Delete"
+                message={nodeToDelete ? `Are you sure you want to delete "${nodeToDelete.label}"? This action cannot be undone.` : ''}
+                onConfirm={handleDeleteConfirm}
+                onCancel={closeDeleteDialog}
+            />
         </div>
     );
 }

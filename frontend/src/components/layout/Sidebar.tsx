@@ -28,7 +28,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
 
     const isAtModuleLevel = pathDepth === 4 && currentNode?.type === 'module';
     const currentModule = isAtModuleLevel ? currentNode : null;
-    const moduleId = currentModule ? parseInt(currentModule.id.split('-')[1]) : 0;
+    const moduleId = currentModule?.id ?? '';
 
     // Get create button config based on depth
     const getCreateConfig = (): { label: string; type: HierarchyType } | null => {
@@ -51,7 +51,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
     const handleCreate = () => {
         if (createConfig) {
             // Get parent ID from current path (null for root/departments)
-            const parentId = currentNode ? parseInt(currentNode.id.split('-')[1]) : null;
+            const parentId = currentNode?.id ?? null;
             startCreating(createConfig.type, parentId);
         }
     };

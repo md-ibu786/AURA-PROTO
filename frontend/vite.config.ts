@@ -12,13 +12,14 @@ export default defineConfig({
     },
     server: {
         port: 5173,
+        host: true,  // Expose to all network interfaces
         proxy: {
             '/api': {
-                target: 'http://localhost:8000',
+                target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
             },
             '/pdfs': {
-                target: 'http://localhost:8000',
+                target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
             },
         },

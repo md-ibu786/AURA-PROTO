@@ -1,23 +1,24 @@
 """
-Explorer API endpoints for React frontend.
+Explorer API endpoints for React frontend using Firestore (Async).
 Provides tree view of hierarchy and move/rename operations.
+Uses asyncio.gather for parallel children fetching.
 """
+import asyncio
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any, Literal
+from typing import Optional, List
 from enum import Enum
+from google.cloud import firestore
 
 try:
-    from db import execute_query, execute_one, PLACEHOLDER
-except ImportError:
-    import sys
-    import os
-    # Add project root to path if needed for direct execution
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from api.db import execute_query, execute_one, PLACEHOLDER
+    from config import db, async_db
+except (ImportError, ModuleNotFoundError):
+    try:
+        from .config import db, async_db
+    except (ImportError, ModuleNotFoundError):
+        from api.config import db, async_db
 
 router = APIRouter(prefix="/api/explorer", tags=["explorer"])
-
 
 # ========== MODELS ==========
 
@@ -27,7 +28,6 @@ class HierarchyType(str, Enum):
     subject = "subject"
     module = "module"
     note = "note"
-
 
 class ExplorerNodeMeta(BaseModel):
     noteCount: Optional[int] = None
@@ -39,7 +39,6 @@ class ExplorerNodeMeta(BaseModel):
     processing: bool = False
     code: Optional[str] = None
 
-
 class ExplorerNode(BaseModel):
     id: str
     type: HierarchyType
@@ -48,314 +47,311 @@ class ExplorerNode(BaseModel):
     children: Optional[List["ExplorerNode"]] = None
     meta: Optional[ExplorerNodeMeta] = None
 
-
 class MoveRequest(BaseModel):
     nodeId: str
     nodeType: HierarchyType
     targetParentId: str
     targetParentType: HierarchyType
 
-
 class MoveResponse(BaseModel):
     success: bool
     message: str
     node: Optional[ExplorerNode] = None
 
+# ========== ASYNC HELPER FUNCTIONS ==========
 
-# ========== HELPER FUNCTIONS ==========
+async def _get_note_count_async(module_path: str) -> int:
+    """Count notes in a module asynchronously."""
+    notes_ref = async_db.collection(f"{module_path}/notes")
+    docs = [d async for d in notes_ref.stream()]
+    return len(docs)
 
-def _get_note_count_for_module(module_id: int) -> int:
-    """Get count of notes for a module."""
-    """Get count of notes for a module."""
-    result = execute_one(f"SELECT COUNT(*) as cnt FROM notes WHERE module_id = {PLACEHOLDER}", (module_id,))
-    return result['cnt'] if result else 0
+async def _has_children_async(parent_path: str, child_collection: str) -> bool:
+    """Check if parent has any children in specified collection."""
+    coll_ref = async_db.collection(f"{parent_path}/{child_collection}")
+    docs = [d async for d in coll_ref.limit(1).stream()]
+    return len(docs) > 0
 
-
-def _get_child_count(entity_type: str, parent_id: int) -> int:
-    """Get count of children for an entity."""
-    """Get count of children for an entity."""
-    queries = {
-        'department': f"SELECT COUNT(*) as cnt FROM semesters WHERE department_id = {PLACEHOLDER}",
-        'semester': f"SELECT COUNT(*) as cnt FROM subjects WHERE semester_id = {PLACEHOLDER}",
-        'subject': f"SELECT COUNT(*) as cnt FROM modules WHERE subject_id = {PLACEHOLDER}",
-        'module': f"SELECT COUNT(*) as cnt FROM notes WHERE module_id = {PLACEHOLDER}",
-    }
-    if entity_type not in queries:
-        return 0
-    result = execute_one(queries[entity_type], (parent_id,))
-    return result['cnt'] if result else 0
-
-
-def _build_notes_for_module(module_id: int, module_str_id: str) -> List[ExplorerNode]:
-    """Build note nodes for a module."""
-    notes = execute_query(
-        f"SELECT id, title, pdf_url, created_at FROM notes WHERE module_id = {PLACEHOLDER} ORDER BY created_at DESC",
-        (module_id,)
-    ) or []
-    
+async def _build_notes_async(module_path: str, module_id: str) -> List[ExplorerNode]:
+    """Build note nodes for a module asynchronously."""
+    notes_ref = async_db.collection(f"{module_path}/notes").order_by('created_at', direction=firestore.Query.DESCENDING)
     result = []
-    for note in notes:
-        pdf_filename = None
-        if note.get('pdf_url'):
-            pdf_filename = note['pdf_url'].split('/')[-1] if '/' in note['pdf_url'] else note['pdf_url']
+    async for note in notes_ref.stream():
+        data = note.to_dict()
+        pdf_url = data.get('pdf_url')
+        pdf_filename = pdf_url.split('/')[-1] if pdf_url else None
         
         result.append(ExplorerNode(
-            id=f"note-{note['id']}",
+            id=note.id,
             type=HierarchyType.note,
-            label=note['title'] or f"Note {note['id']}",
-            parentId=module_str_id,
-            children=None,
+            label=data.get('title', f"Note {note.id}"),
+            parentId=module_id,
             meta=ExplorerNodeMeta(
                 hasChildren=False,
                 pdfFilename=pdf_filename,
-                createdAt=str(note['created_at']) if note.get('created_at') else None,
+                createdAt=str(data.get('created_at')) if data.get('created_at') else None,
                 processing=False
             )
         ))
     return result
 
-
-def _build_modules_for_subject(subject_id: int, subject_str_id: str, include_notes: bool = True) -> List[ExplorerNode]:
-    """Build module nodes for a subject."""
-    modules = execute_query(
-        f"SELECT id, module_number, name FROM modules WHERE subject_id = {PLACEHOLDER} ORDER BY module_number",
-        (subject_id,)
-    ) or []
+async def _build_single_module_async(mod_doc, subject_id: str, subject_path: str, include_children: bool) -> ExplorerNode:
+    """Build a single module node."""
+    data = mod_doc.to_dict()
+    node_id = mod_doc.id
+    module_path = f"{subject_path}/modules/{node_id}"
     
-    result = []
-    for mod in modules:
-        mod_str_id = f"module-{mod['id']}"
-        note_count = _get_note_count_for_module(mod['id'])
-        
-        children = None
-        if include_notes and note_count > 0:
-            children = _build_notes_for_module(mod['id'], mod_str_id)
-        
-        result.append(ExplorerNode(
-            id=mod_str_id,
-            type=HierarchyType.module,
-            label=mod['name'],
-            parentId=subject_str_id,
-            children=children,
-            meta=ExplorerNodeMeta(
-                hasChildren=note_count > 0,
-                noteCount=note_count,
-                ordering=mod['module_number']
-            )
-        ))
-    return result
-
-
-def _build_subjects_for_semester(semester_id: int, semester_str_id: str, include_children: bool = True) -> List[ExplorerNode]:
-    """Build subject nodes for a semester."""
-    subjects = execute_query(
-        f"SELECT id, code, name FROM subjects WHERE semester_id = {PLACEHOLDER} ORDER BY name",
-        (semester_id,)
-    ) or []
+    note_count = await _get_note_count_async(module_path)
+    children = None
+    if include_children and note_count > 0:
+        children = await _build_notes_async(module_path, node_id)
     
-    result = []
-    for subj in subjects:
-        subj_str_id = f"subject-{subj['id']}"
-        child_count = _get_child_count('subject', subj['id'])
-        
-        children = None
-        if include_children and child_count > 0:
-            children = _build_modules_for_subject(subj['id'], subj_str_id)
-        
-        result.append(ExplorerNode(
-            id=subj_str_id,
-            type=HierarchyType.subject,
-            label=subj['name'],
-            parentId=semester_str_id,
-            children=children,
-            meta=ExplorerNodeMeta(
-                hasChildren=child_count > 0,
-                code=subj['code']
-            )
-        ))
-    return result
+    return ExplorerNode(
+        id=node_id,
+        type=HierarchyType.module,
+        label=data.get('name'),
+        parentId=subject_id,
+        children=children,
+        meta=ExplorerNodeMeta(
+            hasChildren=note_count > 0,
+            noteCount=note_count,
+            ordering=data.get('module_number')
+        )
+    )
 
-
-def _build_semesters_for_department(dept_id: int, dept_str_id: str, include_children: bool = True) -> List[ExplorerNode]:
-    """Build semester nodes for a department."""
-    semesters = execute_query(
-        f"SELECT id, semester_number, name FROM semesters WHERE department_id = {PLACEHOLDER} ORDER BY semester_number",
-        (dept_id,)
-    ) or []
+async def _build_modules_async(subject_path: str, subject_id: str, include_children: bool = True) -> List[ExplorerNode]:
+    """Build all module nodes for a subject asynchronously with parallel fetching."""
+    modules_ref = async_db.collection(f"{subject_path}/modules").order_by('module_number')
+    mod_docs = [d async for d in modules_ref.stream()]
     
-    result = []
-    for sem in semesters:
-        sem_str_id = f"semester-{sem['id']}"
-        child_count = _get_child_count('semester', sem['id'])
-        
-        children = None
-        if include_children and child_count > 0:
-            children = _build_subjects_for_semester(sem['id'], sem_str_id)
-        
-        result.append(ExplorerNode(
-            id=sem_str_id,
-            type=HierarchyType.semester,
-            label=sem['name'],
-            parentId=dept_str_id,
-            children=children,
-            meta=ExplorerNodeMeta(
-                hasChildren=child_count > 0,
-                ordering=sem['semester_number']
-            )
-        ))
-    return result
+    # Parallel build of each module
+    tasks = [_build_single_module_async(doc, subject_id, subject_path, include_children) for doc in mod_docs]
+    return await asyncio.gather(*tasks)
 
+async def _build_single_subject_async(subj_doc, semester_id: str, semester_path: str, include_children: bool) -> ExplorerNode:
+    """Build a single subject node."""
+    data = subj_doc.to_dict()
+    node_id = subj_doc.id
+    subject_path = f"{semester_path}/subjects/{node_id}"
+    
+    has_kids = await _has_children_async(subject_path, 'modules')
+    children = None
+    if include_children and has_kids:
+        children = await _build_modules_async(subject_path, node_id, include_children=include_children)
+    
+    return ExplorerNode(
+        id=node_id,
+        type=HierarchyType.subject,
+        label=data.get('name'),
+        parentId=semester_id,
+        children=children,
+        meta=ExplorerNodeMeta(
+            hasChildren=has_kids,
+            code=data.get('code')
+        )
+    )
 
-# ========== ENDPOINTS ==========
+async def _build_subjects_async(semester_path: str, semester_id: str, include_children: bool = True) -> List[ExplorerNode]:
+    """Build all subject nodes for a semester asynchronously with parallel fetching."""
+    subjects_ref = async_db.collection(f"{semester_path}/subjects").order_by('name')
+    subj_docs = [d async for d in subjects_ref.stream()]
+    
+    tasks = [_build_single_subject_async(doc, semester_id, semester_path, include_children) for doc in subj_docs]
+    return await asyncio.gather(*tasks)
+
+async def _build_single_semester_async(sem_doc, dept_id: str, dept_path: str, include_children: bool) -> ExplorerNode:
+    """Build a single semester node."""
+    data = sem_doc.to_dict()
+    node_id = sem_doc.id
+    semester_path = f"{dept_path}/semesters/{node_id}"
+    
+    has_kids = await _has_children_async(semester_path, 'subjects')
+    children = None
+    if include_children and has_kids:
+        children = await _build_subjects_async(semester_path, node_id, include_children=include_children)
+    
+    return ExplorerNode(
+        id=node_id,
+        type=HierarchyType.semester,
+        label=data.get('name'),
+        parentId=dept_id,
+        children=children,
+        meta=ExplorerNodeMeta(
+            hasChildren=has_kids,
+            ordering=data.get('semester_number')
+        )
+    )
+
+async def _build_semesters_async(dept_path: str, dept_id: str, include_children: bool = True) -> List[ExplorerNode]:
+    """Build all semester nodes for a department asynchronously with parallel fetching."""
+    semesters_ref = async_db.collection(f"{dept_path}/semesters").order_by('semester_number')
+    sem_docs = [d async for d in semesters_ref.stream()]
+    
+    tasks = [_build_single_semester_async(doc, dept_id, dept_path, include_children) for doc in sem_docs]
+    return await asyncio.gather(*tasks)
+
+async def _build_single_department_async(dept_doc, depth: int) -> ExplorerNode:
+    """Build a single department node."""
+    data = dept_doc.to_dict()
+    node_id = dept_doc.id
+    dept_path = f"departments/{node_id}"
+    
+    has_kids = await _has_children_async(dept_path, 'semesters')
+    children = None
+    if depth > 1 and has_kids:
+        children = await _build_semesters_async(dept_path, node_id, include_children=(depth > 2))
+    
+    return ExplorerNode(
+        id=node_id,
+        type=HierarchyType.department,
+        label=data.get('name'),
+        parentId=None,
+        children=children,
+        meta=ExplorerNodeMeta(
+            hasChildren=has_kids,
+            code=data.get('code')
+        )
+    )
+
+# Sync helper for find_doc_ref (unchanged, uses sync db for simplicity in move/delete)
+def find_doc_ref_sync(collection_name: str, doc_id: str):
+    """Find a document reference by ID using collection group query (sync)."""
+    if collection_name == 'departments':
+        doc = db.collection('departments').document(doc_id).get()
+        return doc.reference if doc.exists else None
+    
+    docs = list(db.collection_group(collection_name).where(firestore.FieldPath.document_id(), '==', doc_id).stream())
+    return docs[0].reference if docs else None
+
+# ========== ASYNC ENDPOINTS ==========
 
 @router.get("/tree", response_model=List[ExplorerNode])
-def get_explorer_tree(depth: int = 5):
-    """
-    Get the full hierarchy tree for the explorer.
+async def get_explorer_tree(depth: int = 5):
+    """Get the full hierarchy tree asynchronously with parallel fetching."""
+    depts_ref = async_db.collection('departments').order_by('name')
+    dept_docs = [d async for d in depts_ref.stream()]
     
-    Args:
-        depth: How many levels deep to fetch (1=departments only, 5=full tree including notes)
-    
-    Returns:
-        List of department nodes with nested children
-    """
-    departments = execute_query("SELECT id, name, code FROM departments ORDER BY name") or []
-    
-    result = []
-    for dept in departments:
-        dept_str_id = f"department-{dept['id']}"
-        child_count = _get_child_count('department', dept['id'])
-        
-        children = None
-        if depth > 1 and child_count > 0:
-            children = _build_semesters_for_department(
-                dept['id'], 
-                dept_str_id, 
-                include_children=(depth > 2)
-            )
-        
-        result.append(ExplorerNode(
-            id=dept_str_id,
-            type=HierarchyType.department,
-            label=dept['name'],
-            parentId=None,
-            children=children,
-            meta=ExplorerNodeMeta(
-                hasChildren=child_count > 0,
-                code=dept['code']
-            )
-        ))
-    
-    return result
-
+    # Build all departments in parallel
+    tasks = [_build_single_department_async(doc, depth) for doc in dept_docs]
+    return await asyncio.gather(*tasks)
 
 @router.get("/children/{node_type}/{node_id}", response_model=List[ExplorerNode])
-def get_node_children(node_type: HierarchyType, node_id: int):
-    """
-    Get immediate children of a node (for lazy loading).
-    """
-    parent_str_id = f"{node_type.value}-{node_id}"
+async def get_node_children(node_type: HierarchyType, node_id: str):
+    """Get immediate children of a node (lazy loading) asynchronously."""
+    # Use sync find for simplicity, then async build
+    coll_map = {
+        HierarchyType.department: 'departments',
+        HierarchyType.semester: 'semesters',
+        HierarchyType.subject: 'subjects',
+        HierarchyType.module: 'modules'
+    }
     
-    if node_type == HierarchyType.department:
-        return _build_semesters_for_department(node_id, parent_str_id, include_children=False)
-    elif node_type == HierarchyType.semester:
-        return _build_subjects_for_semester(node_id, parent_str_id, include_children=False)
-    elif node_type == HierarchyType.subject:
-        return _build_modules_for_subject(node_id, parent_str_id, include_notes=False)
-    elif node_type == HierarchyType.module:
-        return _build_notes_for_module(node_id, parent_str_id)
-    else:
+    if node_type not in coll_map:
         return []
 
+    parent_ref = find_doc_ref_sync(coll_map[node_type], node_id)
+    if not parent_ref:
+        raise HTTPException(status_code=404, detail="Node not found")
+    
+    parent_path = parent_ref.path
+        
+    if node_type == HierarchyType.department:
+        return await _build_semesters_async(parent_path, node_id, include_children=False)
+    elif node_type == HierarchyType.semester:
+        return await _build_subjects_async(parent_path, node_id, include_children=False)
+    elif node_type == HierarchyType.subject:
+        return await _build_modules_async(parent_path, node_id, include_children=False)
+    elif node_type == HierarchyType.module:
+        return await _build_notes_async(parent_path, node_id)
+    return []
+
+# ========== SYNC ENDPOINTS (Move, Status) - Unchanged logic ==========
 
 @router.post("/move", response_model=MoveResponse)
 def move_node(request: MoveRequest):
     """
     Move a node to a new parent.
-    Validates that the move is allowed based on hierarchy rules.
+    NOTE: Firestore requires copy-delete for moving between subcollections.
+    This implementation handles it recursively.
     """
-    # Parse IDs
-    try:
-        node_id = int(request.nodeId.split('-')[-1])
-        target_id = int(request.targetParentId.split('-')[-1])
-    except (ValueError, IndexError):
-        raise HTTPException(status_code=400, detail="Invalid node or target ID format")
+    target_coll_type_map = {
+        HierarchyType.semester: 'departments',
+        HierarchyType.subject: 'semesters',
+        HierarchyType.module: 'subjects',
+        HierarchyType.note: 'modules'
+    }
     
-    # Validate move rules
-    allowed_moves = {
+    if request.nodeType not in target_coll_type_map:
+        raise HTTPException(status_code=400, detail="Invalid node type for move")
+        
+    target_type = request.targetParentType
+    manual_map = {
         HierarchyType.semester: HierarchyType.department,
         HierarchyType.subject: HierarchyType.semester,
         HierarchyType.module: HierarchyType.subject,
-        HierarchyType.note: HierarchyType.module,
+        HierarchyType.note: HierarchyType.module
     }
     
-    if request.nodeType not in allowed_moves:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Cannot move {request.nodeType.value} nodes"
-        )
-    
-    if allowed_moves[request.nodeType] != request.targetParentType:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot move {request.nodeType.value} to {request.targetParentType.value}. "
-                   f"Expected parent type: {allowed_moves[request.nodeType].value}"
-        )
-    
-    # Verify target parent exists
-    parent_tables = {
-        HierarchyType.department: "departments",
-        HierarchyType.semester: "semesters",
-        HierarchyType.subject: "subjects",
-        HierarchyType.module: "modules",
-    }
-    
-    parent_table = parent_tables[request.targetParentType]
-    parent_exists = execute_one(f"SELECT id FROM {parent_table} WHERE id = {PLACEHOLDER}", (target_id,))
-    if not parent_exists:
-        raise HTTPException(status_code=404, detail=f"Target {request.targetParentType.value} not found")
-    
-    # Perform the move
-    table_map = {
-        HierarchyType.semester: ("semesters", "department_id"),
-        HierarchyType.subject: ("subjects", "semester_id"),
-        HierarchyType.module: ("modules", "subject_id"),
-        HierarchyType.note: ("notes", "module_id"),
-    }
-    
-    table, fk_column = table_map[request.nodeType]
-    
-    try:
-        execute_query(
-            f"UPDATE {table} SET {fk_column} = {PLACEHOLDER} WHERE id = {PLACEHOLDER}",
-            (target_id, node_id)
-        )
+    if manual_map[request.nodeType] != target_type:
+        raise HTTPException(status_code=400, detail="Invalid target parent type")
         
-        return MoveResponse(
-            success=True,
-            message=f"Successfully moved {request.nodeType.value} to new {request.targetParentType.value}"
-        )
+    source_coll_name = f"{request.nodeType.value}s"
+    source_ref = find_doc_ref_sync(source_coll_name, request.nodeId)
+    if not source_ref:
+         raise HTTPException(status_code=404, detail="Source node not found")
+         
+    target_parent_coll_name = f"{target_type.value}s"
+    target_parent_ref = find_doc_ref_sync(target_parent_coll_name, request.targetParentId)
+    if not target_parent_ref:
+        raise HTTPException(status_code=404, detail="Target parent not found")
+
+    try:
+        new_ref = target_parent_ref.collection(source_coll_name).document()
+        data = source_ref.get().to_dict()
+        fk_map = {
+            HierarchyType.semester: 'department_id',
+            HierarchyType.subject: 'semester_id',
+            HierarchyType.module: 'subject_id',
+            HierarchyType.note: 'module_id'
+        }
+        if request.nodeType in fk_map:
+            data[fk_map[request.nodeType]] = request.targetParentId
+        
+        new_ref.set(data)
+        
+        def copy_children(src, dest):
+            for coll in src.collections():
+                for doc in coll.stream():
+                    new_child_ref = dest.collection(coll.id).document()
+                    child_data = doc.to_dict()
+                    if coll.id == 'subjects': child_data['semester_id'] = dest.id
+                    elif coll.id == 'modules': child_data['subject_id'] = dest.id
+                    elif coll.id == 'notes': child_data['module_id'] = dest.id
+                    new_child_ref.set(child_data)
+                    copy_children(doc.reference, new_child_ref)
+
+        copy_children(source_ref, new_ref)
+        
+        def delete_recursive(doc):
+            for coll in doc.collections():
+                for d in coll.stream():
+                    delete_recursive(d.reference)
+            doc.delete()
+            
+        delete_recursive(source_ref)
+
+        return MoveResponse(success=True, message="Node moved via copy-delete")
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Move failed: {str(e)}")
 
-
-@router.get("/notes/{note_id}/status")
-def get_note_status(note_id: int):
-    """
-    Get the processing status of a note.
-    """
-    note = execute_one(f"SELECT id, title, pdf_url, created_at FROM notes WHERE id = {PLACEHOLDER}", (note_id,))
-    
-    if not note:
-        raise HTTPException(status_code=404, detail="Note not found")
-    
-    # Determine status based on pdf_url presence
-    has_pdf = bool(note.get('pdf_url'))
-    
     return {
         "id": note_id,
-        "title": note['title'],
+        "title": data.get('title'),
         "status": "complete" if has_pdf else "processing",
-        "pdfUrl": note.get('pdf_url'),
-        "createdAt": note.get('created_at')
+        "pdfUrl": data.get('pdf_url'),
+        "createdAt": data.get('created_at')
     }
+
+# Rebuild model for Pydantic v2 recursive references
+ExplorerNode.model_rebuild()

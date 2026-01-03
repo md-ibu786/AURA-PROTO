@@ -26,7 +26,7 @@ const typeIcons = {
     note: FileText,
 };
 
-export function ListView({ items, allItems }: ListViewProps) {
+export function ListView({ items }: ListViewProps) {
     const {
         selectedIds,
         select,
@@ -62,7 +62,7 @@ export function ListView({ items, allItems }: ListViewProps) {
         }
 
         try {
-            const id = parseInt(node.id.split('-')[1]);
+            const id = node.id;
             const { renameNode } = await import('../../api/explorerApi');
             await renameNode(node.type, id, renameValue);
 

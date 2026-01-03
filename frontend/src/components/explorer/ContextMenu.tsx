@@ -9,11 +9,9 @@ import {
     Trash2,
     Plus,
     Download,
-    FileText,
     ExternalLink
 } from 'lucide-react';
 import type { FileSystemNode, HierarchyType } from '../../types';
-import * as api from '../../api';
 
 // Define what can be created under each type
 const childTypes: Record<HierarchyType, { label: string; type: HierarchyType } | null> = {
@@ -32,7 +30,8 @@ export function ContextMenu() {
         currentPath,
         navigateTo,
         setRenamingNodeId,
-        startCreating
+        startCreating,
+        openDeleteDialog
     } = useExplorerStore();
 
     const queryClient = useQueryClient();
@@ -73,47 +72,20 @@ export function ContextMenu() {
         closeContextMenu();
     };
 
-    const handleDelete = async () => {
-        const confirmed = confirm(`Are you sure you want to delete "${node.label}"? This action cannot be undone.`);
-        if (!confirmed) {
-            closeContextMenu();
-            return;
-        }
-
-        try {
-            const id = parseInt(node.id.split('-')[1]);
-
-            switch (node.type) {
-                case 'department':
-                    await api.deleteDepartment(id);
-                    break;
-                case 'semester':
-                    await api.deleteSemester(id);
-                    break;
-                case 'subject':
-                    await api.deleteSubject(id);
-                    break;
-                case 'module':
-                    await api.deleteModule(id);
-                    break;
-                case 'note':
-                    await api.deleteNote(id);
-                    break;
-            }
-
-            await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
-        } catch (error) {
-            alert(`Failed to delete: ${(error as Error).message}`);
-        }
-
-        closeContextMenu();
+    const handleDeleteClick = () => {
+        // Use global dialog via store action
+        openDeleteDialog({
+            id: node.id,
+            type: node.type,
+            label: node.label
+        });
     };
 
     const handleCreate = () => {
         if (!childType) return;
 
         // Get parent ID for the new item
-        const parentId = parseInt(node.id.split('-')[1]);
+        const parentId = node.id;
 
         // For notes, show a message to use upload feature
         if (childType.type === 'note') {
@@ -174,7 +146,7 @@ export function ContextMenu() {
 
             <div className="context-menu-separator" />
 
-            <button className="context-menu-item danger" onClick={handleDelete}>
+            <button className="context-menu-item danger" onClick={handleDeleteClick}>
                 <Trash2 size={16} />
                 <span>Delete</span>
             </button>

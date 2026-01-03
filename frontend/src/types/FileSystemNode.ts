@@ -42,7 +42,7 @@ export interface MoveResponse {
 export interface CreateNodeRequest {
     name: string;
     code?: string;
-    parentId?: number;
+    parentId?: string;
 }
 
 // Audio processing types
@@ -77,13 +77,13 @@ export interface SummarizeResponse {
 export interface GeneratePdfRequest {
     title: string;
     notes: string;
-    moduleId?: number;
+    moduleId?: string;
 }
 
 export interface GeneratePdfResponse {
     success: boolean;
     pdfUrl?: string;
-    noteId?: number;
+    noteId?: string;
     error?: string;
 }
 
@@ -97,6 +97,6 @@ export interface PipelineStatus {
         refinedTranscript: string;
         notes: string;
         pdfUrl: string;
-        noteId?: number;
+        noteId?: string;
     };
 }

@@ -38,7 +38,7 @@ interface ExplorerState {
 
     // Inline creation
     creatingNodeType: HierarchyType | null;
-    creatingParentId: number | null;
+    creatingParentId: string | null;
 
     // Actions
     setActiveNode: (node: FileSystemNode | null) => void;
@@ -58,6 +58,12 @@ interface ExplorerState {
     collapse: (id: string) => void;
     toggleExpand: (id: string) => void;
 
+    // Dialog state
+    deleteDialogOpen: boolean;
+    nodeToDelete: { id: string; type: HierarchyType; label: string } | null;
+    openDeleteDialog: (node: { id: string; type: HierarchyType; label: string }) => void;
+    closeDeleteDialog: () => void;
+
     // View actions
     setViewMode: (mode: ViewMode) => void;
     setSearchQuery: (query: string) => void;
@@ -74,7 +80,7 @@ interface ExplorerState {
     setRenamingNodeId: (id: string | null) => void;
 
     // Inline creation actions
-    startCreating: (type: HierarchyType, parentId: number | null) => void;
+    startCreating: (type: HierarchyType, parentId: string | null) => void;
     cancelCreating: () => void;
 }
 
@@ -219,6 +225,21 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
             get().expand(id);
         }
     },
+
+    // Dialogs
+    deleteDialogOpen: false,
+    nodeToDelete: null,
+    openDeleteDialog: (node) => set({
+        deleteDialogOpen: true,
+        nodeToDelete: node,
+        // Ensure context menu is closed when dialog opens
+        contextMenuPosition: null,
+        contextMenuNodeId: null
+    }),
+    closeDeleteDialog: () => set({
+        deleteDialogOpen: false,
+        nodeToDelete: null
+    }),
 
     // View
     setViewMode: (mode) => set({ viewMode: mode }),

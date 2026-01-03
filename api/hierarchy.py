@@ -1,41 +1,61 @@
 """
-Hierarchy data access helpers (single-query per call)
+Hierarchy data access helpers (single-query per call) using Firestore.
 """
+from typing import List, Dict, Any, Optional
+from google.cloud import firestore
 try:
-    from db import execute_query, execute_one
-except ImportError:
-    from api.db import execute_query, execute_one
+    from config import db
+except (ImportError, ModuleNotFoundError):
+    try:
+        from .config import db
+    except (ImportError, ModuleNotFoundError):
+        from api.config import db
+
+def get_all_departments() -> List[Dict[str, Any]]:
+    docs = db.collection('departments').order_by('name').stream()
+    return [{'id': doc.id, 'label': doc.get('name'), 'type': 'department', **doc.to_dict()} for doc in docs]
+
+def get_semesters_by_department(department_id: str) -> List[Dict[str, Any]]:
+    # Firestore: subcollection 'semesters'
+    ref = db.collection('departments').document(department_id)
+    if not ref.get().exists:
+        return []
+    
+    docs = ref.collection('semesters').order_by('semester_number').stream()
+    return [{'id': doc.id, 'label': f"{doc.get('semester_number')} - {doc.get('name')}", 'type': 'semester', **doc.to_dict()} for doc in docs]
+
+def get_subjects_by_semester(semester_id: str) -> List[Dict[str, Any]]:
+    # Need to find the semester doc to get its subjects subcollection.
+    # Since we can't easily find parent from just ID, we assume known path or use Collection Group if ID is unique.
+    # But `hierarchy.py` helpers are typically "drill down".
+    # Problem: `semester_id` alone isn't enough for direct path unless we map it.
+    # For now, we use Collection Group Query to find the semester by ID.
+    
+    # Efficient way: Assume unique IDs for semesters across the board (they are auto-generated).
+    docs = list(db.collection_group('semesters').where(firestore.FieldPath.document_id(), '==', semester_id).stream())
+    if not docs:
+        return []
+    
+    semester_ref = docs[0].reference
+    subjects = semester_ref.collection('subjects').order_by('name').stream()
+    return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
+
+def get_modules_by_subject(subject_id: str) -> List[Dict[str, Any]]:
+    docs = list(db.collection_group('subjects').where(firestore.FieldPath.document_id(), '==', subject_id).stream())
+    if not docs:
+        return []
+    
+    subject_ref = docs[0].reference
+    modules = subject_ref.collection('modules').order_by('module_number').stream()
+    return [{'id': doc.id, 'label': f"Module {doc.get('module_number')} - {doc.get('name')}", 'type': 'module', **doc.to_dict()} for doc in modules]
 
 
-def get_all_departments():
-    query = "SELECT id, name as label, 'department' as type FROM departments ORDER BY name"
-    return execute_query(query)
-
-
-def get_semesters_by_department(department_id: int):
-    query = "SELECT id, semester_number || ' - ' || name as label, 'semester' as type FROM semesters WHERE department_id = ? ORDER BY semester_number"
-    return execute_query(query, (department_id,))
-
-
-def get_subjects_by_semester(semester_id: int):
-    query = "SELECT id, code || ' - ' || name as label, 'subject' as type FROM subjects WHERE semester_id = ? ORDER BY name"
-    return execute_query(query, (semester_id,))
-
-
-def get_modules_by_subject(subject_id: int):
-    query = "SELECT id, 'Module ' || module_number || ' - ' || name as label, 'module' as type FROM modules WHERE subject_id = ? ORDER BY module_number"
-    return execute_query(query, (subject_id,))
-
-
-def validate_hierarchy(module_id: int, subject_id: int, semester_id: int, department_id: int) -> bool:
-    query = """
-        SELECT 1 FROM modules m
-        JOIN subjects s ON m.subject_id = s.id
-        JOIN semesters sem ON s.semester_id = sem.id
-        JOIN departments d ON sem.department_id = d.id
-        WHERE m.id = ?
-          AND s.id = ?
-          AND sem.id = ?
-          AND d.id = ?
+def validate_hierarchy(module_id: str, subject_id: str, semester_id: str, department_id: str) -> bool:
     """
-    return execute_one(query, (module_id, subject_id, semester_id, department_id)) is not None
+    Verify that the module resides under subject -> semester -> department.
+    In Firestore, this is checking the path:
+    departments/{dept}/semesters/{sem}/subjects/{subj}/modules/{mod}
+    """
+    path = f"departments/{department_id}/semesters/{semester_id}/subjects/{subject_id}/modules/{module_id}"
+    doc = db.document(path).get()
+    return doc.exists

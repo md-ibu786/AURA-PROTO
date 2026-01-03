@@ -28,7 +28,7 @@ const typeConfig: Record<HierarchyType, { icon: typeof Building2; colorClass: st
     note: { icon: FileText, colorClass: 'note' },
 };
 
-export function GridView({ items, allItems }: GridViewProps) {
+export function GridView({ items }: GridViewProps) {
     const {
         selectedIds,
         select,
@@ -82,7 +82,7 @@ export function GridView({ items, allItems }: GridViewProps) {
         }
 
         try {
-            const id = parseInt(node.id.split('-')[1]);
+            const id = node.id;
             const { renameNode } = await import('../../api/explorerApi');
             await renameNode(node.type, id, renameValue);
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });

@@ -9,7 +9,7 @@ import { X, Upload, FileText, Mic, FileUp, CheckCircle, AlertCircle, Loader2 } f
 interface UploadDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    moduleId: number;
+    moduleId: string;
     moduleName: string;
 }
 
@@ -297,7 +297,11 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                                 {getStatusIcon()}
                             </div>
 
-                            <div className="processing-label">{getStatusLabel()}</div>
+                            <div className="processing-label">
+                                <span className={processing && processing.status !== 'complete' && processing.status !== 'error' ? 'animate-shine typewriter-text' : ''}>
+                                    {getStatusLabel()}
+                                </span>
+                            </div>
 
                             {processing && processing.status !== 'complete' && processing.status !== 'error' && (
                                 <div className="progress-bar-container">

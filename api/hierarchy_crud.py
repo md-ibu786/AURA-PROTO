@@ -1,19 +1,125 @@
 """
 CRUD operations for hierarchy tables (departments, semesters, subjects, modules)
-and notes (delete/rename only)
+and notes (delete/rename only) using Firestore.
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-
+from google.cloud import firestore
 try:
-    from db import execute_query, execute_one, execute_write, PLACEHOLDER
-except ImportError:
-    from api.db import execute_query, execute_one, execute_write, PLACEHOLDER
+    from config import db
+except (ImportError, ModuleNotFoundError):
+    try:
+        from .config import db
+    except (ImportError, ModuleNotFoundError):
+        from api.config import db
 
 router = APIRouter(prefix="/api", tags=["hierarchy-crud"])
 
-# ========== MODELS ==========
+# ========== UTILITY FUNCTIONS ==========
+
+def get_next_available_number(numbers: list[int]) -> int:
+    """Find the next available sequential number (max + 1)."""
+    if not numbers:
+        return 1
+    return max(numbers) + 1
+
+def get_next_available_code(codes: list[str], prefix: str = "SUBJ") -> str:
+    """Generate the next available code like SUBJ001."""
+    if not codes:
+        return f"{prefix}001"
+    
+    # Simple extract and max logic
+    nums = []
+    for c in codes:
+        if c.startswith(prefix):
+            try:
+                nums.append(int(c[len(prefix):]))
+            except ValueError:
+                pass
+    
+    next_num = get_next_available_number(nums)
+    return f"{prefix}{next_num:03d}"
+
+def get_unique_name(names: list[str], base_name: str) -> str:
+    """Generate unique name with (N) suffix."""
+    if base_name not in names:
+        return base_name
+    
+    import re
+    suffix_numbers = [1]
+    pattern = re.compile(rf'^{re.escape(base_name)} \((\d+)\)$')
+    for n in names:
+        match = pattern.match(n)
+        if match:
+            suffix_numbers.append(int(match.group(1)))
+    
+    next_suffix = get_next_available_number(suffix_numbers)
+    if next_suffix == 1: next_suffix = 2
+    return f"{base_name} ({next_suffix})"
+
+# Helper to delete collection recursively
+def delete_collection(coll_ref, batch_size=50):
+    docs = list(coll_ref.limit(batch_size).stream())
+    deleted = 0
+    for doc in docs:
+        delete_document_recursive(doc.reference)
+        deleted += 1
+
+    if deleted >= batch_size:
+        return delete_collection(coll_ref, batch_size)
+
+def delete_document_recursive(doc_ref):
+    """Delete a document and all its subcollections, including associated PDF files."""
+    import os
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    for coll in doc_ref.collections():
+        # Check if this is a notes collection - clean up PDF files first
+        if coll.id == 'notes':
+            for note_doc in coll.stream():
+                data = note_doc.to_dict()
+                pdf_url = data.get('pdf_url')
+                if pdf_url:
+                    try:
+                        clean_path = pdf_url.lstrip('/')
+                        file_path = os.path.join(base_dir, clean_path)
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                    except Exception:
+                        pass  # Continue even if file cleanup fails
+        delete_collection(coll)
+    doc_ref.delete()
+
+# Helper to find parent semester from just ID (expensive scan or requires known department)
+# For this prototype, we will assume requests provide context or we scan deeply if needed.
+# But `modules` table doesn't have parent semester explicitly in Firestore ID? 
+# Wait, existing API designs: 
+# `delete_module(mod_id)` -> In Firestore, we need path!
+# If frontend sends just `mod_id` (auto-generated string), we cannot easily find it without a Collection Group Query.
+# Solution: Use Collection Group Query to find the doc reference.
+
+def find_doc_by_id(collection_name: str, doc_id: str):
+    """Find a document reference by ID using collection group query.
+    
+    Uses the 'id' field stored in each document for lookup, since
+    Firestore's FieldPath.document_id() requires the full path.
+    """
+    # collection_name e.g. 'modules'
+    # Note: 'departments' is root, easy. Others are nested.
+    if collection_name == 'departments':
+        doc = db.collection('departments').document(doc_id).get()
+        return doc.reference if doc.exists else None
+    
+    # For nested collections, query by the 'id' field stored in documents
+    # This is the recommended approach for collection group queries
+    docs = list(db.collection_group(collection_name).where('id', '==', doc_id).stream())
+    if docs:
+        return docs[0].reference
+    return None
+
+
+# ========== MODELS (Updated IDs to str) ==========
 
 class DepartmentCreate(BaseModel):
     name: str
@@ -24,8 +130,8 @@ class DepartmentUpdate(BaseModel):
     code: Optional[str] = None
 
 class SemesterCreate(BaseModel):
-    department_id: int
-    semester_number: int
+    department_id: str
+    semester_number: int  # Logic might calculate this, but model keeps int
     name: str
 
 class SemesterUpdate(BaseModel):
@@ -33,7 +139,7 @@ class SemesterUpdate(BaseModel):
     name: Optional[str] = None
 
 class SubjectCreate(BaseModel):
-    semester_id: int
+    semester_id: str
     name: str
     code: str
 
@@ -42,7 +148,7 @@ class SubjectUpdate(BaseModel):
     code: Optional[str] = None
 
 class ModuleCreate(BaseModel):
-    subject_id: int
+    subject_id: str
     module_number: int
     name: str
 
@@ -57,482 +163,260 @@ class NoteUpdate(BaseModel):
 
 @router.post("/departments")
 def create_department(dept: DepartmentCreate):
-    """Create a new department"""
     try:
-        query = f"INSERT INTO departments (name, code) VALUES ({PLACEHOLDER}, {PLACEHOLDER})"
-        execute_query(query, (dept.name, dept.code))
-        
-        # Get the created department
-        new_dept = execute_one(f"SELECT * FROM departments WHERE code = {PLACEHOLDER}", (dept.code,))
-        return {"message": "Department created", "department": new_dept}
+        new_ref = db.collection('departments').document()
+        data = dept.dict()
+        data['id'] = new_ref.id
+        new_ref.set(data)
+        return {"message": "Department created", "department": data}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error creating department: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.put("/departments/{dept_id}")
-def update_department(dept_id: int, dept: DepartmentUpdate):
-    """Update/rename a department"""
-    # Check if exists
-    existing = execute_one(f"SELECT * FROM departments WHERE id = {PLACEHOLDER}", (dept_id,))
-    if not existing:
+def update_department(dept_id: str, dept: DepartmentUpdate):
+    doc_ref = db.collection('departments').document(dept_id)
+    if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="Department not found")
     
-    updates = []
-    params = []
-    if dept.name is not None:
-        updates.append(f"name = {PLACEHOLDER}")
-        params.append(dept.name)
-    if dept.code is not None:
-        updates.append(f"code = {PLACEHOLDER}")
-        params.append(dept.code)
-    
+    updates = {k: v for k, v in dept.dict().items() if v is not None}
     if not updates:
-        raise HTTPException(status_code=400, detail="No updates provided")
+        raise HTTPException(status_code=400, detail="No updates")
     
-    params.append(dept_id)
-    query = f"UPDATE departments SET {', '.join(updates)} WHERE id = {PLACEHOLDER}"
-    
-    try:
-        execute_query(query, tuple(params))
-        updated = execute_one(f"SELECT * FROM departments WHERE id = {PLACEHOLDER}", (dept_id,))
-        return {"message": "Department updated", "department": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error updating department: {str(e)}")
+    if 'name' in updates:
+        # Check for duplicates
+        siblings_names = [d.to_dict().get('name') for d in db.collection('departments').stream() if d.id != dept_id]
+        updates['name'] = get_unique_name(siblings_names, updates['name'])
+
+    doc_ref.update(updates)
+    return {"message": "Department updated", "department": {**doc_ref.get().to_dict(), 'id': dept_id}}
 
 @router.delete("/departments/{dept_id}")
-def delete_department(dept_id: int):
-    """Delete a department (cascades to all child records AND deletes files)"""
-    import os
-    
-    # Check if exists
-    existing = execute_one(f"SELECT * FROM departments WHERE id = {PLACEHOLDER}", (dept_id,))
-    if not existing:
+def delete_department(dept_id: str):
+    doc_ref = db.collection('departments').document(dept_id)
+    if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="Department not found")
     
-    # Count child records
-    sem_count = execute_one(f"SELECT COUNT(*) as cnt FROM semesters WHERE department_id = {PLACEHOLDER}", (dept_id,))
+    # Manual cascade TODO: Files cleanup (omitted for brevity, requires iterating notes)
+    # We will just do DB cleanup here. File cleanup requires note path lookup.
     
-    # Cleanup Files: Find all notes under this department
-    # Note: Requires a JOIN or multiple queries. With SQLite/Simple schema, we can do a subquery
-    notes_to_delete = execute_query(f"""
-        SELECT n.pdf_url 
-        FROM notes n
-        JOIN modules m ON n.module_id = m.id
-        JOIN subjects s ON m.subject_id = s.id
-        JOIN semesters sem ON s.semester_id = sem.id
-        WHERE sem.department_id = {PLACEHOLDER}
-    """, (dept_id,))
-
-    files_deleted = 0
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    for note in notes_to_delete:
-        pdf_url = note.get('pdf_url')
-        if pdf_url:
-            try:
-                clean_path = pdf_url.lstrip('/')
-                file_path = os.path.join(base_dir, clean_path)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    files_deleted += 1
-            except Exception:
-                pass
-
-    try:
-        # Manual cascade: delete children first (notes -> modules -> subjects -> semesters)
-        execute_query(f"""
-            DELETE FROM notes WHERE module_id IN (
-                SELECT m.id FROM modules m 
-                JOIN subjects s ON m.subject_id = s.id 
-                JOIN semesters sem ON s.semester_id = sem.id 
-                WHERE sem.department_id = {PLACEHOLDER}
-            )
-        """, (dept_id,))
-        
-        execute_query(f"""
-            DELETE FROM modules WHERE subject_id IN (
-                SELECT s.id FROM subjects s 
-                JOIN semesters sem ON s.semester_id = sem.id 
-                WHERE sem.department_id = {PLACEHOLDER}
-            )
-        """, (dept_id,))
-        
-        execute_query(f"""
-            DELETE FROM subjects WHERE semester_id IN (
-                SELECT sem.id FROM semesters sem 
-                WHERE sem.department_id = {PLACEHOLDER}
-            )
-        """, (dept_id,))
-        
-        execute_query(f"DELETE FROM semesters WHERE department_id = {PLACEHOLDER}", (dept_id,))
-        execute_query(f"DELETE FROM departments WHERE id = {PLACEHOLDER}", (dept_id,))
-        return {
-            "message": "Department deleted (cascade)",
-            "deleted_department": existing,
-            "cascaded_semesters": sem_count['cnt'] if sem_count else 0,
-            "files_cleaned_up": files_deleted
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting department: {str(e)}")
+    delete_document_recursive(doc_ref)
+    return {"message": "Department deleted"}
 
 # ========== SEMESTERS ==========
 
 @router.post("/semesters")
 def create_semester(sem: SemesterCreate):
-    """Create a new semester"""
-    # Verify parent exists
-    dept = execute_one(f"SELECT * FROM departments WHERE id = {PLACEHOLDER}", (sem.department_id,))
-    if not dept:
-        raise HTTPException(status_code=404, detail="Department not found")
+    """Create a semester with transactional parent validation."""
+    from google.cloud import firestore as fs
     
-    try:
-        query = f"INSERT INTO semesters (department_id, semester_number, name) VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})"
-        execute_query(query, (sem.department_id, sem.semester_number, sem.name))
+    parent_ref = db.collection('departments').document(sem.department_id)
+    
+    @fs.transactional
+    def create_in_transaction(transaction):
+        # Transactional read of parent
+        parent_doc = parent_ref.get(transaction=transaction)
+        if not parent_doc.exists:
+            raise HTTPException(status_code=404, detail="Department not found")
         
-        new_sem = execute_one(
-            f"SELECT * FROM semesters WHERE department_id = {PLACEHOLDER} AND semester_number = {PLACEHOLDER}",
-            (sem.department_id, sem.semester_number)
-        )
-        return {"message": "Semester created", "semester": new_sem}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error creating semester: {str(e)}")
+        # Read existing semesters (outside transaction scope but acceptable for prototype)
+        coll = parent_ref.collection('semesters')
+        docs = [d.to_dict() for d in coll.stream()]
+        
+        nums = [d.get('semester_number', 0) for d in docs]
+        names = [d.get('name', '') for d in docs]
+        
+        next_num = get_next_available_number(nums)
+        unique_name = get_unique_name(names, sem.name)
+        
+        new_ref = coll.document()
+        data = {
+            'name': unique_name,
+            'semester_number': next_num,
+            'department_id': sem.department_id,
+            'id': new_ref.id
+        }
+        # Transactional write
+        transaction.set(new_ref, data)
+        return data
+    
+    transaction = db.transaction()
+    data = create_in_transaction(transaction)
+    return {"message": "Semester created", "semester": data}
 
 @router.put("/semesters/{sem_id}")
-def update_semester(sem_id: int, sem: SemesterUpdate):
-    """Update/rename a semester"""
-    existing = execute_one(f"SELECT * FROM semesters WHERE id = {PLACEHOLDER}", (sem_id,))
-    if not existing:
+def update_semester(sem_id: str, sem: SemesterUpdate):
+    doc_ref = find_doc_by_id('semesters', sem_id)
+    if not doc_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
     
-    updates = []
-    params = []
-    if sem.semester_number is not None:
-        updates.append(f"semester_number = {PLACEHOLDER}")
-        params.append(sem.semester_number)
-    if sem.name is not None:
-        updates.append(f"name = {PLACEHOLDER}")
-        params.append(sem.name)
+    updates = {k: v for k, v in sem.dict().items() if v is not None}
+    if not updates: raise HTTPException(status_code=400, detail="No updates")
     
-    if not updates:
-        raise HTTPException(status_code=400, detail="No updates provided")
-    
-    params.append(sem_id)
-    query = f"UPDATE semesters SET {', '.join(updates)} WHERE id = {PLACEHOLDER}"
-    
-    try:
-        execute_query(query, tuple(params))
-        updated = execute_one(f"SELECT * FROM semesters WHERE id = {PLACEHOLDER}", (sem_id,))
-        return {"message": "Semester updated", "semester": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error updating semester: {str(e)}")
+    if 'name' in updates:
+        siblings_names = [d.to_dict().get('name') for d in doc_ref.parent.stream() if d.id != sem_id]
+        updates['name'] = get_unique_name(siblings_names, updates['name'])
+
+    doc_ref.update(updates)
+    return {"message": "Semester updated", "semester": {**doc_ref.get().to_dict(), 'id': sem_id}}
 
 @router.delete("/semesters/{sem_id}")
-def delete_semester(sem_id: int):
-    """Delete a semester (cascades to subjects, modules, notes AND deletes files)"""
-    import os
-    existing = execute_one(f"SELECT * FROM semesters WHERE id = {PLACEHOLDER}", (sem_id,))
-    if not existing:
+def delete_semester(sem_id: str):
+    doc_ref = find_doc_by_id('semesters', sem_id)
+    if not doc_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
     
-    subj_count = execute_one(f"SELECT COUNT(*) as cnt FROM subjects WHERE semester_id = {PLACEHOLDER}", (sem_id,))
-    
-    # Cleanup Files
-    notes_to_delete = execute_query(f"""
-        SELECT n.pdf_url 
-        FROM notes n
-        JOIN modules m ON n.module_id = m.id
-        JOIN subjects s ON m.subject_id = s.id
-        WHERE s.semester_id = {PLACEHOLDER}
-    """, (sem_id,))
-
-    files_deleted = 0
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    for note in notes_to_delete:
-        pdf_url = note.get('pdf_url')
-        if pdf_url:
-            try:
-                clean_path = pdf_url.lstrip('/')
-                file_path = os.path.join(base_dir, clean_path)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    files_deleted += 1
-            except Exception:
-                pass
-
-    try:
-        # Manual cascade: notes -> modules -> subjects
-        execute_query(f"""
-            DELETE FROM notes WHERE module_id IN (
-                SELECT m.id FROM modules m 
-                JOIN subjects s ON m.subject_id = s.id 
-                WHERE s.semester_id = {PLACEHOLDER}
-            )
-        """, (sem_id,))
-        execute_query(f"""
-            DELETE FROM modules WHERE subject_id IN (
-                SELECT s.id FROM subjects s WHERE s.semester_id = {PLACEHOLDER}
-            )
-        """, (sem_id,))
-        execute_query(f"DELETE FROM subjects WHERE semester_id = {PLACEHOLDER}", (sem_id,))
-        execute_query(f"DELETE FROM semesters WHERE id = {PLACEHOLDER}", (sem_id,))
-        return {
-            "message": "Semester deleted (cascade)",
-            "deleted_semester": existing,
-            "cascaded_subjects": subj_count['cnt'] if subj_count else 0,
-            "files_cleaned_up": files_deleted
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting semester: {str(e)}")
+    delete_document_recursive(doc_ref)
+    return {"message": "Semester deleted"}
 
 # ========== SUBJECTS ==========
 
 @router.post("/subjects")
 def create_subject(subj: SubjectCreate):
-    """Create a new subject"""
-    sem = execute_one(f"SELECT * FROM semesters WHERE id = {PLACEHOLDER}", (subj.semester_id,))
-    if not sem:
+    """Create a subject with transactional semester validation."""
+    from google.cloud import firestore as fs
+    
+    parent_ref = find_doc_by_id('semesters', subj.semester_id)
+    if not parent_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
     
-    try:
-        query = f"INSERT INTO subjects (semester_id, name, code) VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})"
-        execute_query(query, (subj.semester_id, subj.name, subj.code))
+    @fs.transactional
+    def create_in_transaction(transaction):
+        coll = parent_ref.collection('subjects')
+        docs = [d.to_dict() for d in coll.stream()]
         
-        new_subj = execute_one(
-            f"SELECT * FROM subjects WHERE semester_id = {PLACEHOLDER} AND code = {PLACEHOLDER}",
-            (subj.semester_id, subj.code)
-        )
-        return {"message": "Subject created", "subject": new_subj}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error creating subject: {str(e)}")
+        codes = [d.get('code', '') for d in docs]
+        names = [d.get('name', '') for d in docs]
+        
+        code_to_use = subj.code
+        if code_to_use in codes:
+            code_to_use = get_next_available_code(codes, subj.code)
+        unique_name = get_unique_name(names, subj.name)
+        
+        new_ref = coll.document()
+        data = {
+            'name': unique_name,
+            'code': code_to_use,
+            'semester_id': subj.semester_id,
+            'id': new_ref.id
+        }
+        transaction.set(new_ref, data)
+        return data
+    
+    transaction = db.transaction()
+    data = create_in_transaction(transaction)
+    return {"message": "Subject created", "subject": data}
 
 @router.put("/subjects/{subj_id}")
-def update_subject(subj_id: int, subj: SubjectUpdate):
-    """Update/rename a subject"""
-    existing = execute_one(f"SELECT * FROM subjects WHERE id = {PLACEHOLDER}", (subj_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Subject not found")
+def update_subject(subj_id: str, subj: SubjectUpdate):
+    doc_ref = find_doc_by_id('subjects', subj_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
     
-    updates = []
-    params = []
-    if subj.name is not None:
-        updates.append(f"name = {PLACEHOLDER}")
-        params.append(subj.name)
-    if subj.code is not None:
-        updates.append(f"code = {PLACEHOLDER}")
-        params.append(subj.code)
-    
-    if not updates:
-        raise HTTPException(status_code=400, detail="No updates provided")
-    
-    params.append(subj_id)
-    query = f"UPDATE subjects SET {', '.join(updates)} WHERE id = {PLACEHOLDER}"
-    
-    try:
-        execute_query(query, tuple(params))
-        updated = execute_one(f"SELECT * FROM subjects WHERE id = {PLACEHOLDER}", (subj_id,))
-        return {"message": "Subject updated", "subject": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error updating subject: {str(e)}")
+    updates = {k: v for k, v in subj.dict().items() if v is not None}
+    if not updates: raise HTTPException(status_code=400, detail="No updates")
+
+    if 'name' in updates:
+        siblings_names = [d.to_dict().get('name') for d in doc_ref.parent.stream() if d.id != subj_id]
+        updates['name'] = get_unique_name(siblings_names, updates['name'])
+
+    doc_ref.update(updates)
+    return {"message": "Updated", "subject": {**doc_ref.get().to_dict(), 'id': subj_id}}
 
 @router.delete("/subjects/{subj_id}")
-def delete_subject(subj_id: int):
-    """Delete a subject (cascades to modules, notes AND deletes files)"""
-    import os
-    existing = execute_one(f"SELECT * FROM subjects WHERE id = {PLACEHOLDER}", (subj_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Subject not found")
-    
-    mod_count = execute_one(f"SELECT COUNT(*) as cnt FROM modules WHERE subject_id = {PLACEHOLDER}", (subj_id,))
-    
-    # Cleanup Files
-    notes_to_delete = execute_query(f"""
-        SELECT n.pdf_url 
-        FROM notes n
-        JOIN modules m ON n.module_id = m.id
-        WHERE m.subject_id = {PLACEHOLDER}
-    """, (subj_id,))
-
-    files_deleted = 0
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    for note in notes_to_delete:
-        pdf_url = note.get('pdf_url')
-        if pdf_url:
-            try:
-                clean_path = pdf_url.lstrip('/')
-                file_path = os.path.join(base_dir, clean_path)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    files_deleted += 1
-            except Exception:
-                pass
-
-    try:
-        # Manual cascade: notes -> modules
-        execute_query(f"""
-            DELETE FROM notes WHERE module_id IN (
-                SELECT m.id FROM modules m WHERE m.subject_id = {PLACEHOLDER}
-            )
-        """, (subj_id,))
-        execute_query(f"DELETE FROM modules WHERE subject_id = {PLACEHOLDER}", (subj_id,))
-        execute_query(f"DELETE FROM subjects WHERE id = {PLACEHOLDER}", (subj_id,))
-        return {
-            "message": "Subject deleted (cascade)",
-            "deleted_subject": existing,
-            "cascaded_modules": mod_count['cnt'] if mod_count else 0,
-            "files_cleaned_up": files_deleted
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting subject: {str(e)}")
+def delete_subject(subj_id: str):
+    doc_ref = find_doc_by_id('subjects', subj_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
+    delete_document_recursive(doc_ref)
+    return {"message": "Deleted"}
 
 # ========== MODULES ==========
 
 @router.post("/modules")
 def create_module(mod: ModuleCreate):
-    """Create a new module"""
-    subj = execute_one(f"SELECT * FROM subjects WHERE id = {PLACEHOLDER}", (mod.subject_id,))
-    if not subj:
+    """Create a module with transactional subject validation."""
+    from google.cloud import firestore as fs
+    
+    parent_ref = find_doc_by_id('subjects', mod.subject_id)
+    if not parent_ref:
         raise HTTPException(status_code=404, detail="Subject not found")
     
-    try:
-        query = f"INSERT INTO modules (subject_id, module_number, name) VALUES ({PLACEHOLDER}, {PLACEHOLDER}, {PLACEHOLDER})"
-        execute_query(query, (mod.subject_id, mod.module_number, mod.name))
+    @fs.transactional
+    def create_in_transaction(transaction):
+        coll = parent_ref.collection('modules')
+        docs = [d.to_dict() for d in coll.stream()]
         
-        new_mod = execute_one(
-            f"SELECT * FROM modules WHERE subject_id = {PLACEHOLDER} AND module_number = {PLACEHOLDER}",
-            (mod.subject_id, mod.module_number)
-        )
-        return {"message": "Module created", "module": new_mod}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error creating module: {str(e)}")
+        nums = [d.get('module_number', 0) for d in docs]
+        names = [d.get('name', '') for d in docs]
+        
+        next_num = get_next_available_number(nums)
+        unique_name = get_unique_name(names, mod.name)
+        
+        new_ref = coll.document()
+        data = {
+            'name': unique_name,
+            'module_number': next_num,
+            'subject_id': mod.subject_id,
+            'id': new_ref.id
+        }
+        transaction.set(new_ref, data)
+        return data
+    
+    transaction = db.transaction()
+    data = create_in_transaction(transaction)
+    return {"message": "Module created", "module": data}
 
 @router.put("/modules/{mod_id}")
-def update_module(mod_id: int, mod: ModuleUpdate):
-    """Update/rename a module"""
-    existing = execute_one(f"SELECT * FROM modules WHERE id = {PLACEHOLDER}", (mod_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Module not found")
-    
-    updates = []
-    params = []
-    if mod.module_number is not None:
-        updates.append(f"module_number = {PLACEHOLDER}")
-        params.append(mod.module_number)
-    if mod.name is not None:
-        updates.append(f"name = {PLACEHOLDER}")
-        params.append(mod.name)
-    
-    if not updates:
-        raise HTTPException(status_code=400, detail="No updates provided")
-    
-    params.append(mod_id)
-    query = f"UPDATE modules SET {', '.join(updates)} WHERE id = ?"
-    
-    try:
-        execute_query(query, tuple(params))
-        updated = execute_one(f"SELECT * FROM modules WHERE id = {PLACEHOLDER}", (mod_id,))
-        return {"message": "Module updated", "module": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error updating module: {str(e)}")
+def update_module(mod_id: str, mod: ModuleUpdate):
+    doc_ref = find_doc_by_id('modules', mod_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
+    updates = {k: v for k, v in mod.dict().items() if v is not None}
+    if not updates: raise HTTPException(status_code=400, detail="No updates")
+
+    if 'name' in updates:
+        siblings_names = [d.to_dict().get('name') for d in doc_ref.parent.stream() if d.id != mod_id]
+        updates['name'] = get_unique_name(siblings_names, updates['name'])
+
+    doc_ref.update(updates)
+    return {"message": "Updated", "module": {**doc_ref.get().to_dict(), 'id': mod_id}}
 
 @router.delete("/modules/{mod_id}")
-def delete_module(mod_id: int):
-    """Delete a module (cascades to notes AND deletes files)"""
-    import os
-    existing = execute_one(f"SELECT * FROM modules WHERE id = {PLACEHOLDER}", (mod_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Module not found")
-    
-    note_count = execute_one(f"SELECT COUNT(*) as cnt FROM notes WHERE module_id = {PLACEHOLDER}", (mod_id,))
-    
-    # Cleanup Files
-    notes_to_delete = execute_query(f"SELECT pdf_url FROM notes WHERE module_id = {PLACEHOLDER}", (mod_id,))
+def delete_module(mod_id: str):
+    doc_ref = find_doc_by_id('modules', mod_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
+    delete_document_recursive(doc_ref)
+    return {"message": "Deleted"}
 
-    files_deleted = 0
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-    for note in notes_to_delete:
-        pdf_url = note.get('pdf_url')
-        if pdf_url:
-            try:
-                clean_path = pdf_url.lstrip('/')
-                file_path = os.path.join(base_dir, clean_path)
-                if os.path.exists(file_path):
-                    os.remove(file_path)
-                    files_deleted += 1
-            except Exception:
-                pass
-
-    try:
-        # Manual cascade: delete notes first
-        execute_query(f"DELETE FROM notes WHERE module_id = {PLACEHOLDER}", (mod_id,))
-        execute_query(f"DELETE FROM modules WHERE id = {PLACEHOLDER}", (mod_id,))
-        return {
-            "message": "Module deleted (cascade)",
-            "deleted_module": existing,
-            "cascaded_notes": note_count['cnt'] if note_count else 0,
-            "files_cleaned_up": files_deleted
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting module: {str(e)}")
-
-# ========== NOTES (Delete & Rename only) ==========
+# ========== NOTES ==========
 
 @router.put("/notes/{note_id}")
-def update_note(note_id: int, note: NoteUpdate):
-    """Rename a note (title only)"""
-    existing = execute_one(f"SELECT * FROM notes WHERE id = {PLACEHOLDER}", (note_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Note not found")
+def update_note(note_id: str, note: NoteUpdate):
+    doc_ref = find_doc_by_id('notes', note_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
     
-    try:
-        execute_query(f"UPDATE notes SET title = {PLACEHOLDER} WHERE id = {PLACEHOLDER}", (note.title, note_id))
-        updated = execute_one(f"SELECT * FROM notes WHERE id = {PLACEHOLDER}", (note_id,))
-        return {"message": "Note renamed", "note": updated}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error updating note: {str(e)}")
+    new_title = note.title
+    siblings_titles = [d.to_dict().get('title') for d in doc_ref.parent.stream() if d.id != note_id]
+    new_title = get_unique_name(siblings_titles, new_title)
+
+    doc_ref.update({'title': new_title})
+    return {"message": "Note renamed", "note": {**doc_ref.get().to_dict(), 'id': note_id}}
 
 @router.delete("/notes/{note_id}")
-def delete_note(note_id: int):
-    """Delete a note AND its associated PDF file"""
+def delete_note(note_id: str):
+    doc_ref = find_doc_by_id('notes', note_id)
+    if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
+    
+    # Try delete file
     import os
-    
-    # Check if exists
-    existing = execute_one(f"SELECT * FROM notes WHERE id = {PLACEHOLDER}", (note_id,))
-    if not existing:
-        raise HTTPException(status_code=404, detail="Note not found")
-    
-    deleted_file = False
-    error_msg = None
-
-    # Try to delete the file
-    pdf_url = existing.get('pdf_url')
+    data = doc_ref.get().to_dict()
+    pdf_url = data.get('pdf_url')
     if pdf_url:
-        # Construct absolute path. 
-        # pdf_url is stored as "pdfs/filename.pdf" or similar relative path
-        # We need to resolve it relative to the PROJECT ROOT
         try:
-            # Assuming api/hierarchy_crud.py is in /api, so up one level is root
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            # If pdf_url starts with /, remove it to join correctly
             clean_path = pdf_url.lstrip('/')
             file_path = os.path.join(base_dir, clean_path)
-            
             if os.path.exists(file_path):
                 os.remove(file_path)
-                deleted_file = True
-            else:
-                error_msg = f"File not found at {file_path}"
-        except Exception as e:
-            error_msg = f"Failed to delete file: {str(e)}"
-
-    try:
-        execute_query(f"DELETE FROM notes WHERE id = {PLACEHOLDER}", (note_id,))
-        return {
-            "message": "Note deleted successfully",
-            "deleted_note": existing,
-            "file_deleted": deleted_file,
-            "file_error": error_msg
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting note: {str(e)}")
+        except Exception:
+            pass
+            
+    doc_ref.delete()
+    return {"message": "Note deleted"}

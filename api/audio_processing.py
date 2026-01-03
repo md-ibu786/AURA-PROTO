@@ -9,10 +9,13 @@ import os
 import time
 import uuid
 
+# Structured logging
 try:
-    from db import execute_query, execute_one, execute_write
+    from logging_config import get_logger
+    logger = get_logger("audio")
 except ImportError:
-    from api.db import execute_query, execute_one, execute_write
+    import logging
+    logger = logging.getLogger("audio")
 
 # Import services (with fallbacks if dependencies are missing)
 import sys
@@ -23,13 +26,11 @@ try:
     from services.stt import process_audio_file
 except ImportError as e:
     # If it's the specific deepgram error, print it loudly but try to continue for other endpoints
-    print(f"CRITICAL ERROR IMPORTING STT SERVICE: {e}")
-    print("Attempting to verify deepgram import directly...")
+    logger.error(f"CRITICAL ERROR IMPORTING STT SERVICE: {e}")
     try:
         import deepgram
-        print("Deepgram import check passed.")
     except Exception as d_err:
-        print(f"Deepgram import check failed: {d_err}")
+        pass
         
     def process_audio_file(*args, **kwargs):
         raise ImportError(f"Service unavailable due to import error: {e}")
@@ -37,23 +38,29 @@ except ImportError as e:
 try:
     from services.coc import transform_transcript
 except ImportError as e:
-    print(f"Warning: COC service not available: {e}")
     def transform_transcript(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
 
 try:
     from services.summarizer import generate_university_notes
 except ImportError as e:
-    print(f"Warning: Summarizer service not available: {e}")
     def generate_university_notes(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
 
 try:
     from services.pdf_generator import create_pdf
 except ImportError as e:
-    print(f"Warning: PDF generator not available: {e}")
     def create_pdf(*args, **kwargs):
         raise ImportError("fpdf dependency not installed. Run: pip install fpdf2")
+
+# Import note creation helper
+try:
+    from notes import create_note_record
+except (ImportError, ModuleNotFoundError):
+    try:
+        from .notes import create_note_record
+    except (ImportError, ModuleNotFoundError):
+        from api.notes import create_note_record
 
 router = APIRouter(prefix="/api/audio", tags=["audio-processing"])
 
@@ -62,6 +69,20 @@ job_status_store = {}
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDFS_DIR = os.path.join(BASE_DIR, 'pdfs')
+
+# File size limits (in bytes)
+MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100MB for audio files
+MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
+
+
+def validate_file_size(content_length: int, max_size: int, file_type: str) -> None:
+    """Validate file size and raise HTTPException 413 if exceeded."""
+    if content_length > max_size:
+        max_mb = max_size / (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"{file_type} file too large. Maximum size: {max_mb:.0f}MB"
+        )
 
 
 # ========== MODELS ==========
@@ -97,19 +118,19 @@ class SummarizeResponse(BaseModel):
 class GeneratePdfRequest(BaseModel):
     title: str
     notes: str
-    moduleId: Optional[int] = None
+    moduleId: Optional[str] = None # Updated to str
 
 
 class GeneratePdfResponse(BaseModel):
     success: bool
     pdfUrl: Optional[str] = None
-    noteId: Optional[int] = None
+    noteId: Optional[str] = None # Updated to str
     error: Optional[str] = None
 
 
 class PipelineRequest(BaseModel):
     topic: str
-    moduleId: Optional[int] = None
+    moduleId: Optional[str] = None # Updated to str
 
 
 class PipelineStatusResponse(BaseModel):
@@ -130,7 +151,7 @@ DOCS_DIR = os.path.join(BASE_DIR, 'pdfs')  # Store docs alongside PDFs
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(...),
-    moduleId: int = Form(...)
+    moduleId: str = Form(...) # Updated to str
 ):
     """
     Upload a document (PDF, DOC, TXT) and create a note entry.
@@ -152,6 +173,9 @@ async def upload_document(
         if not file_content:
             raise HTTPException(status_code=400, detail="Empty file")
         
+        # Validate file size
+        validate_file_size(len(file_content), MAX_DOCUMENT_SIZE, "Document")
+        
         # Ensure directory exists
         os.makedirs(DOCS_DIR, exist_ok=True)
         
@@ -169,15 +193,14 @@ async def upload_document(
         # Create URL (documents served from same /pdfs route)
         doc_url = f"/pdfs/{filename}"
         
-        # Insert into database
-        note_id = execute_write(
-            "INSERT INTO notes (module_id, title, pdf_url) VALUES (%s, %s, %s) RETURNING id",
-            (moduleId, title, doc_url)
-        )
-        
+        # Insert into database using helper
+        note = create_note_record(moduleId, title, doc_url)
+        if not note:
+             raise HTTPException(status_code=404, detail="Module not found")
+
         return {
             "success": True,
-            "noteId": note_id,
+            "noteId": note['id'],
             "documentUrl": doc_url,
             "filename": filename,
             "message": f"Document '{title}' uploaded successfully!"
@@ -199,6 +222,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
         
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="Empty audio file")
+        
+        # Validate file size
+        validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
         
         # Process with Deepgram
         result = process_audio_file(audio_bytes)
@@ -279,13 +305,12 @@ async def generate_pdf(request: GeneratePdfRequest):
         # Optionally save to database if moduleId is provided
         if request.moduleId:
             try:
-                note_id = execute_write(
-                    "INSERT INTO notes (module_id, title, pdf_url) VALUES (%s, %s, %s) RETURNING id",
-                    (request.moduleId, request.title, pdf_url)
-                )
+                note = create_note_record(request.moduleId, request.title, pdf_url)
+                if note:
+                    note_id = note['id']
             except Exception as db_error:
                 # PDF was generated but DB save failed - still return success
-                print(f"Warning: Failed to save note to database: {db_error}")
+                logger.warning(f"Failed to save note to database: {db_error}")
         
         return GeneratePdfResponse(
             success=True,
@@ -296,7 +321,7 @@ async def generate_pdf(request: GeneratePdfRequest):
         return GeneratePdfResponse(success=False, error=f"PDF generation failed: {str(e)}")
 
 
-def _run_pipeline(job_id: str, audio_bytes: bytes, topic: str, module_id: Optional[int]):
+def _run_pipeline(job_id: str, audio_bytes: bytes, topic: str, module_id: Optional[str]):
     """Background task to run the full processing pipeline."""
     try:
         # Step 1: Transcribe
@@ -350,10 +375,9 @@ def _run_pipeline(job_id: str, audio_bytes: bytes, topic: str, module_id: Option
         note_id = None
         if module_id:
             try:
-                note_id = execute_write(
-                    "INSERT INTO notes (module_id, title, pdf_url) VALUES (%s, %s, %s) RETURNING id",
-                    (module_id, topic, pdf_url)
-                )
+                note = create_note_record(module_id, topic, pdf_url)
+                if note:
+                    note_id = note['id']
             except Exception:
                 pass
         
@@ -385,7 +409,7 @@ async def start_pipeline(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     topic: str = Form(...),
-    moduleId: Optional[int] = Form(None)
+    moduleId: Optional[str] = Form(None) # Updated to str
 ):
     """
     Start the full audio processing pipeline (async with status polling).
@@ -396,6 +420,9 @@ async def start_pipeline(
         
         if not audio_bytes:
             raise HTTPException(status_code=400, detail="Empty audio file")
+        
+        # Validate file size
+        validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
         
         # Create job
         job_id = str(uuid.uuid4())
