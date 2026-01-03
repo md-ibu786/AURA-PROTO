@@ -1,7 +1,44 @@
-.venv/*
-__pycache__/*
+# Python
+.venv/
+__pycache__/
 *.pyc
-.DS_Store
+*.pyo
+*.pyd
+.Python
+
+# Environment & Secrets
+.env
+.env.*
 *.env
 config.json
+serviceAccountKey.json
+credentials.json
+*.key
+*.pem
 
+# Node
+node_modules/
+dist/
+build/
+*.log
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Project specific
+pdfs/
+*.pdf
+settings.local.json
+nul
