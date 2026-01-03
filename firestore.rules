@@ -1,0 +1,110 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ========== HELPER FUNCTIONS ==========
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Validate required string field
+    function hasValidName() {
+      return request.resource.data.name is string 
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() < 200;
+    }
+    
+    // Validate code field (optional but must be string if present)
+    function hasValidCode() {
+      return !('code' in request.resource.data) 
+          || (request.resource.data.code is string 
+              && request.resource.data.code.size() < 50);
+    }
+    
+    // ========== DEFAULT DENY ==========
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // ========== DEPARTMENTS ==========
+    
+    match /departments/{departmentId} {
+      // Read: Allow all (public hierarchy for now)
+      allow read: if true;
+      
+      // Write: Require auth + valid data
+      allow create: if isAuthenticated() 
+                    && hasValidName() 
+                    && hasValidCode();
+      allow update: if isAuthenticated() 
+                    && hasValidName();
+      allow delete: if isAuthenticated();
+      
+      // ========== SEMESTERS ==========
+      
+      match /semesters/{semesterId} {
+        allow read: if true;
+        
+        allow create: if isAuthenticated() 
+                      && hasValidName()
+                      && request.resource.data.semester_number is int;
+        allow update: if isAuthenticated() && hasValidName();
+        allow delete: if isAuthenticated();
+        
+        // ========== SUBJECTS ==========
+        
+        match /subjects/{subjectId} {
+          allow read: if true;
+          
+          allow create: if isAuthenticated() 
+                        && hasValidName() 
+                        && hasValidCode();
+          allow update: if isAuthenticated() && hasValidName();
+          allow delete: if isAuthenticated();
+          
+          // ========== MODULES ==========
+          
+          match /modules/{moduleId} {
+            allow read: if true;
+            
+            allow create: if isAuthenticated() 
+                          && hasValidName()
+                          && request.resource.data.module_number is int;
+            allow update: if isAuthenticated() && hasValidName();
+            allow delete: if isAuthenticated();
+            
+            // ========== NOTES ==========
+            
+            match /notes/{noteId} {
+              allow read: if true;
+              
+              allow create: if isAuthenticated() 
+                            && request.resource.data.title is string;
+              allow update: if isAuthenticated();
+              allow delete: if isAuthenticated();
+            }
+          }
+        }
+      }
+    }
+    
+    // ========== COLLECTION GROUP QUERIES ==========
+    
+    match /{path=**}/semesters/{semesterId} {
+      allow read: if true;
+    }
+    match /{path=**}/subjects/{subjectId} {
+      allow read: if true;
+    }
+    match /{path=**}/modules/{moduleId} {
+      allow read: if true;
+    }
+    match /{path=**}/notes/{noteId} {
+      allow read: if true;
+    }
+  }
+}
