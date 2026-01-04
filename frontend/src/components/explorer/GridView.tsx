@@ -60,20 +60,36 @@ export function GridView({ items }: GridViewProps) {
         }
     }, [renamingNodeId, items]);
 
-    // Reset create value when starting creation
+    // Reset create value when starting creation - start with empty string
     React.useEffect(() => {
         if (creatingNodeType) {
-            // Use simple names - backend will add prefixes like "Semester X - "
-            const defaultNames: Record<string, string> = {
-                department: 'New Department',
-                semester: 'Fall 2025',  // Just descriptive name, backend adds "Semester X - "
-                subject: 'New Subject',
-                module: 'Introduction',  // Just descriptive name, backend adds "Module X - "
-                note: 'New Note'
-            };
-            setCreateValue(defaultNames[creatingNodeType] || 'New Item');
+            setCreateValue('');  // Start empty to show placeholder
         }
     }, [creatingNodeType]);
+
+    // Get default names for when user submits empty input
+    const getDefaultName = (type: HierarchyType): string => {
+        const defaultNames: Record<string, string> = {
+            department: 'New Department',
+            semester: 'New Semester',
+            subject: 'New Subject',
+            module: 'New Module',
+            note: 'New Note'
+        };
+        return defaultNames[type] || 'New Item';
+    };
+
+    // Get placeholder text for each type
+    const getPlaceholder = (type: HierarchyType): string => {
+        const placeholders: Record<string, string> = {
+            department: 'New Department',
+            semester: 'New Semester',
+            subject: 'New Subject',
+            module: 'New Module',
+            note: 'Note title'
+        };
+        return placeholders[type] || 'Enter name';
+    };
 
     const handleRenameSubmit = async (node: FileSystemNode) => {
         if (!renameValue || renameValue === node.label) {
@@ -105,12 +121,13 @@ export function GridView({ items }: GridViewProps) {
 
     // Handle inline creation submit
     const handleCreateSubmit = async () => {
-        if (!creatingNodeType || !createValue.trim()) {
+        if (!creatingNodeType) {
             cancelCreating();
             return;
         }
 
-        const name = createValue.trim();
+        // Use default name if input is empty
+        const name = createValue.trim() || getDefaultName(creatingNodeType);
 
 
         try {
@@ -219,12 +236,18 @@ export function GridView({ items }: GridViewProps) {
                         type="text"
                         className="rename-input"
                         value={createValue}
+                        placeholder={getPlaceholder(creatingNodeType)}
                         onChange={(e) => setCreateValue(e.target.value)}
                         onBlur={handleCreateSubmit}
                         onKeyDown={handleCreateKeyDown}
                         onClick={(e) => e.stopPropagation()}
                         autoFocus
-                        onFocus={(e) => e.target.select()}
+                        onFocus={(e) => {
+                            // Only select if there's actual content
+                            if (e.target.value) {
+                                e.target.select();
+                            }
+                        }}
                     />
                 </div>
             )}
