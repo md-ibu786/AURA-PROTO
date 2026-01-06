@@ -427,14 +427,18 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
 
                             {mode === 'voice' && (
                                 <div className="form-group">
-                                    <label className="form-label">Topic / Title *</label>
+                                    <label className="form-label">Topic / Title <span className="text-error">*</span></label>
                                     <input
                                         type="text"
-                                        className="form-input"
+                                        className={`form-input ${selectedFile && !topic.trim() ? 'input-error' : ''}`}
                                         placeholder="Enter the topic for these notes..."
                                         value={topic}
                                         onChange={(e) => setTopic(e.target.value)}
+                                        required
                                     />
+                                    {selectedFile && !topic.trim() && (
+                                        <span className="form-error">Title is required to generate notes</span>
+                                    )}
                                 </div>
                             )}
 
@@ -443,6 +447,8 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
+                                onClick={() => !selectedFile && handleChooseFile()}
+                                style={{ cursor: selectedFile ? 'default' : 'pointer' }}
                             >
                                 <input
                                     ref={fileInputRef}
@@ -473,7 +479,7 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                                         </div>
                                         <p className="upload-zone-title">Upload sources</p>
                                         <p className="upload-zone-text">
-                                            Drag and drop or <button className="upload-link" onClick={handleChooseFile}>choose file</button> to upload
+                                            Drag and drop or click to upload
                                         </p>
                                     </>
                                 )}

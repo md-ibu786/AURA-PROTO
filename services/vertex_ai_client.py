@@ -62,11 +62,18 @@ def _read_project_id_from_credentials_file(path: str) -> Optional[str]:
 
 
 def _get_project_id() -> Optional[str]:
+    # First, check for explicit VERTEX_PROJECT env var (preferred for multi-project setups)
+    explicit_project = os.environ.get("VERTEX_PROJECT")
+    if explicit_project:
+        return explicit_project
+
+    # Fallback to google.auth.default
     _, project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])  # type: ignore
     if project_id:
         return project_id
 
-    creds_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    # Final fallback: read from credentials file
+    creds_path = os.environ.get("VERTEX_CREDENTIALS") or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if creds_path:
         return _read_project_id_from_credentials_file(creds_path)
 
@@ -78,6 +85,15 @@ def init_vertex_ai() -> None:
 
     if _INITIALIZED:
         return
+
+    # Set GOOGLE_APPLICATION_CREDENTIALS from VERTEX_CREDENTIALS if not already set
+    vertex_creds = os.environ.get("VERTEX_CREDENTIALS")
+    if vertex_creds and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+        # Resolve relative path
+        if not os.path.isabs(vertex_creds):
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            vertex_creds = os.path.normpath(os.path.join(project_root, vertex_creds))
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = vertex_creds
 
     try:
         google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])  # type: ignore

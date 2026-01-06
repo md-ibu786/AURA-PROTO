@@ -220,7 +220,7 @@ def find_doc_ref_sync(collection_name: str, doc_id: str):
         doc = db.collection('departments').document(doc_id).get()
         return doc.reference if doc.exists else None
     
-    docs = list(db.collection_group(collection_name).where(firestore.FieldPath.document_id(), '==', doc_id).stream())
+    docs = list(db.collection_group(collection_name).where('id', '==', doc_id).stream())
     return docs[0].reference if docs else None
 
 # ========== ASYNC ENDPOINTS ==========

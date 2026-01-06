@@ -65,7 +65,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         response = generate_content(
             model,
             note_taking_prompt,
-            generation_config=GenerationConfig(temperature=0.3),
+            generation_config=GenerationConfig(temperature=0.3, max_output_tokens=32000),
         )
         return response.text
     except Exception as e:

@@ -115,7 +115,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
     response = generate_content(
         model,
         prompt,
-        generation_config=GenerationConfig(temperature=0.0),
+        generation_config=GenerationConfig(temperature=0.0, max_output_tokens=32000),
         safety_settings=block_none_safety_settings(),
     )
 
@@ -188,7 +188,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
     audit_response = generate_content(
         model,
         audit_prompt,
-        generation_config=GenerationConfig(temperature=0.0),
+        generation_config=GenerationConfig(temperature=0.0, max_output_tokens=32000),
         safety_settings=block_none_safety_settings(),
     )
 

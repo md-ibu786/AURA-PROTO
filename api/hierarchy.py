@@ -32,7 +32,7 @@ def get_subjects_by_semester(semester_id: str) -> List[Dict[str, Any]]:
     # For now, we use Collection Group Query to find the semester by ID.
     
     # Efficient way: Assume unique IDs for semesters across the board (they are auto-generated).
-    docs = list(db.collection_group('semesters').where(firestore.FieldPath.document_id(), '==', semester_id).stream())
+    docs = list(db.collection_group('semesters').where('id', '==', semester_id).stream())
     if not docs:
         return []
     
@@ -41,7 +41,7 @@ def get_subjects_by_semester(semester_id: str) -> List[Dict[str, Any]]:
     return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
 
 def get_modules_by_subject(subject_id: str) -> List[Dict[str, Any]]:
-    docs = list(db.collection_group('subjects').where(firestore.FieldPath.document_id(), '==', subject_id).stream())
+    docs = list(db.collection_group('subjects').where('id', '==', subject_id).stream())
     if not docs:
         return []
     

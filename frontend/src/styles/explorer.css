@@ -557,6 +557,22 @@
     width: 100%;
 }
 
+.form-input.input-error {
+    border-color: var(--color-error);
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.form-error {
+    display: block;
+    color: var(--color-error);
+    font-size: 12px;
+    margin-top: var(--spacing-xs);
+}
+
+.text-error {
+    color: var(--color-error);
+}
+
 /* ===== Status Indicator ===== */
 .status-badge {
     display: inline-flex;
@@ -786,6 +802,7 @@
 }
 
 .processing-label {
+    font-family: 'Space Grotesk', sans-serif;
     font-size: 18px;
     font-weight: 600;
     color: var(--color-text-primary);
