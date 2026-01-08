@@ -82,6 +82,17 @@ interface ExplorerState {
     // Inline creation actions
     startCreating: (type: HierarchyType, parentId: string | null) => void;
     cancelCreating: () => void;
+
+    // Warning Dialog
+    warningDialog: {
+        isOpen: boolean;
+        type: 'duplicate' | 'error';
+        message: string;
+        entityName?: string;
+    };
+    warningTimeoutId: NodeJS.Timeout | null;
+    openWarningDialog: (type: 'duplicate' | 'error', message: string, entityName?: string) => void;
+    closeWarningDialog: () => void;
 }
 
 export const useExplorerStore = create<ExplorerState>((set, get) => ({
@@ -99,6 +110,8 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     renamingNodeId: null,
     creatingNodeType: null,
     creatingParentId: null,
+    warningDialog: { isOpen: false, type: 'error', message: '' },
+    warningTimeoutId: null,
 
     // Navigation
     setActiveNode: (node) => set({
@@ -267,7 +280,41 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
 
     setRenamingNodeId: (id) => set({ renamingNodeId: id }),
 
-    // Inline creation
+    // Inline creation actions
     startCreating: (type, parentId) => set({ creatingNodeType: type, creatingParentId: parentId }),
     cancelCreating: () => set({ creatingNodeType: null, creatingParentId: null }),
+
+    // Warning Dialog actions
+    openWarningDialog: (type, message, entityName) => {
+        const { warningTimeoutId } = get();
+        if (warningTimeoutId) clearTimeout(warningTimeoutId);
+
+        const timeoutId = setTimeout(() => {
+            get().closeWarningDialog();
+        }, 5000);
+
+        set({
+            warningDialog: {
+                isOpen: true,
+                type,
+                message,
+                entityName
+            },
+            warningTimeoutId: timeoutId
+        });
+    },
+
+    closeWarningDialog: () => {
+        const { warningTimeoutId } = get();
+        if (warningTimeoutId) clearTimeout(warningTimeoutId);
+        
+        set({
+            warningDialog: {
+                isOpen: false,
+                type: 'error',
+                message: ''
+            },
+            warningTimeoutId: null
+        });
+    },
 }));

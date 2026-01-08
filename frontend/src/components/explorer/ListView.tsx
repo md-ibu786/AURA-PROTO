@@ -37,7 +37,8 @@ export function ListView({ items }: ListViewProps) {
         openContextMenu,
         searchQuery,
         renamingNodeId,
-        setRenamingNodeId
+        setRenamingNodeId,
+        openWarningDialog
     } = useExplorerStore();
 
     // Renaming state
@@ -67,11 +68,16 @@ export function ListView({ items }: ListViewProps) {
             await renameNode(node.type, id, renameValue);
 
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
-        } catch (error) {
-            console.error("Rename failed", error);
-            alert("Rename failed");
-        } finally {
             setRenamingNodeId(null);
+        } catch (error) {
+            const api = await import('../../api');
+            if (error instanceof api.DuplicateError) {
+                openWarningDialog('duplicate', error.message, renameValue);
+            } else {
+                console.error("Rename failed", error);
+                alert("Rename failed");
+                setRenamingNodeId(null);
+            }
         }
     };
 

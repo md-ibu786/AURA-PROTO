@@ -8,6 +8,7 @@ import { GridView } from '../components/explorer/GridView';
 import { ListView } from '../components/explorer/ListView';
 import { ContextMenu } from '../components/explorer/ContextMenu';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { WarningDialog } from '../components/ui/WarningDialog';
 import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
 
@@ -149,6 +150,8 @@ export default function ExplorerPage() {
                 onConfirm={handleDeleteConfirm}
                 onCancel={closeDeleteDialog}
             />
+            
+            <WarningDialog />
         </div>
     );
 }

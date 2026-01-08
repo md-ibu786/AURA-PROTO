@@ -161,8 +161,19 @@ class NoteUpdate(BaseModel):
 
 # ========== DEPARTMENTS ==========
 
-@router.post("/departments")
+@router.post("/departments", responses={409: {"description": "Conflict: Department with this name already exists"}})
 def create_department(dept: DepartmentCreate):
+    # Check for duplicates
+    existing = list(db.collection('departments').where('name', '==', dept.name).limit(1).stream())
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "DUPLICATE_NAME",
+                "message": f"Department with name '{dept.name}' already exists."
+            }
+        )
+
     try:
         new_ref = db.collection('departments').document()
         data = dept.dict()

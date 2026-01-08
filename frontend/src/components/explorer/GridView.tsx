@@ -42,7 +42,8 @@ export function GridView({ items }: GridViewProps) {
         setRenamingNodeId,
         creatingNodeType,
         creatingParentId,
-        cancelCreating
+        cancelCreating,
+        openWarningDialog
     } = useExplorerStore();
 
     // Renaming state
@@ -99,14 +100,17 @@ export function GridView({ items }: GridViewProps) {
 
         try {
             const id = node.id;
-            const { renameNode } = await import('../../api/explorerApi');
-            await renameNode(node.type, id, renameValue);
+            await api.renameNode(node.type, id, renameValue);
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
-        } catch (error) {
-            console.error("Rename failed", error);
-            alert("Rename failed");
-        } finally {
             setRenamingNodeId(null);
+        } catch (error) {
+            if (error instanceof api.DuplicateError) {
+                openWarningDialog('duplicate', error.message, renameValue);
+            } else {
+                console.error("Rename failed", error);
+                alert("Rename failed");
+                setRenamingNodeId(null);
+            }
         }
     };
 
@@ -165,11 +169,16 @@ export function GridView({ items }: GridViewProps) {
                 }
             }
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
-        } catch (error) {
-            console.error("Create failed", error);
-            alert(`Failed to create: ${(error as Error).message}`);
-        } finally {
             cancelCreating();
+        } catch (error) {
+            if (error instanceof api.DuplicateError) {
+                openWarningDialog('duplicate', error.message, name);
+                // Keep input open
+            } else {
+                console.error("Create failed", error);
+                alert(`Failed to create: ${(error as Error).message}`);
+                cancelCreating();
+            }
         }
     };
 

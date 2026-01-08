@@ -4,6 +4,16 @@
 
 const API_BASE = '/api';
 
+export class DuplicateError extends Error {
+    code: string;
+    
+    constructor(message: string, code: string) {
+        super(message);
+        this.name = 'DuplicateError';
+        this.code = code;
+    }
+}
+
 // Generic fetch wrapper with error handling
 async function fetchApi<T>(
     endpoint: string,
@@ -21,6 +31,14 @@ async function fetchApi<T>(
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        
+        if (response.status === 409) {
+            const detail = error.detail;
+            if (detail && typeof detail === 'object' && detail.code === 'DUPLICATE_NAME') {
+                throw new DuplicateError(detail.message, detail.code);
+            }
+        }
+
         throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
