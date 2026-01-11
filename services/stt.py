@@ -1,7 +1,51 @@
 """
-Speech-to-Text Backend Module
+============================================================================
+FILE: stt.py (Speech-to-Text)
+LOCATION: services/stt.py
+============================================================================
 
-This module provides the backend processing functionality for audio files using Deepgram.
+PURPOSE:
+    Provides audio transcription functionality using Deepgram's Nova-3 model.
+    Converts audio files (MP3, WAV, M4A, etc.) into text transcripts with
+    speaker diarization and smart formatting.
+
+ROLE IN PROJECT:
+    This is the first step in the audio-to-notes pipeline. When a user
+    uploads an audio recording through the React frontend, this service
+    transcribes it to text, which then flows to coc.py for cleaning.
+
+KEY COMPONENTS:
+    - _read_audio_bytes(audio_input): Convert various input types to raw bytes
+    - process_audio_file(audio_input): Main transcription function
+
+DEEPGRAM CONFIGURATION:
+    - Model: Nova-3 (latest, highest quality)
+    - Smart format: True (punctuation, capitalization)
+    - Diarization: True (speaker identification)
+    - Utterances: True (sentence-level segmentation)
+
+RETURN FORMAT:
+    {
+        "text": "The full transcript text...",
+        "full_response": { ... Deepgram raw response ... }
+    }
+
+DEPENDENCIES:
+    - External: deepgram-sdk (Deepgram API client)
+    - Internal: None
+
+ENVIRONMENT VARIABLES:
+    - DEEPGRAM_API_KEY: Required API key for Deepgram service
+
+USAGE:
+    from services.stt import process_audio_file
+    
+    # From file bytes
+    with open("lecture.mp3", "rb") as f:
+        result = process_audio_file(f.read())
+    
+    transcript = result["text"]
+============================================================================
 """
 from typing import BinaryIO, Union, Dict, Any
 import io

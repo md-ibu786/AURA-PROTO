@@ -1,5 +1,45 @@
 """
-Hierarchy data access helpers (single-query per call) using Firestore.
+============================================================================
+FILE: hierarchy.py
+LOCATION: api/hierarchy.py
+============================================================================
+
+PURPOSE:
+    Provides read-only data access helpers for the educational hierarchy.
+    Retrieves departments, semesters, subjects, and modules from Firestore
+    using efficient single-query patterns.
+
+ROLE IN PROJECT:
+    This is the read layer for hierarchy navigation. Used by:
+    - main.py for legacy drill-down endpoints (/departments, /semesters/...)
+    - Other modules needing to validate or retrieve hierarchy data
+    
+    Note: CRUD operations are in hierarchy_crud.py; this file is READ-ONLY.
+
+KEY COMPONENTS:
+    - get_all_departments(): Get all top-level departments
+    - get_semesters_by_department(dept_id): Get semesters under a department
+    - get_subjects_by_semester(sem_id): Get subjects under a semester
+    - get_modules_by_subject(subj_id): Get modules under a subject
+    - validate_hierarchy(): Verify a complete hierarchy path exists
+
+DATA STRUCTURE (Firestore Nested Collections):
+    departments/{dept_id}
+        └── semesters/{sem_id}
+            └── subjects/{subj_id}
+                └── modules/{mod_id}
+                    └── notes/{note_id}
+
+DEPENDENCIES:
+    - External: google-cloud-firestore
+    - Internal: config.py (db client)
+
+USAGE:
+    from hierarchy import get_all_departments, validate_hierarchy
+    
+    depts = get_all_departments()  # Returns list of {id, label, type, ...}
+    is_valid = validate_hierarchy(mod_id, subj_id, sem_id, dept_id)
+============================================================================
 """
 from typing import List, Dict, Any, Optional
 from google.cloud import firestore

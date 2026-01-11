@@ -1,5 +1,46 @@
 /**
- * Sidebar Tree Component - Recursive tree navigation
+ * ============================================================================
+ * FILE: SidebarTree.tsx
+ * LOCATION: frontend/src/components/explorer/SidebarTree.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Recursive tree navigation component for the sidebar. Renders the
+ *    hierarchy as an expandable/collapsible tree with icons, inline
+ *    renaming, and inline creation of new nodes.
+ *
+ * ROLE IN PROJECT:
+ *    Provides the left-panel tree navigation similar to Windows Explorer.
+ *    Allows users to quickly navigate the hierarchy without drilling
+ *    down one level at a time through the main content area.
+ *
+ * KEY COMPONENTS:
+ *    - SidebarTree: Main recursive component that renders tree nodes
+ *    - TreeItem: Individual tree node with expand/collapse, icon, label
+ *    - CreationItem: Inline input for creating new nodes
+ *
+ * FEATURES:
+ *    - Expandable/collapsible nodes with chevron icons
+ *    - Type-specific icons (Building2, Calendar, BookOpen, etc.)
+ *    - Inline renaming (F2 or context menu)
+ *    - Inline creation (right-click → New Folder)
+ *    - Active/selected state highlighting
+ *    - Right-click context menu support
+ *
+ * ICON MAPPING:
+ *    - department: Building2
+ *    - semester: Calendar
+ *    - subject: BookOpen
+ *    - module: Package
+ *    - note: FileText
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons), @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, api, types
+ *
+ * USAGE:
+ *    <SidebarTree nodes={tree} level={0} ancestors={[]} />
+ * ============================================================================
  */
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,7 +73,7 @@ const typeIcons = {
 };
 
 function CreationItem({ parentId, type }: { parentId: string | null; type: import('../../types').HierarchyType }) {
-    const { cancelCreating, openWarningDialog, creatingNodeType } = useExplorerStore();
+    const { cancelCreating, openWarningDialog } = useExplorerStore();
     const queryClient = useQueryClient();
     const [name, setName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -115,14 +156,14 @@ function CreationItem({ parentId, type }: { parentId: string | null; type: impor
     );
 }
 
-function TreeItem({ 
-    node, 
-    level, 
-    ancestors 
-}: { 
-    node: FileSystemNode; 
-    level: number; 
-    ancestors: FileSystemNode[] 
+function TreeItem({
+    node,
+    level,
+    ancestors
+}: {
+    node: FileSystemNode;
+    level: number;
+    ancestors: FileSystemNode[]
 }) {
     const {
         activeNodeId,
@@ -266,14 +307,14 @@ export function SidebarTree({ nodes, level, ancestors }: SidebarTreeProps) {
     return (
         <div className="tree-children" style={{ marginLeft: level === 0 ? 0 : undefined }}>
             {nodes.map((node) => (
-                <TreeItem 
-                    key={node.id} 
-                    node={node} 
-                    level={level} 
-                    ancestors={ancestors} 
+                <TreeItem
+                    key={node.id}
+                    node={node}
+                    level={level}
+                    ancestors={ancestors}
                 />
             ))}
-            
+
             {/* Root Level Creation */}
             {level === 0 && creatingParentId === null && creatingNodeType === 'department' && (
                 <CreationItem type='department' parentId={null} />

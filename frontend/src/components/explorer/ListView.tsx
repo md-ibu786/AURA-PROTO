@@ -1,5 +1,39 @@
 /**
- * List View Component - Table-style file listing
+ * ============================================================================
+ * FILE: ListView.tsx
+ * LOCATION: frontend/src/components/explorer/ListView.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Table-style list view for displaying folder contents. Alternative to
+ *    GridView, shows items in rows with columns for Name, Type, Items count,
+ *    and Modified date.
+ *
+ * ROLE IN PROJECT:
+ *    One of two view modes for the main content area (the other is GridView).
+ *    Provides a detailed, compact view suitable for folders with many items.
+ *
+ * KEY FEATURES:
+ *    - Table-style layout with fixed columns
+ *    - Same selection behavior as GridView (click, Ctrl, Shift)
+ *    - Inline renaming support
+ *    - Context menu on right-click
+ *    - Formatted dates and item counts
+ *
+ * COLUMNS:
+ *    - Icon: Type-specific icon
+ *    - Name: Label with inline rename support
+ *    - Type: hierarchy type (department, semester, etc.)
+ *    - Items: Note count or '-'
+ *    - Modified: Formatted date or '-'
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react, @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, api, types
+ *
+ * USAGE:
+ *    <ListView items={currentFolderChildren} allItems={fullTree} />
+ * ============================================================================
  */
 import { useExplorerStore } from '../../stores';
 import * as React from 'react';

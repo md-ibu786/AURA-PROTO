@@ -1,5 +1,40 @@
 /**
- * Context Menu Component
+ * ============================================================================
+ * FILE: ContextMenu.tsx
+ * LOCATION: frontend/src/components/explorer/ContextMenu.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Right-click context menu for file explorer items. Provides quick
+ *    actions like Open, Rename, Delete, and Create Child based on the
+ *    selected node type.
+ *
+ * ROLE IN PROJECT:
+ *    Primary action menu for interacting with hierarchy nodes. Appears
+ *    on right-click in both SidebarTree and GridView/ListView.
+ *
+ * MENU ACTIONS:
+ *    - Open: Navigate into folder or open PDF for notes
+ *    - Download PDF: (notes only) Download the PDF file
+ *    - New [Child Type]: Create child entity (e.g., New Semester inside Department)
+ *    - Rename: Trigger inline rename mode
+ *    - Delete: Open confirm delete dialog
+ *
+ * CHILD TYPE MAPPING:
+ *    - department → New Semester
+ *    - semester → New Subject
+ *    - subject → New Module
+ *    - module → New Note (redirects to upload dialog)
+ *    - note → null (no children)
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react, @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, types
+ *
+ * USAGE:
+ *    {contextMenuPosition && <ContextMenu />}
+ *    Renders as a positioned overlay based on click coordinates.
+ * ============================================================================
  */
 import { useExplorerStore } from '../../stores';
 import { useQueryClient } from '@tanstack/react-query';

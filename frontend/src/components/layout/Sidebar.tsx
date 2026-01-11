@@ -1,5 +1,40 @@
 /**
- * Sidebar Component - Tree navigation + contextual create button
+ * ============================================================================
+ * FILE: Sidebar.tsx
+ * LOCATION: frontend/src/components/layout/Sidebar.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Left sidebar panel containing the tree navigation and contextual
+ *    action button. Provides persistent navigation while browsing the
+ *    main content area.
+ *
+ * ROLE IN PROJECT:
+ *    Main navigation container that wraps SidebarTree. Also manages the
+ *    contextual "Create" or "Upload" button based on current navigation
+ *    depth.
+ *
+ * KEY FEATURES:
+ *    - Header with "Explorer" title and folder tree icon
+ *    - SidebarTree component for recursive tree navigation
+ *    - Contextual bottom button:
+ *      - Depth 0: "New Department"
+ *      - Depth 1: "New Semester"
+ *      - Depth 2: "New Subject"
+ *      - Depth 3: "New Module"
+ *      - Depth 4 (module): "Upload Notes" → opens UploadDialog
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react
+ *    - Internal: stores/useExplorerStore, SidebarTree, UploadDialog, types
+ *
+ * PROPS:
+ *    - tree: FileSystemNode[] - Full hierarchy tree
+ *    - isLoading: boolean - Show loading spinner
+ *
+ * USAGE:
+ *    <Sidebar tree={tree} isLoading={isLoading} />
+ * ============================================================================
  */
 import { useState } from 'react';
 import { useExplorerStore } from '../../stores';

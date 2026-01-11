@@ -1,6 +1,42 @@
 """
-FastAPI app for hierarchy and notes explorer
-Run with: uvicorn main:app --reload
+============================================================================
+FILE: main.py
+LOCATION: api/main.py
+============================================================================
+
+PURPOSE:
+    Main entry point for the AURA-PROTO FastAPI backend application.
+    Initializes the web server, configures middleware, and mounts all
+    API routers for hierarchy management, file exploration, and audio
+    processing pipelines.
+
+ROLE IN PROJECT:
+    This is the central orchestrator of the backend. It:
+    - Loads environment variables (including Firebase/Google credentials)
+    - Configures CORS for React frontend communication
+    - Sets up rate limiting to prevent abuse
+    - Mounts static file serving for generated PDFs
+    - Includes all API routers (CRUD, Explorer, Audio)
+    - Provides health check endpoints for deployment monitoring
+
+KEY COMPONENTS:
+    - app: The FastAPI application instance
+    - list_departments/semesters/subjects/modules: Legacy hierarchy endpoints
+    - root(): API welcome endpoint
+    - health_check(): Liveness probe for container orchestration
+    - readiness_check(): Readiness probe checking Firestore connectivity
+    - create_note_endpoint(): Direct note creation with hierarchy validation
+    - CreateNoteRequest: Pydantic model for note creation payload
+
+DEPENDENCIES:
+    - External: fastapi, slowapi (rate limiting), python-dotenv
+    - Internal: hierarchy.py, hierarchy_crud.py, explorer.py, audio_processing.py, config.py
+
+USAGE:
+    Run with: uvicorn main:app --reload --port 8000
+    Or from project root: cd api && python -m uvicorn main:app --reload
+    Access API docs at: http://localhost:8000/docs
+============================================================================
 """
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv

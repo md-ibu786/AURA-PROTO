@@ -1,3 +1,45 @@
+"""
+============================================================================
+FILE: config.py
+LOCATION: api/config.py
+============================================================================
+
+PURPOSE:
+    Handles Firebase Admin SDK initialization and provides Firestore database
+    client instances (both synchronous and asynchronous) for the entire
+    backend application.
+
+ROLE IN PROJECT:
+    This is the database configuration layer. All modules that need to
+    interact with Firestore import `db` or `async_db` from this file.
+    It ensures Firebase is initialized only once (preventing errors during
+    hot-reloads in development) and handles credential path resolution.
+
+KEY COMPONENTS:
+    - init_firebase(): Initializes Firebase Admin SDK and returns sync Firestore client
+    - init_async_firebase(): Returns an async Firestore client for async endpoints
+    - db: Global synchronous Firestore client instance
+    - async_db: Global asynchronous Firestore client instance
+
+DEPENDENCIES:
+    - External: firebase_admin, google-cloud-firestore
+    - Internal: Reads serviceAccountKey.json from project root
+
+USAGE:
+    from config import db, async_db
+    
+    # Sync operations
+    docs = db.collection('departments').stream()
+    
+    # Async operations  
+    async for doc in async_db.collection('departments').stream():
+        ...
+
+ENVIRONMENT VARIABLES:
+    - FIREBASE_CREDENTIALS: Optional path to service account key JSON
+      (falls back to serviceAccountKey.json in project root)
+============================================================================
+"""
 
 import os
 import firebase_admin

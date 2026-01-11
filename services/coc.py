@@ -1,3 +1,59 @@
+"""
+============================================================================
+FILE: coc.py (Chain of Custody)
+LOCATION: services/coc.py
+============================================================================
+
+PURPOSE:
+    Cleans and transforms raw audio transcripts into polished academic text.
+    Uses a two-phase AI pipeline: first cleaning the transcript, then auditing
+    it for quality assurance. Acts as the "editor" that removes noise while
+    preserving educational content.
+
+ROLE IN PROJECT:
+    This is the "transcript refinement" step in the audio-to-notes pipeline.
+    After Deepgram transcribes audio (stt.py), this module:
+    1. Filters out student interruptions and administrative chatter
+    2. Corrects grammar and removes verbal fillers
+    3. Audits the result for residual noise
+    
+    The output feeds into summarizer.py for structured note generation.
+
+KEY COMPONENTS:
+    - clean_and_parse_json(text): Robustly extract JSON from LLM output
+    - transform_transcript(topic, transcript): Main two-phase cleaning function
+
+PROCESSING PIPELINE:
+    Phase 1 - The Filter (transform_transcript):
+        - Identify primary speaker (lecturer)
+        - Eliminate student noise and interruptions
+        - Remove administrative "meta-talk"
+        - Maintain topic relevance
+    
+    Phase 2 - The Audit:
+        - Ghost Vector: Detect residual unauthorized speakers
+        - Relevance Vector: Check topic adherence
+        - Logic Vector: Find Frankenstein sentences
+        - Auto-repair minor issues, flag major issues
+
+AI CONFIGURATION:
+    - Model: Gemini 3 Flash Preview
+    - Temperature: 0.0 (deterministic for consistency)
+    - Max tokens: 32000
+
+DEPENDENCIES:
+    - External: google-cloud-aiplatform (Vertex AI SDK)
+    - Internal: vertex_ai_client.py (get_model, generate_content, GenerationConfig)
+
+USAGE:
+    from services.coc import transform_transcript
+    
+    cleaned = transform_transcript(
+        topic="Database Design Principles",
+        transcript=raw_transcript_from_deepgram
+    )
+============================================================================
+"""
 import json
 import re
 

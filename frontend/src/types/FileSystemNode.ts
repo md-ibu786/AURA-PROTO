@@ -1,6 +1,42 @@
 /**
- * File System Node Types
- * Mirrors the backend ExplorerNode model
+ * ============================================================================
+ * FILE: FileSystemNode.ts
+ * LOCATION: frontend/src/types/FileSystemNode.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Core TypeScript type definitions for the AURA-PROTO frontend.
+ *    Defines interfaces that mirror backend Pydantic models, ensuring
+ *    type-safe API communication between React and FastAPI.
+ *
+ * ROLE IN PROJECT:
+ *    Central type definition file used throughout the frontend:
+ *    - Components rely on these types for props and state
+ *    - API functions use these for request/response typing
+ *    - Zustand store uses FileSystemNode for tree state
+ *
+ * KEY TYPES:
+ *    Hierarchy Types:
+ *    - HierarchyType: Union type for node types (department|semester|subject|module|note)
+ *    - FileSystemNode: Main tree node structure with children and metadata
+ *    - FileSystemNodeMeta: Additional metadata (noteCount, pdfFilename, etc.)
+ *    - MoveRequest/MoveResponse: For drag-drop node moves
+ *    - CreateNodeRequest: For creating new hierarchy items
+ *
+ *    Audio Processing Types:
+ *    - TranscribeResponse: Deepgram transcription result
+ *    - RefineRequest/Response: Transcript cleaning
+ *    - SummarizeRequest/Response: Note generation
+ *    - GeneratePdfRequest/Response: PDF creation
+ *    - PipelineStatus: Async pipeline status with progress
+ *
+ * DEPENDENCIES:
+ *    - External: None (pure TypeScript)
+ *    - Internal: None
+ *
+ * USAGE:
+ *    import type { FileSystemNode, HierarchyType, PipelineStatus } from '../types';
+ * ============================================================================
  */
 
 export type HierarchyType = 'department' | 'semester' | 'subject' | 'module' | 'note';

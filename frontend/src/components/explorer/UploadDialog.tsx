@@ -1,9 +1,53 @@
 /**
- * Upload Dialog Component
- * Two-option popup for uploading notes (documents or voice for AI generation)
+ * ============================================================================
+ * FILE: UploadDialog.tsx
+ * LOCATION: frontend/src/components/explorer/UploadDialog.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Modal dialog for uploading notes to a module. Provides two pathways:
+ *    1. Direct document upload (PDF, Word, text files)
+ *    2. AI Note Generator (audio → transcript → notes → PDF)
+ *
+ * ROLE IN PROJECT:
+ *    Primary interface for creating notes. Integrates with the backend
+ *    audio processing pipeline for AI-powered note generation from
+ *    voice recordings.
+ *
+ * UPLOAD MODES:
+ *    - 'select': Initial mode, choose between document or voice
+ *    - 'document': Direct document upload with optional title
+ *    - 'voice': Audio upload with required topic for AI processing
+ *    - 'processing': Shows progress while AI pipeline runs
+ *
+ * AI PIPELINE STAGES:
+ *    1. pending → Starting
+ *    2. transcribing → Audio to text (Deepgram)
+ *    3. refining → Cleaning transcript (Gemini)
+ *    4. summarizing → Generating notes (Gemini)
+ *    5. generating_pdf → Creating PDF
+ *    6. complete → Done!
+ *
+ * SUPPORTED FILES:
+ *    - Documents: PDF, DOC, DOCX, TXT, MD
+ *    - Audio: MP3, WAV, M4A, FLAC, OGG, WebM
+ *
+ * DEPENDENCIES:
+ *    - External: sonner (toast notifications), lucide-react
+ *    - Internal: @tanstack/react-query (tree refresh)
+ *
+ * USAGE:
+ *    <UploadDialog
+ *        isOpen={isUploadOpen}
+ *        onClose={() => setIsUploadOpen(false)}
+ *        moduleId={currentModule.id}
+ *        moduleName={currentModule.label}
+ *    />
+ * ============================================================================
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { X, Upload, FileText, Mic, FileUp, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface UploadDialogProps {
@@ -86,6 +130,7 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                             clearInterval(pollIntervalRef.current);
                             pollIntervalRef.current = null;
                         }
+                        toast.success('Notes generated successfully!');
                         // Refresh the tree
                         await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
                     } else if (data.status === 'error') {
@@ -94,7 +139,9 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                             clearInterval(pollIntervalRef.current);
                             pollIntervalRef.current = null;
                         }
-                        setError(data.message || 'Processing failed');
+                        const msg = data.message || 'Processing failed';
+                        toast.error(msg);
+                        setError(msg);
                     }
                 } catch (err) {
                     console.error('Status poll error:', err);

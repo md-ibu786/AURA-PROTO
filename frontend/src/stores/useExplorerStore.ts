@@ -1,6 +1,52 @@
 /**
- * Explorer Store using Zustand
- * Manages UI state for the file explorer
+ * ============================================================================
+ * FILE: useExplorerStore.ts
+ * LOCATION: frontend/src/stores/useExplorerStore.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Central state management store for the file explorer UI using Zustand.
+ *    Manages all UI state including navigation, selection, tree expansion,
+ *    view mode, clipboard, context menus, and dialogs.
+ *
+ * ROLE IN PROJECT:
+ *    This is the primary state store consumed by all explorer components.
+ *    Unlike React Query (which manages server state), this store handles
+ *    purely client-side UI concerns like selection and navigation.
+ *
+ * KEY STATE:
+ *    Navigation:
+ *    - currentPath: Breadcrumb path of FileSystemNodes
+ *    - activeNodeId: Currently focused/active node
+ *
+ *    Selection (multi-select support):
+ *    - selectedIds: Set of selected node IDs
+ *    - lastSelectedId: For Shift+click range selection
+ *
+ *    Tree:
+ *    - expandedIds: Set of expanded node IDs in sidebar tree
+ *
+ *    View:
+ *    - viewMode: 'grid' or 'list'
+ *    - searchQuery: Filter text for current folder
+ *
+ *    Context Menu & Dialogs:
+ *    - contextMenuPosition, contextMenuNodeId: Right-click menu state
+ *    - deleteDialogOpen, nodeToDelete: Confirm delete dialog
+ *    - warningDialog: Duplicate name / error warnings
+ *    - renamingNodeId: Currently renaming node
+ *    - creatingNodeType, creatingParentId: Inline creation state
+ *
+ * DEPENDENCIES:
+ *    - External: zustand
+ *    - Internal: ../types (FileSystemNode, HierarchyType)
+ *
+ * USAGE:
+ *    import { useExplorerStore } from '../stores';
+ *
+ *    // In component
+ *    const { selectedIds, select, navigateTo } = useExplorerStore();
+ * ============================================================================
  */
 import { create } from 'zustand';
 import type { FileSystemNode, HierarchyType } from '../types';
@@ -307,7 +353,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     closeWarningDialog: () => {
         const { warningTimeoutId } = get();
         if (warningTimeoutId) clearTimeout(warningTimeoutId);
-        
+
         set({
             warningDialog: {
                 isOpen: false,

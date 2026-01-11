@@ -1,6 +1,56 @@
 """
-CRUD operations for hierarchy tables (departments, semesters, subjects, modules)
-and notes (delete/rename only) using Firestore.
+============================================================================
+FILE: hierarchy_crud.py
+LOCATION: api/hierarchy_crud.py
+============================================================================
+
+PURPOSE:
+    Provides Create, Update, Delete (CRUD) REST API endpoints for all
+    hierarchy entities: departments, semesters, subjects, modules, and notes.
+    Implements transactional operations with duplicate name handling and
+    cascading deletes for nested Firestore subcollections.
+
+ROLE IN PROJECT:
+    This is the write layer for hierarchy management. The React frontend's
+    context menu operations (New Folder, Rename, Delete) call these endpoints.
+    
+    Key features:
+    - Automatic unique name generation for duplicates (e.g., "Name (2)")
+    - Transactional parent validation before creating children
+    - Recursive deletion of subcollections and associated PDF files
+    - Collection group queries to find nested documents by ID
+
+KEY COMPONENTS:
+    Utility Functions:
+    - get_next_available_number(): Sequential numbering for semesters/modules
+    - get_next_available_code(): Generate codes like SUBJ001, SUBJ002
+    - get_unique_name(): Add (N) suffix for duplicate names
+    - delete_document_recursive(): Cascade delete with PDF cleanup
+    - find_doc_by_id(): Collection group query to locate nested docs
+    
+    Pydantic Models:
+    - DepartmentCreate/Update, SemesterCreate/Update
+    - SubjectCreate/Update, ModuleCreate/Update, NoteUpdate
+    
+    Endpoints:
+    - POST/PUT/DELETE /api/departments/{id}
+    - POST/PUT/DELETE /api/semesters/{id}
+    - POST/PUT/DELETE /api/subjects/{id}
+    - POST/PUT/DELETE /api/modules/{id}
+    - PUT/DELETE /api/notes/{id} (notes created via audio_processing)
+
+DEPENDENCIES:
+    - External: fastapi, pydantic, google-cloud-firestore
+    - Internal: config.py (db client)
+
+USAGE:
+    # Create a new subject under a semester
+    POST /api/subjects
+    {"semester_id": "abc123", "name": "Data Structures", "code": "CS201"}
+    
+    # Delete a module (cascades to notes, deletes PDFs)
+    DELETE /api/modules/xyz789
+============================================================================
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

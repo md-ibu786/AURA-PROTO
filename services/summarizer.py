@@ -1,3 +1,52 @@
+"""
+============================================================================
+FILE: summarizer.py
+LOCATION: services/summarizer.py
+============================================================================
+
+PURPOSE:
+    Generates university-grade structured lecture notes from cleaned
+    transcripts using AI (Google Gemini via Vertex AI). Transforms raw
+    lecture content into a formal academic document structure.
+
+ROLE IN PROJECT:
+    This is the "note generation" step in the audio-to-notes pipeline.
+    After coc.py cleans the transcript, this module transforms it into
+    structured, textbook-quality notes with sections, definitions,
+    examples, and key takeaways.
+
+KEY COMPONENTS:
+    - generate_university_notes(topic, cleaned_transcript): Main function
+
+OUTPUT STRUCTURE:
+    # COURSE MODULE: [Topic]
+    ## 1. EXECUTIVE SUMMARY
+    ## 2. CORE CONCEPTS & THEORETICAL FRAMEWORK
+        ### 2.x [SUBTOPIC TITLE]
+        - CONCEPT DEFINITION
+        - ELABORATION & MECHANICS
+        - ILLUSTRATIVE EXAMPLES
+    ## 3. TECHNICAL GLOSSARY
+    ## 4. KEY TAKEAWAYS
+
+AI CONFIGURATION:
+    - Model: Gemini 3 Flash Preview (thinking model)
+    - Temperature: 1.0 (creative reasoning)
+    - Max tokens: 32000
+
+DEPENDENCIES:
+    - External: google-cloud-aiplatform (Vertex AI SDK)
+    - Internal: vertex_ai_client.py (get_model, generate_content)
+
+USAGE:
+    from services.summarizer import generate_university_notes
+    
+    notes = generate_university_notes(
+        topic="Data Structures and Algorithms",
+        cleaned_transcript=cleaned_text
+    )
+============================================================================
+"""
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
@@ -5,14 +54,14 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
     """Generates structured, university-grade notes from a cleaned transcript."""
 
     model = get_model(model_name="models/gemini-3-flash-preview")
-
+    
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
         You are an Expert Academic Author and Curriculum Designer. Your task is to transform raw lecture transcripts into high-density, university-grade textbook chapters. You prioritize structural logic, rigorous definitions, and academic tone.
 
         ### INPUT DATA
         1. **Target Topic:** "{topic}"
-        2. **Source Material:**
+        2. **Source Material:
         <transcript>
         {cleaned_transcript}
         </transcript>
@@ -61,11 +110,14 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         (Bullet points summarizing the 3-5 most critical learning objectives achieved in this lecture.)
         """
 
+    # Note: Gemini 3 Flash is a "thinking model" by design, with inherent reasoning capabilities
+    # The temperature=1.0 setting encourages more diverse and creative reasoning
+    # top_p=0.95 allows for broader exploration of ideas while maintaining coherence
     try:
         response = generate_content(
             model,
             note_taking_prompt,
-            generation_config=GenerationConfig(temperature=0.3, max_output_tokens=32000),
+            generation_config=GenerationConfig(temperature=1.0, top_p=0.95, max_output_tokens=32000),
         )
         return response.text
     except Exception as e:

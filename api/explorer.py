@@ -1,7 +1,52 @@
 """
-Explorer API endpoints for React frontend using Firestore (Async).
-Provides tree view of hierarchy and move/rename operations.
-Uses asyncio.gather for parallel children fetching.
+============================================================================
+FILE: explorer.py
+LOCATION: api/explorer.py
+============================================================================
+
+PURPOSE:
+    Provides async API endpoints for the React file explorer interface.
+    Delivers the full hierarchy tree structure and supports lazy-loading
+    of children for efficient rendering of large hierarchies.
+
+ROLE IN PROJECT:
+    This is the primary API consumed by the React frontend's SidebarTree
+    and main content area. It transforms Firestore's nested subcollections
+    into the ExplorerNode tree structure expected by the frontend.
+    
+    Key features:
+    - Async operations using asyncio.gather for parallel fetching
+    - Lazy loading support via /children endpoint
+    - Move operations with copy-delete (required by Firestore)
+
+KEY COMPONENTS:
+    Models:
+    - HierarchyType: Enum for node types (department, semester, subject, module, note)
+    - ExplorerNode: Main tree node structure with type, label, children, metadata
+    - ExplorerNodeMeta: Additional metadata (noteCount, hasChildren, pdfFilename, etc.)
+    - MoveRequest/MoveResponse: For node move operations
+    
+    Async Helpers (parallel fetching):
+    - _build_single_department_async: Build one department with children
+    - _build_semesters_async: Build all semesters for a department
+    - _build_subjects_async: Build all subjects for a semester
+    - _build_modules_async: Build all modules for a subject
+    - _build_notes_async: Build all notes for a module
+    
+    Endpoints:
+    - GET /api/explorer/tree: Full hierarchy tree (async, parallel)
+    - GET /api/explorer/children/{type}/{id}: Lazy load children
+    - POST /api/explorer/move: Move node to new parent
+
+DEPENDENCIES:
+    - External: fastapi, pydantic, asyncio, google-cloud-firestore
+    - Internal: config.py (db, async_db clients)
+
+USAGE:
+    # Frontend fetch
+    const response = await fetch('/api/explorer/tree?depth=5');
+    const nodes = await response.json();
+============================================================================
 """
 import asyncio
 from fastapi import APIRouter, HTTPException

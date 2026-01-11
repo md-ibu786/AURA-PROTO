@@ -1,6 +1,68 @@
 """
-Audio Processing API endpoints.
-Exposes services folder functionality for React frontend.
+============================================================================
+FILE: audio_processing.py
+LOCATION: api/audio_processing.py
+============================================================================
+
+PURPOSE:
+    Provides REST API endpoints for the AI-powered audio-to-notes pipeline.
+    Handles audio file uploads, document uploads, and orchestrates the
+    multi-step processing: transcription -> refinement -> summarization -> PDF.
+
+ROLE IN PROJECT:
+    This is the AI Note Generator backend. The React UploadDialog component
+    uploads audio files here, which triggers a background processing pipeline.
+    Also handles direct document uploads (PDF, DOC, TXT) for non-audio notes.
+    
+    Key features:
+    - Background task processing with status polling
+    - File size validation and format checking
+    - Graceful service degradation if dependencies are missing
+
+KEY COMPONENTS:
+    Pydantic Models:
+    - TranscribeResponse, RefineRequest/Response, SummarizeRequest/Response
+    - GeneratePdfRequest/Response, PipelineRequest, PipelineStatusResponse
+    
+    Individual Step Endpoints (for debugging/manual control):
+    - POST /api/audio/transcribe: Transcribe audio using Deepgram
+    - POST /api/audio/refine: Clean transcript with AI
+    - POST /api/audio/summarize: Generate university-grade notes
+    - POST /api/audio/generate-pdf: Create PDF from notes
+    
+    Pipeline Endpoints:
+    - POST /api/audio/process-pipeline: Start full async pipeline
+    - GET /api/audio/pipeline-status/{job_id}: Poll job status
+    - POST /api/audio/upload-document: Upload PDF/DOC/TXT directly
+    
+    Background Processing:
+    - _run_pipeline(): Background task that runs all steps
+    - job_status_store: In-memory job tracking (use Redis in production)
+
+DEPENDENCIES:
+    - External: fastapi, pydantic, uuid
+    - Internal: 
+        - services/stt.py (Deepgram transcription)
+        - services/coc.py (transcript transformation)
+        - services/summarizer.py (note generation)
+        - services/pdf_generator.py (PDF creation)
+        - notes.py (database record creation)
+
+FILE SIZE LIMITS:
+    - Audio: 100MB max, 1KB min
+    - Documents: 50MB max
+    - Allowed audio: .mp3, .wav, .m4a, .ogg, .flac
+    - Allowed docs: .pdf, .doc, .docx, .txt, .md
+
+USAGE:
+    # Start processing pipeline
+    POST /api/audio/process-pipeline
+    FormData: file=<audio>, topic="Lecture 1", moduleId="abc123"
+    
+    # Poll for status
+    GET /api/audio/pipeline-status/{jobId}
+    Returns: {status: "transcribing", progress: 35, ...}
+============================================================================
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
@@ -73,6 +135,8 @@ PDFS_DIR = os.path.join(BASE_DIR, 'pdfs')
 # File size limits (in bytes)
 MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100MB for audio files
 MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
+MIN_AUDIO_SIZE = 1024 # 1KB minimum
+ALLOWED_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.flac'}
 
 
 def validate_file_size(content_length: int, max_size: int, file_type: str) -> None:
@@ -217,6 +281,14 @@ async def transcribe_audio(file: UploadFile = File(...)):
     Transcribe an audio file using Deepgram.
     """
     try:
+        # Validate extension
+        file_ext = os.path.splitext(file.filename or '')[1].lower()
+        if file_ext not in ALLOWED_AUDIO_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file format {file_ext}. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}"
+            )
+
         # Read file bytes
         audio_bytes = await file.read()
         
@@ -224,6 +296,9 @@ async def transcribe_audio(file: UploadFile = File(...)):
             raise HTTPException(status_code=400, detail="Empty audio file")
         
         # Validate file size
+        if len(audio_bytes) < MIN_AUDIO_SIZE:
+            raise HTTPException(status_code=400, detail="File too small to be a valid audio recording")
+            
         validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
         
         # Process with Deepgram
@@ -233,10 +308,15 @@ async def transcribe_audio(file: UploadFile = File(...)):
             success=True,
             transcript=result.get('text', '')
         )
+    except HTTPException as e:
+        raise e # Re-raise 400/413 errors
     except ValueError as e:
         return TranscribeResponse(success=False, error=str(e))
     except Exception as e:
-        return TranscribeResponse(success=False, error=f"Transcription failed: {str(e)}")
+        error_msg = str(e)
+        if "timed out" in error_msg.lower():
+            error_msg = "Transcription timed out. Please try a shorter recording or check your connection."
+        return TranscribeResponse(success=False, error=f"Transcription failed: {error_msg}")
 
 
 @router.post("/refine", response_model=RefineResponse)

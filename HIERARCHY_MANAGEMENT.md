@@ -44,7 +44,7 @@ departments (id=1)
 ## 📡 API Endpoints Created
 
 ### Departments
-- `POST /api/departments` - Create new department
+- `POST /api/departments` - Create new department (Returns `409 Conflict` if duplicate)
 - `PUT /api/departments/{id}` - Rename department
 - `DELETE /api/departments/{id}` - Delete department (cascades)
 

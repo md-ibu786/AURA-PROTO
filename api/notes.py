@@ -1,5 +1,49 @@
 """
-Notes storage helpers using Firestore
+============================================================================
+FILE: notes.py
+LOCATION: api/notes.py
+============================================================================
+
+PURPOSE:
+    Provides helper functions for creating note records in Firestore.
+    Handles duplicate title detection and generates unique names with
+    numbered suffixes when conflicts occur.
+
+ROLE IN PROJECT:
+    This module is used by:
+    - main.py (create_note_endpoint) for direct note creation
+    - audio_processing.py for saving notes after PDF generation
+    - upload-document endpoint for document uploads
+    
+    Notes are the leaf nodes in the hierarchy (stored under modules).
+
+KEY COMPONENTS:
+    - get_next_available_number(numbers): Find next sequential number
+    - get_unique_name(names, base_name): Generate unique name with (N) suffix
+    - create_note_record(module_id, title, pdf_url): Create note in Firestore
+
+DATA STRUCTURE:
+    Each note document contains:
+    - id: Auto-generated Firestore document ID
+    - title: Display title (unique within module, auto-suffixed if duplicate)
+    - pdf_url: Path to PDF/document file (e.g., /pdfs/filename.pdf)
+    - created_at: ISO timestamp
+    - module_id: Reference to parent module
+
+DEPENDENCIES:
+    - External: google-cloud-firestore
+    - Internal: config.py (db client)
+
+USAGE:
+    from notes import create_note_record
+    
+    note = create_note_record(
+        module_id="abc123",
+        title="Lecture Notes Week 1",
+        pdf_url="/pdfs/lecture_notes_week_1_1704067200.pdf"
+    )
+    # Returns: {'id': '...', 'title': '...', 'pdf_url': '...', ...}
+============================================================================
 """
 from google.cloud import firestore
 import datetime

@@ -1,6 +1,43 @@
 """
-Structured logging configuration for AURA-PROTO.
-Provides JSON-style structured logs for production environments.
+============================================================================
+FILE: logging_config.py
+LOCATION: api/logging_config.py
+============================================================================
+
+PURPOSE:
+    Provides configurable logging infrastructure with two output formats:
+    - JSON structured logs for production (machine-readable, for log aggregators)
+    - Human-readable logs for development (console-friendly)
+
+ROLE IN PROJECT:
+    Centralizes logging configuration for the entire backend. Other modules
+    import get_logger() to obtain child loggers with consistent formatting.
+    Currently used primarily by audio_processing.py for pipeline logging.
+
+KEY COMPONENTS:
+    - StructuredFormatter: JSON log formatter for production environments
+    - DevelopmentFormatter: Human-readable formatter for local development
+    - setup_logging(level, production, logger_name): Configure root logger
+    - get_logger(name): Get a child logger with the given name
+    - logger: Default configured logger instance
+
+LOG FORMAT (Development):
+    HH:MM:SS [LEVEL] module: message
+
+LOG FORMAT (Production/JSON):
+    {"timestamp": "...", "level": "...", "module": "...", "message": "..."}
+
+DEPENDENCIES:
+    - External: logging (Python standard library)
+    - Internal: None
+
+USAGE:
+    from logging_config import get_logger
+    
+    logger = get_logger("audio")
+    logger.info("Processing started")
+    logger.error("Failed to transcribe", exc_info=True)
+============================================================================
 """
 import logging
 import sys

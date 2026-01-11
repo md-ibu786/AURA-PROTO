@@ -1,3 +1,43 @@
+/**
+ * ============================================================================
+ * FILE: ExplorerPage.tsx
+ * LOCATION: frontend/src/pages/ExplorerPage.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Main page component for the file explorer interface. Orchestrates the
+ *    layout (sidebar + main content), data fetching, and renders the
+ *    appropriate view (grid/list) based on current state.
+ *
+ * ROLE IN PROJECT:
+ *    This is the primary "page" that users see. It:
+ *    - Fetches the hierarchy tree via React Query
+ *    - Computes current folder's children based on navigation path
+ *    - Renders Sidebar, Header, and content area (GridView or ListView)
+ *    - Handles delete confirmation and warning dialogs
+ *
+ * KEY COMPONENTS RENDERED:
+ *    - Sidebar: Left panel with tree navigation
+ *    - Header: Top bar with breadcrumbs, search, view toggle
+ *    - GridView/ListView: Main content area (toggleable)
+ *    - ContextMenu: Right-click actions
+ *    - ConfirmDialog: Delete confirmation
+ *    - WarningDialog: Duplicate name warnings
+ *
+ * DATA FLOW:
+ *    1. useQuery fetches tree from /api/explorer/tree
+ *    2. getCurrentChildren() extracts children based on currentPath
+ *    3. Children passed to GridView/ListView for rendering
+ *    4. User interactions update Zustand store → triggers re-render
+ *
+ * DEPENDENCIES:
+ *    - External: @tanstack/react-query, lucide-react
+ *    - Internal: stores, api, components (Sidebar, Header, GridView, etc.)
+ *
+ * USAGE:
+ *    This component is rendered at the root route (/*) by App.tsx.
+ * ============================================================================
+ */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useExplorerStore } from '../stores';
 import { getExplorerTree } from '../api';
@@ -150,7 +190,7 @@ export default function ExplorerPage() {
                 onConfirm={handleDeleteConfirm}
                 onCancel={closeDeleteDialog}
             />
-            
+
             <WarningDialog />
         </div>
     );

@@ -1,5 +1,43 @@
 /**
- * Audio Processing API functions
+ * ============================================================================
+ * FILE: audioApi.ts
+ * LOCATION: frontend/src/api/audioApi.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    API functions for the AI Note Generator feature. Provides typed methods
+ *    for audio transcription, transcript refinement, note summarization,
+ *    and PDF generation pipeline.
+ *
+ * ROLE IN PROJECT:
+ *    Backend integration layer for the UploadDialog component.
+ *    Enables the audio-to-notes workflow:
+ *    Audio File → Transcribe → Refine → Summarize → Generate PDF
+ *
+ * KEY FUNCTIONS:
+ *    Individual Pipeline Steps (for debugging/manual control):
+ *    - transcribeAudio(file): Upload audio, get transcript from Deepgram
+ *    - refineTranscript(request): Clean transcript with AI
+ *    - summarizeTranscript(request): Generate structured notes
+ *    - generatePdf(request): Create PDF from notes
+ *
+ *    Full Pipeline:
+ *    - startPipeline(file, topic, moduleId): Start async processing job
+ *    - getPipelineStatus(jobId): Poll for job status and results
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ./client.ts (fetchApi, fetchFormData), ../types (interfaces)
+ *
+ * USAGE:
+ *    import { startPipeline, getPipelineStatus } from './audioApi';
+ *
+ *    const { jobId } = await startPipeline(audioFile, 'Lecture 1', moduleId);
+ *    const status = await getPipelineStatus(jobId);
+ *    if (status.status === 'complete') {
+ *        console.log(status.result.pdfUrl);
+ *    }
+ * ============================================================================
  */
 import { fetchApi, fetchFormData } from './client';
 import type {

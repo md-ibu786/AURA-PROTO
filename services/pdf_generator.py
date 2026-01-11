@@ -1,10 +1,46 @@
-"""PDF generation helpers
+"""
+============================================================================
+FILE: pdf_generator.py
+LOCATION: services/pdf_generator.py
+============================================================================
 
-Clean implementation using FPDF/fpdf2.
-Provides:
-- preprocess_text_for_pdf(text)
-- create_pdf(summary_text, title, output_filename)
-- create_pdf_bytes(summary_text, title)
+PURPOSE:
+    Generates formatted PDF documents from text content (lecture notes,
+    summaries). Handles Markdown-like formatting including headers, bold
+    text, and bullet points. Provides both file and bytes output options.
+
+ROLE IN PROJECT:
+    This is the final step in the audio-to-notes pipeline. After the AI
+    generates structured notes, this module converts them to downloadable
+    PDF documents that are saved to the /pdfs directory.
+
+KEY COMPONENTS:
+    - preprocess_text_for_pdf(text): Normalize Unicode for PDF compatibility
+    - LectureNotesPDF: Custom FPDF class with headers/footers
+    - _build_pdf(summary_text, title): Internal PDF builder
+    - create_pdf(summary_text, title, output_filename): Generate PDF file
+    - create_pdf_bytes(summary_text, title): Generate PDF as bytes
+
+MARKDOWN SUPPORT:
+    - # Header 1 (large title)
+    - ## Header 2 (section)
+    - ### Header 3 (subsection)
+    - **bold text** (inline bold)
+    - - or * bullet points
+
+DEPENDENCIES:
+    - External: fpdf or fpdf2 (PDF generation library)
+    - Internal: None
+
+USAGE:
+    from services.pdf_generator import create_pdf, create_pdf_bytes
+    
+    # Create PDF file
+    create_pdf(notes_text, "Lecture 1", "pdfs/lecture1.pdf")
+    
+    # Get PDF as bytes (for streaming/in-memory use)
+    pdf_bytes = create_pdf_bytes(notes_text, "Lecture 1")
+============================================================================
 """
 
 from typing import Optional

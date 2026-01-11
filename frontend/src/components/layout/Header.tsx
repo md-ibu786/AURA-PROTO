@@ -1,5 +1,42 @@
 /**
- * Header Component - Breadcrumbs, search, view toggle
+ * ============================================================================
+ * FILE: Header.tsx
+ * LOCATION: frontend/src/components/layout/Header.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Top navigation bar for the explorer. Displays breadcrumb navigation,
+ *    search input, and view mode toggle (grid/list).
+ *
+ * ROLE IN PROJECT:
+ *    Provides primary navigation controls above the main content area.
+ *    Allows users to quickly jump between levels of the hierarchy via
+ *    breadcrumbs and filter current folder contents via search.
+ *
+ * KEY FEATURES:
+ *    Navigation Buttons:
+ *    - Up arrow: Navigate to parent folder
+ *    - Home: Return to root (show all departments)
+ *
+ *    Breadcrumbs:
+ *    - Clickable path showing current location
+ *    - Home → Department → Semester → Subject → Module
+ *
+ *    Search:
+ *    - Filters items in current folder by label
+ *    - Real-time filtering (no submit required)
+ *
+ *    View Toggle:
+ *    - Grid icon: Switch to GridView
+ *    - List icon: Switch to ListView
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons)
+ *    - Internal: stores/useExplorerStore
+ *
+ * USAGE:
+ *    <Header /> - Rendered in ExplorerPage above content area
+ * ============================================================================
  */
 import { useExplorerStore } from '../../stores';
 import {
