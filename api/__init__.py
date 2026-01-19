@@ -85,3 +85,24 @@ __all__ = [
     "ProcessingState",
     "celery_app",
 ]
+
+# M2KG Module exports
+from .modules import (
+    ModuleService,
+    ModuleCreate,
+    ModuleUpdate,
+    ModuleResponse,
+    ModuleListResponse,
+    ModuleStatus,
+    modules_router,
+)
+
+__all__ += [
+    "ModuleService",
+    "ModuleCreate",
+    "ModuleUpdate",
+    "ModuleResponse",
+    "ModuleListResponse",
+    "ModuleStatus",
+    "modules_router",
+]

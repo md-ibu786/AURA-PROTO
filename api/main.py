@@ -74,6 +74,12 @@ except (ImportError, ModuleNotFoundError):
     from api.explorer import router as explorer_router
     from api.audio_processing import router as audio_router
 
+# Import M2KG modules router
+try:
+    from modules import modules_router
+except (ImportError, ModuleNotFoundError):
+    from api.modules import modules_router
+
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
 # Rate limiting configuration
@@ -104,6 +110,7 @@ app.add_middleware(
 app.include_router(crud_router)
 app.include_router(explorer_router)
 app.include_router(audio_router)
+app.include_router(modules_router, prefix="/api/v1")  # M2KG Module endpoints
 
 from fastapi.staticfiles import StaticFiles
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -149,6 +156,23 @@ async def readiness_check():
             status_code=503,
             media_type="application/json"
         )
+
+@app.get("/health/redis")
+def redis_health_check():
+    """Check Redis connection status."""
+    try:
+        from cache import redis_client
+    except ImportError:
+        try:
+            from api.cache import redis_client
+        except ImportError:
+            return {"status": "unavailable", "redis": "package_not_found"}
+    
+    connected = redis_client.ping()
+    return {
+        "status": "healthy" if connected else "unhealthy",
+        "redis": "connected" if connected else "disconnected"
+    }
 
 from pydantic import BaseModel
 from fastapi import HTTPException

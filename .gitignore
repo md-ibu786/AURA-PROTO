@@ -1,44 +1,174 @@
-# Python
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
+# =============================================================================
+# AURA-NOTES-MANAGER .gitignore
+# Comprehensive gitignore for React/FastAPI/Firebase project
+# =============================================================================
 
-# Environment & Secrets
+# -----------------------------------------------------------------------------
+# PYTHON
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+.venv
+venv
+env
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# -----------------------------------------------------------------------------
+# NODE / NPM / VITE / REACT
+# -----------------------------------------------------------------------------
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+dist-ssr/
+build/
+*.local
+.vite/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# -----------------------------------------------------------------------------
+# FIREBASE / FIRESTORE
+# -----------------------------------------------------------------------------
+.firebase/
+.firebase-secrets
+firestore-debug.log
+firestore-emulator/
+.firebase-cache/
+
+# -----------------------------------------------------------------------------
+# ENVIRONMENT & SECRETS
+# -----------------------------------------------------------------------------
 .env
-.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 *.env
 config.json
 serviceAccountKey.json
 credentials.json
 *.key
 *.pem
+*.crt
+*.p12
+.secrets/
+private/
 
-# Node
-node_modules/
-dist/
-build/
-*.log
-package-lock.json
+# -----------------------------------------------------------------------------
+# PROJECT SPECIFIC
+# -----------------------------------------------------------------------------
+pdfs/
+*.pdf
+settings.local.json
+nul
+*.tmp
+*.temp
 
-# OS
-.DS_Store
-Thumbs.db
-*.swp
-*~
+# Build/Error logs
+build_errors.log
+build_errors_2.log
 
+# Conductor state
+conductor/setup_state.json
+conductor/archive/
+conductor/code_styleguides/
+
+# Test & cache artifacts
+.pytest_cache/
+test-results/
+tools/__pycache__/
+
+# API cache
+api/cache/
+api/__pycache__/
+api/modules/__pycache__/
+
+# -----------------------------------------------------------------------------
 # IDE
+# -----------------------------------------------------------------------------
 .vscode/
+!.vscode/extensions.json
 .idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+*.swp
+*.swo
 
-# Project specific
-pdfs/
-*.pdf
-settings.local.json
-nul
+# -----------------------------------------------------------------------------
+# OPERATING SYSTEMS
+# -----------------------------------------------------------------------------
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.Trash-*/
+.directory
+
+# -----------------------------------------------------------------------------
+# MISC
+# -----------------------------------------------------------------------------
+*.bak
+*.backup
+*.orig
+*.rej
+*.patch
+.cursor/
+
+# -----------------------------------------------------------------------------
+# TESTS (keep out of main branch)
+# -----------------------------------------------------------------------------
+tests/
+test_women_empowerment.py
+e2e/
+
+# -----------------------------------------------------------------------------
+# DOCUMENTATION (only README.md and GEMINI.md in main branch)
+# -----------------------------------------------------------------------------
+documentations/
+GEMINI.md
+!GEMINI.md
