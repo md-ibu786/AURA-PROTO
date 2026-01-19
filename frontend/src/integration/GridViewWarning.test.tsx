@@ -70,14 +70,14 @@ describe('GridView Warning Integration', () => {
 
         // Wait for dialog
         await waitFor(() => {
-            expect(screen.getByText('Duplicate Name')).toBeTruthy();
-            expect(screen.getByText('Department exists')).toBeTruthy();
+            expect(screen.getByText(/already exists/i)).toBeTruthy();
+            expect(screen.getByText(/Department names must be unique/i)).toBeTruthy();
         });
     });
 
     it('should show warning dialog when renaming to duplicate name in GridView', async () => {
-        const item = { id: 'dept-1', type: 'department' as const, label: 'Dept 1' };
-        
+        const item = { id: 'dept-1', type: 'department' as const, label: 'Dept 1', parentId: null };
+
         useExplorerStore.setState({
             renamingNodeId: 'dept-1',
             creatingNodeType: null
@@ -102,8 +102,8 @@ describe('GridView Warning Integration', () => {
 
         // Wait for dialog
         await waitFor(() => {
-            expect(screen.getByText('Duplicate Name')).toBeTruthy();
-            expect(screen.getByText('Name taken')).toBeTruthy();
+            expect(screen.getByText(/already exists/i)).toBeTruthy();
+            expect(screen.getByText(/Department names must be unique/i)).toBeTruthy();
         });
     });
 });

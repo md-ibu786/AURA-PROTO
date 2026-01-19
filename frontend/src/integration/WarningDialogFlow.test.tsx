@@ -71,8 +71,8 @@ describe('Warning Dialog Integration', () => {
 
         // Wait for dialog
         await waitFor(() => {
-            expect(screen.getByText('Duplicate Name')).toBeTruthy();
-            expect(screen.getByText('Department exists')).toBeTruthy();
+            expect(screen.getByText(/The file named "Existing Dept" already exists/i)).toBeTruthy();
+            expect(screen.getByText(/Department names must be unique/i)).toBeTruthy();
         });
     });
 });

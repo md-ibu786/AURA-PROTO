@@ -1,6 +1,35 @@
-"""Move stray PDFs from UI/pdfs to repository-level pdfs and normalize DB entries.
+"""
+============================================================================
+FILE: cleanup_pdfs.py
+LOCATION: tools/cleanup_pdfs.py
+============================================================================
 
-Usage: python tools/cleanup_pdfs.py
+PURPOSE:
+    Maintenance script to consolidate PDF files and normalize database entries.
+    Moves stray PDFs from the legacy UI/pdfs directory to the canonical pdfs/
+    directory and updates database references to use consistent paths.
+
+ROLE IN PROJECT:
+    One-time migration utility created during the Streamlit-to-React migration.
+    Ensures all PDF paths are normalized to the new /pdfs/{filename} format.
+    Can be run multiple times safely (idempotent).
+
+KEY OPERATIONS:
+    1. Move files from UI/pdfs/ to pdfs/ (handling name conflicts)
+    2. Remove empty UI/pdfs/ directory
+    3. Update SQLite database entries with normalized paths
+
+DEPENDENCIES:
+    - External: shutil, sqlite3 (Python standard library)
+    - Internal: None
+
+USAGE:
+    python tools/cleanup_pdfs.py
+
+NOTES:
+    - This script targets the legacy SQLite database
+    - For Firestore, PDF path updates should be done via the API
+============================================================================
 """
 import os
 import shutil

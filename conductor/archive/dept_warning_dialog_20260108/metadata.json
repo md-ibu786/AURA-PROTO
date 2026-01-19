@@ -1,0 +1,8 @@
+{
+  "track_id": "dept_warning_dialog_20260108",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-08T19:05:00Z",
+  "updated_at": "2026-01-08T19:05:00Z",
+  "description": "Implement duplicate department warning dialog"
+}

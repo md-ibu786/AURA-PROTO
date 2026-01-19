@@ -1,11 +1,45 @@
-"""Prune missing notes from the database.
+"""
+============================================================================
+FILE: prune_missing_notes.py
+LOCATION: tools/prune_missing_notes.py
+============================================================================
 
-Usage:
-  python tools/prune_missing_notes.py [--delete] [--force]
+PURPOSE:
+    Database cleanup utility to find and optionally delete notes whose
+    PDF/document files no longer exist. Helps maintain data integrity
+    by removing orphaned database records.
 
-- Without --delete: lists candidate missing notes (dry-run)
-- With --delete: deletes the notes confirmed missing (status 404 or 410 or missing local file)
-- With --force: consider any non-200 HEAD response as missing (use with caution)
+ROLE IN PROJECT:
+    Maintenance tool for data hygiene. Useful when:
+    - PDF files are manually deleted from the filesystem
+    - External storage URLs become inaccessible
+    - After failed uploads that created DB records without files
+
+KEY OPERATIONS:
+    1. Query all notes from SQLite database
+    2. Check each pdf_url via HEAD request (for URLs) or filesystem check
+    3. Report notes with 404/410 responses or missing local files
+    4. Optionally delete orphaned records (--delete flag)
+
+COMMAND LINE OPTIONS:
+    --delete: Actually delete orphaned notes (default: dry-run)
+    --force: Treat any non-200 response as missing (use with caution)
+
+DEPENDENCIES:
+    - External: requests, sqlite3 (Python standard library)
+    - Internal: Uses API_BASE_URL env var for URL validation
+
+USAGE:
+    # Dry run - see what would be deleted
+    python tools/prune_missing_notes.py
+    
+    # Delete orphaned records
+    python tools/prune_missing_notes.py --delete
+
+NOTES:
+    - Targets legacy SQLite database at database/database.db
+    - For Firestore, use API endpoints or write a similar script
+============================================================================
 """
 import os
 import sqlite3

@@ -41,8 +41,8 @@ describe('WarningDialog', () => {
 
         render(<WarningDialog />);
         
-        expect(screen.getByText('Department already exists')).toBeTruthy();
-        expect(screen.getByText('Engineering')).toBeTruthy();
+        expect(screen.getByText(/The file named "Engineering" already exists/i)).toBeTruthy();
+        expect(screen.getByText(/Department names must be unique/i)).toBeTruthy();
         expect(screen.getByTestId('alert-icon')).toBeTruthy();
     });
 

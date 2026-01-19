@@ -8,3 +8,4 @@ firebase-admin
 google-cloud-firestore
 python-multipart
 slowapi
+neo4j>=5.15.0

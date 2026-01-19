@@ -1,0 +1,24 @@
+{
+    "name": "aura-proto-e2e",
+    "private": true,
+    "version": "1.0.0",
+    "description": "End-to-end tests for AURA-PROTO",
+    "type": "module",
+    "scripts": {
+        "test": "npx playwright test",
+        "test:headed": "npx playwright test --headed",
+        "test:api": "npx playwright test tests/api.spec.ts",
+        "test:ui": "npx playwright test tests/explorer.spec.ts",
+        "test:audio": "npx playwright test tests/audio.spec.ts",
+        "test:all": "npx playwright test --reporter=html",
+        "test:debug": "npx playwright test --debug",
+        "show-report": "npx playwright show-report",
+        "install-deps": "npx playwright install --with-deps",
+        "codegen": "npx playwright codegen http://localhost:5173"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.49.0",
+        "@types/node": "^22.10.0",
+        "typescript": "^5.6.2"
+    }
+}

@@ -1,4 +1,47 @@
-"""Benchmark the hierarchy endpoints using FastAPI TestClient"""
+"""
+============================================================================
+FILE: bench_hierarchy.py
+LOCATION: tools/bench_hierarchy.py
+============================================================================
+
+PURPOSE:
+    Performance benchmarking script for hierarchy API endpoints.
+    Measures response times for GET requests to departments, semesters,
+    subjects, and modules endpoints to identify performance bottlenecks.
+
+ROLE IN PROJECT:
+    Development/debugging utility for monitoring API performance.
+    Useful when optimizing Firestore queries or adding caching layers.
+    Not used in production - development tool only.
+
+KEY COMPONENTS:
+    - Uses FastAPI TestClient for in-process API testing
+    - Runs 50 iterations per endpoint (with 5 warmup runs)
+    - Reports min, median, mean, p95, and max latency for each endpoint
+
+OUTPUT METRICS:
+    - count: Number of test iterations
+    - min_ms: Minimum response time
+    - median_ms: Median (50th percentile) response time
+    - mean_ms: Average response time
+    - p95_ms: 95th percentile response time
+    - max_ms: Maximum response time
+
+DEPENDENCIES:
+    - External: fastapi (TestClient)
+    - Internal: api/main.py (FastAPI app)
+
+USAGE:
+    python tools/bench_hierarchy.py
+
+EXAMPLE OUTPUT:
+    GET /departments
+      count: 50
+      min_ms: 15.23 ms
+      median_ms: 18.45 ms
+      ...
+============================================================================
+"""
 import statistics, time
 from fastapi.testclient import TestClient
 import sys, os

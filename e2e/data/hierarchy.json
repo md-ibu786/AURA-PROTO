@@ -1,0 +1,40 @@
+{
+    "departments": [
+        {
+            "name": "Computer Science",
+            "code": "CSE"
+        },
+        {
+            "name": "Electrical Engineering",
+            "code": "EE"
+        }
+    ],
+    "semesters": [
+        {
+            "name": "Semester 1",
+            "semester_number": 1
+        },
+        {
+            "name": "Semester 2",
+            "semester_number": 2
+        }
+    ],
+    "subjects": [
+        {
+            "name": "Data Structures",
+            "code": "CS201"
+        },
+        {
+            "name": "Algorithms",
+            "code": "CS301"
+        }
+    ],
+    "modules": [
+        {
+            "name": "Introduction"
+        },
+        {
+            "name": "Arrays and Linked Lists"
+        }
+    ]
+}

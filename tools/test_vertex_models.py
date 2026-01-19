@@ -1,3 +1,51 @@
+"""
+============================================================================
+FILE: test_vertex_models.py
+LOCATION: tools/test_vertex_models.py
+============================================================================
+
+PURPOSE:
+    Validation script to test Vertex AI Gemini model connectivity and
+    functionality. Sends simple prompts to verify that models respond
+    correctly and optionally tests multimodal (audio+text) capabilities.
+
+ROLE IN PROJECT:
+    Development/debugging utility for:
+    - Verifying API credentials are correctly configured
+    - Testing model availability before deploying
+    - Comparing response quality between different model versions
+    - Debugging audio transcription issues
+
+KEY FEATURES:
+    - Tests multiple models in sequence (default: Gemini 2.5, 3, 2.0 Flash)
+    - Simple text prompt test (default: "Reply with exactly: OK")
+    - Optional multimodal smoke test with synthetic or real audio
+    - FFmpeg audio conversion for non-WAV files
+
+COMMAND LINE OPTIONS:
+    --models: Comma-separated list of model names to test
+    --prompt: Custom test prompt
+    --multimodal-smoke: Include synthetic audio test
+    --audio: Path to real audio file for testing
+    --credentials: Path to service account JSON
+    --location: Vertex AI location (default: global)
+
+DEPENDENCIES:
+    - External: google-cloud-aiplatform, vertexai
+    - Internal: services/vertex_ai_client.py
+    - Optional: ffmpeg (for audio conversion)
+
+USAGE:
+    # Basic text test
+    python tools/test_vertex_models.py
+    
+    # Test with real audio
+    python tools/test_vertex_models.py --audio sample.mp3
+    
+    # Custom credentials
+    python tools/test_vertex_models.py --credentials path/to/key.json
+============================================================================
+"""
 import argparse
 import os
 import pathlib
