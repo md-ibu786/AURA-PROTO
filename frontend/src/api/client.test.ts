@@ -9,6 +9,7 @@ describe('fetchApi', () => {
     });
 
     it('should throw DuplicateError on 409 with code', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (fetch as any).mockResolvedValue({
             ok: false,
             status: 409,
@@ -25,6 +26,7 @@ describe('fetchApi', () => {
     });
 
     it('should throw generic Error on 409 without code', async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (fetch as any).mockResolvedValue({
             ok: false,
             status: 409,

@@ -50,6 +50,12 @@ export interface FileSystemNodeMeta {
     updatedAt?: string;
     processing?: boolean;
     code?: string;
+
+    // KG Processing Fields
+    kg_status?: 'pending' | 'processing' | 'ready' | 'failed';
+    kg_processed_at?: string;
+    kg_error?: string;
+    module_id?: string;
 }
 
 export interface FileSystemNode {

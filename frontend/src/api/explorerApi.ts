@@ -184,3 +184,37 @@ export async function renameNode(type: HierarchyType, id: string, name: string) 
             throw new Error(`Unknown type: ${type}`);
     }
 }
+
+// ============================================================================
+// KG Processing API
+// ============================================================================
+
+import type {
+    KGStatusResponse,
+    ProcessingRequest,
+    BatchProcessingResponse,
+    ProcessingQueueItem,
+    TaskStatusResponse
+} from '../features/kg/types/kg.types';
+
+export async function getKGDocumentStatus(documentId: string): Promise<KGStatusResponse> {
+    return fetchApi<KGStatusResponse>(`/v1/kg/documents/${documentId}/status`);
+}
+
+export async function processKGBatch(request: ProcessingRequest): Promise<BatchProcessingResponse> {
+    return fetchApi<BatchProcessingResponse>('/v1/kg/process-batch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
+}
+
+export async function getKGProcessingQueue(): Promise<ProcessingQueueItem[]> {
+    return fetchApi<ProcessingQueueItem[]>('/v1/kg/processing-queue');
+}
+
+export async function getKGTaskStatus(taskId: string): Promise<TaskStatusResponse> {
+    return fetchApi<TaskStatusResponse>(`/v1/kg/tasks/${taskId}/status`);
+}

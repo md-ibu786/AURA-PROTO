@@ -59,14 +59,77 @@ sys.path.insert(0, _root_dir)
 from kg_processor import KnowledgeGraphProcessor, process_document_simple
 from logging_config import logger
 
+# Import Firestore for status updates
+try:
+    from config import db
+except ImportError:
+    from api.config import db
+
+
+# ============================================================================
+# FIRESTORE STATUS UPDATE HELPER
+# ============================================================================
+
+def update_document_status(
+    document_id: str,
+    status: str,
+    error: Optional[str] = None,
+    progress: Optional[int] = None,
+    step: Optional[str] = None,
+    chunk_count: Optional[int] = None,
+    entity_count: Optional[int] = None
+):
+    """
+    Update document KG status in Firestore.
+    
+    Args:
+        document_id: Firestore document ID
+        status: KG status (pending, processing, ready, failed)
+        error: Error message if status is failed
+        progress: Progress percentage (0-100)
+        step: Current processing step (parsing, chunking, etc.)
+        chunk_count: Number of chunks created (for ready status)
+        entity_count: Number of entities extracted (for ready status)
+    """
+    doc_ref = db.collection("documents").document(document_id)
+    update_data = {
+        "kg_status": status,
+        "updated_at": datetime.utcnow()
+    }
+    
+    if error:
+        update_data["kg_error"] = error
+    if progress is not None:
+        update_data["kg_progress"] = progress
+    if step:
+        update_data["kg_step"] = step
+    if status == "processing":
+        update_data["kg_started_at"] = datetime.utcnow()
+    if status == "ready":
+        update_data["kg_processed_at"] = datetime.utcnow()
+        if chunk_count is not None:
+            update_data["kg_chunk_count"] = chunk_count
+        if entity_count is not None:
+            update_data["kg_entity_count"] = entity_count
+    
+    try:
+        doc_ref.update(update_data)
+        logger.debug(f"Updated KG status for document {document_id}: {status}")
+    except Exception as e:
+        logger.error(f"Failed to update KG status for document {document_id}: {e}")
+
 # ============================================================================
 # CELERY APP CONFIGURATION
 # ============================================================================
 
 # Redis broker configuration
-REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1')
+# Strip whitespace to avoid connection issues with trailing spaces
+REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1').strip()
 REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
 REDIS_DB = int(os.environ.get('REDIS_DB', 0))
+
+# Log Redis config for debugging
+logger.info(f"Celery Redis config: host='{REDIS_HOST}', port={REDIS_PORT}, db={REDIS_DB}")
 
 # Celery result backend (same Redis instance)
 CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
@@ -252,6 +315,19 @@ def process_document_task(
         if not user_id:
             raise ValueError("user_id is required")
 
+        # Idempotency check: skip if already processed
+        doc = db.collection("documents").document(document_id).get()
+        if doc.exists and doc.to_dict().get("kg_status") == "ready":
+            task_logger.info(f"Document {document_id} already processed, skipping")
+            return {
+                "document_id": document_id,
+                "status": "skipped",
+                "reason": "already_processed"
+            }
+
+        # Update Firestore status to PROCESSING
+        update_document_status(document_id, "processing", progress=5, step="starting")
+
         # Update state: PARSING (0-10%)
         self.update_progress('parsing', 5, {'status': 'Extracting text from document'})
         task_logger.debug(f"Stage PARSING: Extracting text from document")
@@ -288,6 +364,14 @@ def process_document_task(
         # Update state: COMPLETED (100%)
         self.update_progress('completed', 100, final_result)
 
+        # Update Firestore status to READY
+        update_document_status(
+            document_id, "ready",
+            progress=100, step="complete",
+            chunk_count=final_result['chunk_count'],
+            entity_count=final_result['entity_count']
+        )
+
         task_logger.info(
             f"Document processing completed: doc={document_id}, "
             f"chunks={final_result['chunk_count']}, "
@@ -311,6 +395,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
+        update_document_status(document_id, "failed", error=error_msg)
 
         # Don't retry on timeout - it's likely a very large document
         raise
@@ -329,6 +414,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
+        update_document_status(document_id, "failed", error=error_msg)
 
         raise
 
@@ -355,6 +441,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
+        update_document_status(document_id, "failed", error=str(e))
 
         # Don't retry validation errors
         raise
@@ -373,6 +460,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
+        update_document_status(document_id, "failed", error=str(e))
 
         # Re-raise to trigger retry if applicable
         raise

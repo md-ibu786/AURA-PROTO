@@ -51,6 +51,9 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { WarningDialog } from '../components/ui/WarningDialog';
 import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
+import { FileSelectionBar } from '../features/kg/components/FileSelectionBar';
+import { ProcessDialog } from '../features/kg/components/ProcessDialog';
+import { ProcessingQueue } from '../features/kg/components/ProcessingQueue';
 
 export default function ExplorerPage() {
     const {
@@ -192,6 +195,11 @@ export default function ExplorerPage() {
             />
 
             <WarningDialog />
+
+            {/* KG Features */}
+            <FileSelectionBar />
+            <ProcessDialog />
+            <ProcessingQueue />
         </div>
     );
 }

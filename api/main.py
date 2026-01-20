@@ -60,25 +60,39 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from pathlib import Path
 
-try:
-    from hierarchy import get_all_departments, get_semesters_by_department, get_subjects_by_semester, get_modules_by_subject
-    from hierarchy_crud import router as crud_router
-    from explorer import router as explorer_router
-    from audio_processing import router as audio_router
-except (ImportError, ModuleNotFoundError):
-    # Fallback to absolute imports if running from project root
-    from api.hierarchy import get_all_departments, get_semesters_by_department, get_subjects_by_semester, get_modules_by_subject
-    from api.hierarchy_crud import router as crud_router
-    from api.explorer import router as explorer_router
-    from api.audio_processing import router as audio_router
+# Add project root to path so 'api' module can be imported
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import importlib.util
+
+# Import hierarchy data access functions from api/hierarchy.py file
+# (not from api/hierarchy/ package which would cause circular imports)
+hierarchy_file = importlib.util.spec_from_file_location(
+    "hierarchy_functions",
+    os.path.join(os.path.dirname(__file__), "hierarchy.py")
+)
+hierarchy_module = importlib.util.module_from_spec(hierarchy_file)
+hierarchy_file.loader.exec_module(hierarchy_module)
+
+get_all_departments = hierarchy_module.get_all_departments
+get_semesters_by_department = hierarchy_module.get_semesters_by_department
+get_subjects_by_semester = hierarchy_module.get_subjects_by_semester
+get_modules_by_subject = hierarchy_module.get_modules_by_subject
+
+from hierarchy_crud import router as crud_router
+from explorer import router as explorer_router
+from audio_processing import router as audio_router
 
 # Import M2KG modules router
-try:
-    from modules import modules_router
-except (ImportError, ModuleNotFoundError):
-    from api.modules import modules_router
+from modules import modules_router
+
+# Import KG processing router
+from kg import kg_router
+
+# Import hierarchy navigation router (for AURA-CHAT proxy)
+from hierarchy import hierarchy_router
 
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
@@ -111,6 +125,9 @@ app.include_router(crud_router)
 app.include_router(explorer_router)
 app.include_router(audio_router)
 app.include_router(modules_router, prefix="/api/v1")  # M2KG Module endpoints
+app.include_router(kg_router, prefix="/api/v1")       # KG processing endpoints
+app.include_router(hierarchy_router, prefix="/api/v1")  # Hierarchy navigation endpoints
+
 
 from fastapi.staticfiles import StaticFiles
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -187,15 +204,10 @@ class CreateNoteRequest(BaseModel):
 
 @app.post('/notes', status_code=201)
 def create_note_endpoint(payload: CreateNoteRequest):
-    # Validate hierarchy using path check
-    try:
-        from hierarchy import validate_hierarchy
-    except Exception:
-        from api.hierarchy import validate_hierarchy
-        
-    if not validate_hierarchy(payload.module_id, payload.subject_id, payload.semester_id, payload.department_id):
+    # Validate hierarchy using path check (use loaded hierarchy_module)
+    if not hierarchy_module.validate_hierarchy(payload.module_id, payload.subject_id, payload.semester_id, payload.department_id):
         raise HTTPException(status_code=400, detail='Invalid hierarchy for note')
-    
+
     try:
         from notes import create_note_record
     except Exception:

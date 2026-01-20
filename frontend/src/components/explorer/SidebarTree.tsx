@@ -96,17 +96,19 @@ function CreationItem({ parentId, type }: { parentId: string | null; type: impor
         setIsSubmitting(true);
         try {
             switch (type) {
-                case 'department':
+                case 'department': {
                     const code = name.substring(0, 4).toUpperCase().replace(/\s/g, '');
                     await api.createDepartment(name, code);
                     break;
+                }
                 case 'semester':
                     await api.createSemester(parentId!, 1, name);
                     break;
-                case 'subject':
+                case 'subject': {
                     const subjCode = name.substring(0, 6).toUpperCase().replace(/\s/g, '');
                     await api.createSubject(parentId!, name, subjCode);
                     break;
+                }
                 case 'module':
                     await api.createModule(parentId!, 1, name);
                     break;

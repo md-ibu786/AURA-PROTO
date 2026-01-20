@@ -58,6 +58,12 @@ interface ClipboardState {
     mode: 'cut' | 'copy' | null;
 }
 
+interface ProcessDialogState {
+    open: boolean;
+    fileIds: string[];
+    moduleId: string;
+}
+
 interface ExplorerState {
     // Navigation
     currentPath: FileSystemNode[];
@@ -91,6 +97,18 @@ interface ExplorerState {
     setCurrentPath: (path: FileSystemNode[]) => void;
     navigateTo: (node: FileSystemNode, ancestors: FileSystemNode[]) => void;
     navigateUp: () => void;
+
+    // Selection Mode
+    selectionMode: boolean;
+    setSelectionMode: (enabled: boolean) => void;
+
+    // KG Process State
+    kgPolling: { moduleId: string | null; isPolling: boolean };
+    setKGPolling: (moduleId: string | null, isPolling: boolean) => void;
+
+    processDialog: ProcessDialogState;
+    openProcessDialog: (fileIds: string[], moduleId: string) => void;
+    closeProcessDialog: () => void;
 
     // Selection actions
     select: (id: string) => void;
@@ -158,6 +176,27 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     creatingParentId: null,
     warningDialog: { isOpen: false, type: 'error', message: '' },
     warningTimeoutId: null,
+
+    // Selection Mode
+    selectionMode: false,
+
+    // KG State
+    kgPolling: { moduleId: null, isPolling: false },
+    processDialog: { open: false, fileIds: [], moduleId: '' },
+
+    setSelectionMode: (enabled) => set({ selectionMode: enabled }),
+
+    setKGPolling: (moduleId, isPolling) => set({
+        kgPolling: { moduleId, isPolling }
+    }),
+
+    openProcessDialog: (fileIds, moduleId) => set({
+        processDialog: { open: true, fileIds, moduleId }
+    }),
+
+    closeProcessDialog: () => set({
+        processDialog: { open: false, fileIds: [], moduleId: '' }
+    }),
 
     // Navigation
     setActiveNode: (node) => set({

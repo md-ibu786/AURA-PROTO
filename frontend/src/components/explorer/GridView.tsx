@@ -57,8 +57,11 @@ import {
     Calendar,
     BookOpen,
     FileText,
-    FolderOpen
+    FolderOpen,
+    CheckSquare,
+    Square
 } from 'lucide-react';
+import { KGStatusBadge } from '../../features/kg/components/KGStatusBadge';
 
 interface GridViewProps {
     items: FileSystemNode[];
@@ -89,7 +92,8 @@ export function GridView({ items }: GridViewProps) {
         creatingNodeType,
         creatingParentId,
         cancelCreating,
-        openWarningDialog
+        openWarningDialog,
+        selectionMode
     } = useExplorerStore();
 
     // Renaming state
@@ -249,6 +253,11 @@ export function GridView({ items }: GridViewProps) {
 
         const itemIds = filteredItems.map(i => i.id);
 
+        if (selectionMode) {
+            toggleSelect(item.id);
+            return;
+        }
+
         if (e.shiftKey) {
             rangeSelect(item.id, itemIds);
         } else if (e.ctrlKey || e.metaKey) {
@@ -321,6 +330,17 @@ export function GridView({ items }: GridViewProps) {
                         onDoubleClick={() => handleDoubleClick(item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}
                     >
+                        {/* Selection Checkbox */}
+                        {selectionMode && (
+                            <div className="absolute top-2 right-2 text-primary z-10">
+                                {isSelected ? (
+                                    <CheckSquare className="h-5 w-5 fill-background" />
+                                ) : (
+                                    <Square className="h-5 w-5 text-zinc-300 dark:text-zinc-600" />
+                                )}
+                            </div>
+                        )}
+
                         <div className={`grid-item-icon ${config.colorClass}`}>
                             <Icon />
                         </div>
@@ -346,9 +366,16 @@ export function GridView({ items }: GridViewProps) {
                                 {item.meta.noteCount} note{item.meta.noteCount !== 1 ? 's' : ''}
                             </div>
                         )}
-                        {item.type === 'note' && item.meta?.processing && (
-                            <div className="status-badge processing">Processing</div>
+                        {item.type === 'note' && (
+                            <div className="mt-1">
+                                {item.meta?.kg_status ? (
+                                    <KGStatusBadge status={item.meta.kg_status} size="sm" />
+                                ) : item.meta?.processing ? (
+                                    <div className="status-badge processing">Processing</div>
+                                ) : null}
+                            </div>
                         )}
+                        {/* Legacy processing badge fallback handled above */}
                     </div>
                 );
             })}

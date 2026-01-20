@@ -10,7 +10,7 @@
 # @note: This is for M2KG Modules (course units), NOT hierarchy modules
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -63,3 +63,54 @@ class ModuleListResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ============================================================================
+# PER-DOCUMENT KG STATUS MODELS
+# ============================================================================
+
+class KGStatus(str, Enum):
+    """Per-document KG processing status for incremental processing."""
+    PENDING = "pending"       # Not yet processed
+    PROCESSING = "processing" # Currently being processed
+    READY = "ready"           # Successfully processed
+    FAILED = "failed"         # Processing failed
+
+
+class DocumentKGStatus(BaseModel):
+    """Per-document KG status response."""
+    document_id: str
+    module_id: str
+    file_name: str
+    kg_status: KGStatus
+    kg_processed_at: Optional[datetime] = None
+    kg_error: Optional[str] = None
+    chunk_count: Optional[int] = None
+    entity_count: Optional[int] = None
+
+
+class BatchProcessingRequest(BaseModel):
+    """Request for batch document processing."""
+    file_ids: List[str] = Field(..., description="List of document IDs to process")
+    module_id: str = Field(..., description="Module ID for tagging all created nodes")
+    options: Optional[Dict[str, Any]] = Field(None, description="Optional processing options")
+
+
+class BatchProcessingResponse(BaseModel):
+    """Response for batch processing request."""
+    task_id: str
+    status_url: str
+    documents_queued: int
+    documents_skipped: int  # Already processed (idempotency)
+    message: str
+
+
+class ProcessingQueueItem(BaseModel):
+    """Document currently in processing queue."""
+    document_id: str
+    module_id: str
+    file_name: str
+    status: KGStatus
+    progress: int = Field(..., ge=0, le=100, description="Progress percentage (0-100)")
+    step: str = Field(..., description="Current processing step (parsing, chunking, etc.)")
+    started_at: datetime

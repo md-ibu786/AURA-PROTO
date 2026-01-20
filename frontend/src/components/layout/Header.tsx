@@ -1,43 +1,13 @@
-/**
- * ============================================================================
- * FILE: Header.tsx
- * LOCATION: frontend/src/components/layout/Header.tsx
- * ============================================================================
- *
- * PURPOSE:
- *    Top navigation bar for the explorer. Displays breadcrumb navigation,
- *    search input, and view mode toggle (grid/list).
- *
- * ROLE IN PROJECT:
- *    Provides primary navigation controls above the main content area.
- *    Allows users to quickly jump between levels of the hierarchy via
- *    breadcrumbs and filter current folder contents via search.
- *
- * KEY FEATURES:
- *    Navigation Buttons:
- *    - Up arrow: Navigate to parent folder
- *    - Home: Return to root (show all departments)
- *
- *    Breadcrumbs:
- *    - Clickable path showing current location
- *    - Home → Department → Semester → Subject → Module
- *
- *    Search:
- *    - Filters items in current folder by label
- *    - Real-time filtering (no submit required)
- *
- *    View Toggle:
- *    - Grid icon: Switch to GridView
- *    - List icon: Switch to ListView
- *
- * DEPENDENCIES:
- *    - External: lucide-react (icons)
- *    - Internal: stores/useExplorerStore
- *
- * USAGE:
- *    <Header /> - Rendered in ExplorerPage above content area
- * ============================================================================
- */
+// Header.tsx
+// Top navigation bar for the explorer with breadcrumbs, search, and view toggles
+
+// Provides primary navigation controls above the main content area.
+// Manages breadcrumb path navigation, real-time search filtering,
+// view mode switching (grid/list), and selection mode state toggling.
+
+// @see: stores/useExplorerStore.ts - For navigation and UI state
+// @note: Automatically disables selection mode when navigating out of modules
+import { useEffect } from 'react';
 import { useExplorerStore } from '../../stores';
 import {
     ChevronRight,
@@ -45,7 +15,11 @@ import {
     Search,
     LayoutGrid,
     List,
-    Home
+    Home,
+    Zap,
+    XCircle,
+    Trash2,
+    X
 } from 'lucide-react';
 
 export function Header() {
@@ -57,7 +31,12 @@ export function Header() {
         setViewMode,
         searchQuery,
         setSearchQuery,
-        setActiveNode
+        setActiveNode,
+        selectionMode,
+        setSelectionMode,
+        selectedIds,
+        clearSelection,
+        openProcessDialog
     } = useExplorerStore();
 
     const goHome = () => {
@@ -74,6 +53,16 @@ export function Header() {
             setActiveNode(newPath[newPath.length - 1]);
         }
     };
+
+    // Check if we are currently inside a module folder
+    const isInsideModule = currentPath.length > 0 && currentPath[currentPath.length - 1].type === 'module';
+
+    // Automatically disable selection mode if we navigate out of a module
+    useEffect(() => {
+        if (!isInsideModule && selectionMode) {
+            setSelectionMode(false);
+        }
+    }, [isInsideModule, selectionMode, setSelectionMode]);
 
 
     return (
@@ -121,6 +110,37 @@ export function Header() {
             </nav>
 
 
+            {/* Selection Mode Toggle - Only visible inside modules */}
+            {isInsideModule && (
+                <button
+                    className="flex items-center gap-2 px-3 py-1.5 mr-4 rounded-md text-sm font-medium transition-colors"
+                    style={{
+                        color: selectionMode ? '#ef4444' : '#22c55e'
+                    }}
+                    onClick={() => {
+                        if (selectionMode) {
+                            clearSelection();
+                            setSelectionMode(false);
+                        } else {
+                            setSelectionMode(true);
+                        }
+                    }}
+                    title={selectionMode ? 'Exit selection mode' : 'Select notes for vectorization'}
+                >
+                    {selectionMode ? (
+                        <>
+                            <XCircle className="h-4 w-4" />
+                            Deselect All
+                        </>
+                    ) : (
+                        <>
+                            <Zap className="h-4 w-4" />
+                            Vectorize the notes
+                        </>
+                    )}
+                </button>
+            )}
+
             {/* Search */}
             <div className="search-box">
                 <Search size={16} className="text-muted" />
@@ -149,6 +169,55 @@ export function Header() {
                     <List size={16} />
                 </button>
             </div>
+
+            {/* Selection Mode Actions - Shows count and process button */}
+            {selectionMode && (
+                <>
+                    <div className="h-6 w-px bg-border mx-2" style={{ marginLeft: 'auto' }} />
+                    <div className="flex items-center gap-md">
+                        <span
+                            className="text-accent font-medium whitespace-nowrap"
+                            style={{ fontSize: '14px' }}
+                        >
+                            {selectedIds.size} Selected
+                        </span>
+                        <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                                if (selectedIds.size > 0) {
+                                    const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
+                                    openProcessDialog(Array.from(selectedIds), currentModuleId);
+                                }
+                            }}
+                            disabled={selectedIds.size === 0}
+                            title="Process selected documents for Knowledge Graph"
+                            style={{ padding: '6px 16px' }}
+                        >
+                            <Zap size={16} />
+                            Process
+                        </button>
+                        <div className="flex items-center gap-xs">
+                            <button
+                                className="nav-btn"
+                                onClick={clearSelection}
+                                title="Clear selection"
+                            >
+                                <Trash2 size={18} />
+                            </button>
+                            <button
+                                className="nav-btn"
+                                onClick={() => {
+                                    clearSelection();
+                                    setSelectionMode(false);
+                                }}
+                                title="Exit selection mode"
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                    </div>
+                </>
+            )}
         </header>
     );
 }
