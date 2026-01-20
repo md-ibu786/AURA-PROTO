@@ -1,3 +1,38 @@
+/**
+ * ============================================================================
+ * FILE: useKGProcessing.ts
+ * LOCATION: frontend/src/features/kg/hooks/useKGProcessing.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    React Query hooks for Knowledge Graph processing operations. Provides
+ *    typed queries and mutations for document status, batch processing,
+ *    and queue monitoring.
+ *
+ * ROLE IN PROJECT:
+ *    Central hook module for all KG-related data fetching and mutations.
+ *    Encapsulates React Query logic including:
+ *    - Single document status queries
+ *    - Processing queue monitoring
+ *    - Batch processing mutations
+ *
+ * KEY HOOKS:
+ *    - useFileKGStatus(documentId): Query single document status
+ *    - useProcessingQueue(): Query queue with smart polling
+ *    - processFiles: Mutation for batch processing
+ *
+ * POLLING STRATEGY:
+ *    - useProcessingQueue polls every 2s when items are 'processing'
+ *    - Polling stops when queue is empty or all items complete
+ *
+ * DEPENDENCIES:
+ *    - External: @tanstack/react-query
+ *    - Internal: api/explorerApi, stores/useExplorerStore, types/kg.types
+ *
+ * @see: api/explorerApi.ts - API functions used by hooks
+ * @see: stores/useExplorerStore.ts - kgPolling state
+ * @note: Smart polling only active during processing
+ */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getKGDocumentStatus,
@@ -37,7 +72,7 @@ export function useKGProcessing() {
     // Batch processing mutation
     const processFiles = useMutation({
         mutationFn: (request: ProcessingRequest) => processKGBatch(request),
-        onSuccess: (data, variables) => {
+        onSuccess: (_data, variables) => {
             queryClient.invalidateQueries({ queryKey: ['kg', 'queue'] });
             // Start polling if needed (though queue query handles it via refetchInterval)
             setKGPolling(variables.module_id, true);

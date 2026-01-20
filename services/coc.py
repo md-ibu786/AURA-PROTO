@@ -1,59 +1,23 @@
-"""
-============================================================================
-FILE: coc.py (Chain of Custody)
-LOCATION: services/coc.py
-============================================================================
+# coc.py
+# =========================
+#
+# Chain of Custody transcript cleaner that transforms raw audio transcripts into polished academic text using a two-phase AI pipeline.
+#
+# Features:
+# ---------
+# - Filters student interruptions and administrative chatter from transcripts
+# - Corrects grammar and removes verbal fillers while preserving educational content
+# - Audits cleaned text for quality assurance using multiple detection vectors
+# - Generates JSON audit reports with flags for removed or fixed content
+#
+# Classes/Functions:
+# ------------------
+# - clean_and_parse_json(text): Extracts and parses JSON from LLM output that may contain markdown
+# - transform_transcript(topic, transcript): Main two-phase cleaning function that returns polished transcript text
+#
+# @see vertex_ai_client.py - AI model integration for Gemini
+# @note Output feeds directly into summarizer.py for structured note generation
 
-PURPOSE:
-    Cleans and transforms raw audio transcripts into polished academic text.
-    Uses a two-phase AI pipeline: first cleaning the transcript, then auditing
-    it for quality assurance. Acts as the "editor" that removes noise while
-    preserving educational content.
-
-ROLE IN PROJECT:
-    This is the "transcript refinement" step in the audio-to-notes pipeline.
-    After Deepgram transcribes audio (stt.py), this module:
-    1. Filters out student interruptions and administrative chatter
-    2. Corrects grammar and removes verbal fillers
-    3. Audits the result for residual noise
-    
-    The output feeds into summarizer.py for structured note generation.
-
-KEY COMPONENTS:
-    - clean_and_parse_json(text): Robustly extract JSON from LLM output
-    - transform_transcript(topic, transcript): Main two-phase cleaning function
-
-PROCESSING PIPELINE:
-    Phase 1 - The Filter (transform_transcript):
-        - Identify primary speaker (lecturer)
-        - Eliminate student noise and interruptions
-        - Remove administrative "meta-talk"
-        - Maintain topic relevance
-    
-    Phase 2 - The Audit:
-        - Ghost Vector: Detect residual unauthorized speakers
-        - Relevance Vector: Check topic adherence
-        - Logic Vector: Find Frankenstein sentences
-        - Auto-repair minor issues, flag major issues
-
-AI CONFIGURATION:
-    - Model: Gemini 3 Flash Preview
-    - Temperature: 0.0 (deterministic for consistency)
-    - Max tokens: 32000
-
-DEPENDENCIES:
-    - External: google-cloud-aiplatform (Vertex AI SDK)
-    - Internal: vertex_ai_client.py (get_model, generate_content, GenerationConfig)
-
-USAGE:
-    from services.coc import transform_transcript
-    
-    cleaned = transform_transcript(
-        topic="Database Design Principles",
-        transcript=raw_transcript_from_deepgram
-    )
-============================================================================
-"""
 import json
 import re
 
@@ -68,13 +32,13 @@ from services.vertex_ai_client import (
 def clean_and_parse_json(text: str) -> dict:
     """
     Robustly parse JSON from LLM output that may contain markdown or extra text.
-    
+
     Args:
         text: The raw text from the LLM which may contain JSON.
-        
+
     Returns:
         Parsed JSON as a dictionary.
-        
+
     Raises:
         json.JSONDecodeError: If no valid JSON can be extracted.
     """
@@ -83,7 +47,7 @@ def clean_and_parse_json(text: str) -> dict:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
-    
+
     # Remove markdown code blocks if present
     # Pattern matches ```json ... ``` or ``` ... ```
     code_block_pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
@@ -93,7 +57,7 @@ def clean_and_parse_json(text: str) -> dict:
             return json.loads(match.group(1))
         except json.JSONDecodeError:
             pass
-    
+
     # Try to find raw JSON object by matching outermost braces
     brace_start = text.find('{')
     brace_end = text.rfind('}')
@@ -102,7 +66,7 @@ def clean_and_parse_json(text: str) -> dict:
             return json.loads(text[brace_start:brace_end + 1])
         except json.JSONDecodeError:
             pass
-    
+
     # If all else fails, raise the original error
     raise json.JSONDecodeError("Could not extract valid JSON from response", text, 0)
 
@@ -117,11 +81,11 @@ def transform_transcript(topic: str, transcript: str) -> str:
     Returns:
         str: The transformed transcript.
     """
-    
+
     # usage of models/gemini-3-flash-preview
     model = get_model(model_name="models/gemini-3-flash-preview")
 
-    
+
     # define the prompt for transformation
     # include the raw transcript explicitly in the prompt so the model can process it
     prompt = f"""
@@ -144,17 +108,17 @@ def transform_transcript(topic: str, transcript: str) -> str:
         - *Eliminate "Student" Noise:* Aggressively remove all interruptions, questions, and comments made by the audience/students.
         - *Eliminate Administrative "Meta-Talk":* Remove all lecturer speech that is purely logistical or social (e.g., "Can you hear me?", "Turn to page 5", "The exam is on Tuesday", "Is the microphone working?").
         - *Context Handling:* If a student asks a question and the Lecturer answers with relevant educational content, retain the Lecturer's explanation but rephrase the opening so it stands alone as a declarative statement, removing the dependency on the deleted question.
-        
+
         PHASE 2: Semantic Relevance (The Scope)
         - *Strict Topic Adherence:* Filter the remaining Lecturer text against the Target Topic: *"{topic}"*.
         - *Tangent Removal:* If the Lecturer digresses into personal anecdotes, unrelated subjects, or off-topic rants that do not contribute to the understanding of the Target Topic, excise them completely.
-        
+
         PHASE 3: Syntactic Refinement (The Polish)
         - *Disfluency Removal:* Strip all verbal fillers (um, uh, like, you know, sort of).
         - *Grammar & Flow:* Correct sentence boundaries and grammatical errors caused by oral speech patterns. Convert run-on sentences into distinct, logical statements.
         - *Terminology Normalization:* Ensure technical terms are capitalized and spelled correctly within the context of the subject matter.
         - *NO SUMMARIZATION:* You are an Editor, not a Summarizer. Do not condense the information. Retain the full depth and detail of the lecture, but present it in written academic prose rather than spoken English.
-        
+
         OUTPUT FORMAT:
         - *Format:* Return a single, continuous block of text (or naturally paragraphed text).
         - *Style:* Clean, professional, and textbook-quality.
@@ -162,11 +126,11 @@ def transform_transcript(topic: str, transcript: str) -> str:
           - DO NOT use speaker labels (e.g., "Lecturer:", "Student:").
           - DO NOT include timestamps.
           - DO NOT add introductory or concluding remarks (e.g., "Here is the cleaned text").
-        
+
         Proceed now to process the input based on the Target Topic: *"{topic}"*.
         EXECUTION
     """
-    
+
     # generate the transformed transcript with deterministic generation
     response = generate_content(
         model,
@@ -239,7 +203,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
             candidate_transcript:
             {clean_transcript}
             """
-        
+
     # perform the audit
     audit_response = generate_content(
         model,

@@ -1,15 +1,30 @@
 # router.py
-# FastAPI router for per-document KG status tracking and batch processing
-
-# Provides API endpoints for:
-# - Querying individual document KG status
-# - Triggering batch document processing with idempotency
-# - Getting the current processing queue
-# - Checking Celery task status
-
+# =========================
+#
+# FastAPI router for per-document KG status tracking and batch processing.
+# Provides API endpoints for managing knowledge graph processing workflow.
+#
+# Features:
+# ----------
+# - Individual document KG status查询
+# - Batch document processing with idempotency
+# - Processing queue monitoring
+# - Celery task status tracking
+#
+# Classes/Functions:
+# ------------------
+# - router: FastAPI router with /kg prefix
+# - get_document_kg_status(): GET /kg/documents/{id}/status
+# - process_batch(): POST /kg/process-batch
+# - get_processing_queue(): GET /kg/processing-queue
+# - get_task_status(): GET /kg/tasks/{id}/status
+# - _find_note_by_id(): Helper to locate notes in nested collections
+# - _doc_to_queue_item(): Helper to convert Firestore doc to queue item
+#
 # @see: api/modules/models.py - Pydantic models for requests/responses
 # @see: api/tasks/document_processing_tasks.py - Celery tasks triggered by these endpoints
 # @note: All documents are stored in Firestore, KG is stored in Neo4j
+# @note: Collection group queries used to find notes in nested subcollections
 
 from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional

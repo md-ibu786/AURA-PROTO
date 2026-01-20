@@ -1,10 +1,26 @@
 # router.py
-# FastAPI router for hierarchy navigation HTTP endpoints
-
+# =========================
+#
+# FastAPI router for hierarchy navigation HTTP endpoints.
 # Exposes read-only hierarchy navigation as REST APIs for AURA-CHAT proxy.
 # Uses existing hierarchy.py functions for Firestore data fetching.
 # All endpoints return typed responses using hierarchy models.
-
+#
+# Features:
+# ----------
+# - Read-only hierarchy navigation APIs
+# - Typed responses with Pydantic models
+# - Query parameter filtering
+# - Drill-down navigation (dept -> semester -> subject -> module)
+#
+# Classes/Functions:
+# ------------------
+# - router: FastAPI router with /hierarchy prefix
+# - get_departments(): GET /hierarchy/departments - List all departments
+# - get_semesters(): GET /hierarchy/semesters - List semesters by department
+# - get_subjects(): GET /hierarchy/subjects - List subjects by semester
+# - get_modules(): GET /hierarchy/modules - List modules by subject
+#
 # @see: api/hierarchy.py - Data access functions (get_all_departments, etc.)
 # @see: models.py - Pydantic response schemas
 # @note: Mount with prefix /api/v1 in main.py (endpoints become /api/v1/hierarchy/...)

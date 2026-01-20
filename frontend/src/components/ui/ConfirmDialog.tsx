@@ -1,6 +1,37 @@
 /**
- * Confirmation Dialog Component
- * Custom dialog to replace native confirm() which can be blocked by Chrome
+ * ============================================================================
+ * FILE: ConfirmDialog.tsx
+ * LOCATION: frontend/src/components/ui/ConfirmDialog.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Custom confirmation dialog component. Replaces the native confirm()
+ *    function which can be blocked by Chrome popup blockers.
+ *
+ * ROLE IN PROJECT:
+ *    Used for destructive actions like delete confirmation. Provides a
+ *    modal dialog with Cancel and Confirm buttons, where Confirm is
+ *    styled as the primary action.
+ *
+ * KEY FEATURES:
+ *    - Modal dialog with backdrop
+ *    - Close on backdrop click
+ *    - Close on Escape key
+ *    - Customizable title, message, and actions
+ *
+ * PROPS:
+ *    - isOpen: boolean - Controls dialog visibility
+ *    - title: string - Dialog title
+ *    - message: string - Confirmation message
+ *    - onConfirm: () => void - Confirm callback
+ *    - onCancel: () => void - Cancel callback
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: None (uses native <dialog> element)
+ *
+ * @see: stores/useExplorerStore.ts - For deleteDialog state management
+ * @note: Uses native <dialog> element for accessibility
  */
 import { useEffect, useRef } from 'react';
 

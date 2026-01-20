@@ -1,10 +1,33 @@
 # router.py
-# FastAPI router for M2KG Module CRUD and publishing endpoints
-
+# =========================
+#
+# FastAPI router for M2KG Module CRUD and publishing endpoints.
 # Provides REST API endpoints for module management by staff users.
 # All endpoints are prefixed with /modules and tagged for Swagger UI grouping.
 # Uses dependency injection for ModuleService and ModulePublisher.
-
+#
+# Features:
+# ----------
+# - Full CRUD for modules (create, read, update, delete)
+# - Publishing workflow (publish/unpublish with audit)
+# - Filtering by status, year, and pagination
+# - Dependency injection for testability
+#
+# Classes/Functions:
+# ------------------
+# - router: FastAPI router with /modules prefix
+# - get_module_service(): Dependency for ModuleService
+# - get_module_publisher(): Dependency for ModulePublisher
+# - create_module(): POST /modules - Create new module
+# - list_modules(): GET /modules - List with filters
+# - get_module(): GET /modules/{id} - Get single module
+# - update_module(): PUT /modules/{id} - Update module
+# - delete_module(): DELETE /modules/{id} - Archive module
+# - publish_module(): POST /modules/{id}/publish - Publish to students
+# - unpublish_module(): POST /modules/{id}/unpublish - Hide from students
+# - get_module_audit_log(): GET /modules/{id}/audit-log - View history
+# - get_all_published_modules(): GET /modules/published/all - For AURA-CHAT
+#
 # @see: service.py - Business logic layer
 # @see: publishing.py - Publishing workflow
 # @see: models.py - Request/response Pydantic schemas

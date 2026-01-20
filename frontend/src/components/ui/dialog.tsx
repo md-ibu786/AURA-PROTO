@@ -1,3 +1,48 @@
+/**
+ * ============================================================================
+ * FILE: dialog.tsx
+ * LOCATION: frontend/src/components/ui/dialog.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Modal dialog component suite with context-based state management.
+ *    Provides Dialog, DialogContent, DialogHeader, DialogFooter,
+ *    DialogTitle, and DialogDescription components.
+ *
+ * ROLE IN PROJECT:
+ *    Reusable modal dialog system used for forms and confirmations.
+ *    Uses native <dialog> element for accessibility with custom styling.
+ *
+ * COMPONENTS:
+ *    - Dialog: Context provider wrapper
+ *    - DialogContent: Modal content container with close button
+ *    - DialogHeader: Title area container
+ *    - DialogFooter: Action buttons area
+ *    - DialogTitle: Accessible heading
+ *    - DialogDescription: Helper text
+ *
+ * KEY FEATURES:
+ *    - Native <dialog> element for accessibility
+ *    - Backdrop click to close
+ *    - Backdrop blur effect
+ *    - Animations (fade-in, zoom-in, slide-in)
+ *
+ * PROPS:
+ *    Dialog:
+ *    - open?: boolean - Initial visibility
+ *    - onOpenChange?: (open: boolean) => void - State setter
+ *
+ *    DialogContent:
+ *    - children: React.ReactNode
+ *    - className?: string - Additional classes
+ *
+ * DEPENDENCIES:
+ *    - External: React, lucide-react (X icon)
+ *    - Internal: lib/cn, DialogContext
+ *
+ * @see: DialogContext.tsx - State management context
+ * @note: Uses native <dialog> with backdrop blur and animations
+ */
 import * as React from "react"
 import { X } from "lucide-react"
 import { cn } from "@/lib/cn"

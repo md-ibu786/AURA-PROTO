@@ -1,55 +1,29 @@
-"""
-============================================================================
-FILE: vertex_ai_client.py
-LOCATION: services/vertex_ai_client.py
-============================================================================
+# vertex_ai_client.py
+# =========================
+#
+# Thin wrapper around Google Vertex AI's Generative Models API for Gemini text generation.
+#
+# Features:
+# ---------
+# - Handles Google Application Default Credentials (ADC) authentication
+# - Provides convenient functions for model loading and text generation
+# - Implements custom exception with context (model, location, operation)
+# - Disables safety filtering for academic content via block_none_safety_settings()
+# - Supports both preview and stable vertexai SDK imports
+#
+# Classes/Functions:
+# ------------------
+# - VertexAIRequestError: Custom exception with model, location, operation, and original error
+# - init_vertex_ai(): Initializes SDK with ADC credentials
+# - get_model(model_name): Returns a GenerativeModel instance
+# - generate_content(model, contents, generation_config): Generates text from model
+# - block_none_safety_settings(): Returns list disabling all safety filtering
+# - normalize_model_name(model_name): Strips "models/" prefix from model names
+#
+# @see coc.py - Uses for transcript cleaning/auditing
+# @see summarizer.py - Uses for note generation
+# @note Requires VERTEX_PROJECT and VERTEX_LOCATION env vars; uses GCP ADC authentication
 
-PURPOSE:
-    Provides a thin wrapper around Google Vertex AI's Generative Models API.
-    Handles SDK initialization, authentication, and provides convenient
-    functions for text generation with proper error handling.
-
-ROLE IN PROJECT:
-    This is the foundational AI client used by both coc.py (transcript
-    cleaning/auditing) and summarizer.py (note generation). It abstracts
-    away Vertex AI initialization and provides consistent error handling.
-
-KEY COMPONENTS:
-    - VertexAIRequestError: Custom exception with context (model, location, operation)
-    - init_vertex_ai(): Initialize SDK with ADC credentials
-    - get_model(model_name): Get a GenerativeModel instance
-    - generate_content(model, contents, generation_config): Generate text
-    - block_none_safety_settings(): Disable safety filtering for academic content
-    - normalize_model_name(): Strip "models/" prefix from model names
-
-AUTHENTICATION:
-    Uses Google Application Default Credentials (ADC). Set up via:
-    - gcloud auth application-default login (development)
-    - GOOGLE_APPLICATION_CREDENTIALS env var (service account)
-    - VERTEX_CREDENTIALS env var (alternative path)
-
-ENVIRONMENT VARIABLES:
-    - VERTEX_PROJECT: GCP project ID (optional, auto-detected)
-    - VERTEX_LOCATION: Model location (default: "global")
-    - VERTEX_CREDENTIALS: Path to service account key (optional)
-    - GOOGLE_APPLICATION_CREDENTIALS: Standard Google auth path
-
-DEPENDENCIES:
-    - External: google-auth, google-cloud-aiplatform, vertexai
-    - Internal: None
-
-USAGE:
-    from services.vertex_ai_client import get_model, generate_content, GenerationConfig
-    
-    model = get_model("models/gemini-3-flash-preview")
-    response = generate_content(
-        model,
-        "Explain quantum computing",
-        generation_config=GenerationConfig(temperature=0.7, max_output_tokens=2048)
-    )
-    print(response.text)
-============================================================================
-"""
 import json
 import os
 from typing import Optional

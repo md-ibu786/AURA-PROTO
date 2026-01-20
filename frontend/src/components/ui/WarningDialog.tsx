@@ -1,3 +1,37 @@
+/**
+ * ============================================================================
+ * FILE: WarningDialog.tsx
+ * LOCATION: frontend/src/components/ui/WarningDialog.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Toast-style warning dialog for duplicate name errors. Animated with
+ *    framer-motion for smooth entry/exit animations at the top of the screen.
+ *
+ * ROLE IN PROJECT:
+ *    Displays temporary warnings for duplicate hierarchy names. Unlike
+ *    ConfirmDialog, this is a dismissible toast that auto-closes after
+ *    5 seconds via the store.
+ *
+ * KEY FEATURES:
+ *    - Fixed position at top of screen
+ *    - Framer-motion animations (slide down from top)
+ *    - Alert icon with warning styling
+ *    - Auto-dismiss via warningTimeoutId in store
+ *
+ * STATE:
+ *    - warningDialog.isOpen: boolean
+ *    - warningDialog.type: 'duplicate' | 'error'
+ *    - warningDialog.message: string
+ *    - warningDialog.entityName: string (for message construction)
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons), framer-motion (animations)
+ *    - Internal: stores/useExplorerStore
+ *
+ * @see: stores/useExplorerStore.ts - For warningDialog state and timeouts
+ * @note: Auto-closes after 5 seconds if not dismissed manually
+ */
 import { useExplorerStore } from '../../stores';
 import { AlertTriangle, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';

@@ -1,12 +1,40 @@
 /**
- * ProcessDialog.tsx
- * Modal dialog for confirming KG vectorization processing
- * 
- * Matches the UploadDialog styling with centered popup, blurred backdrop,
- * and dark theme colors. Shows list of actions that will be performed
- * during Knowledge Graph processing.
- * 
- * @see UploadDialog.tsx - reference implementation for styling
+ * ============================================================================
+ * FILE: ProcessDialog.tsx
+ * LOCATION: frontend/src/features/kg/components/ProcessDialog.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Modal confirmation dialog for starting Knowledge Graph batch processing.
+ *    Displays information about what will happen during processing and
+ *    provides confirm/cancel actions.
+ *
+ * ROLE IN PROJECT:
+ *    Shown when users select multiple notes and click "Process" in selection
+ *    mode. Confirms the action and shows a summary of processing actions:
+ *    - Extract entities (concepts, topics)
+ *    - Generate relationships
+ *    - Create vector embeddings
+ *    - Update the module's Knowledge Graph
+ *
+ * KEY FEATURES:
+ *    - Lists processing actions that will be performed
+ *    - Shows document count to be processed
+ *    - Handles success/error states
+ *    - Cleans up selection mode on close
+ *
+ * STATE:
+ *    - isProcessing: Loading state during API call
+ *    - isComplete: Success state after queueing
+ *    - error: Error message if processing fails
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons)
+ *    - Internal: stores/useExplorerStore, hooks/useKGProcessing
+ *
+ * @see: hooks/useKGProcessing.ts - processFiles mutation
+ * @see: stores/useExplorerStore.ts - processDialog state
+ * @note: Matches UploadDialog styling for consistency
  */
 import React from 'react';
 import { useExplorerStore } from '../../../stores';

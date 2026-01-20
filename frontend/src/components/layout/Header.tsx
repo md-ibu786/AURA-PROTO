@@ -1,12 +1,52 @@
-// Header.tsx
-// Top navigation bar for the explorer with breadcrumbs, search, and view toggles
-
-// Provides primary navigation controls above the main content area.
-// Manages breadcrumb path navigation, real-time search filtering,
-// view mode switching (grid/list), and selection mode state toggling.
-
-// @see: stores/useExplorerStore.ts - For navigation and UI state
-// @note: Automatically disables selection mode when navigating out of modules
+/**
+ * ============================================================================
+ * FILE: Header.tsx
+ * LOCATION: frontend/src/components/layout/Header.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Top navigation bar for the explorer with breadcrumbs, search, view
+ *    toggles, and selection mode controls. Provides primary navigation
+ *    and action controls above the main content area.
+ *
+ * ROLE IN PROJECT:
+ *    Header component that manages:
+ *    - Breadcrumb navigation with click-to-navigate
+ *    - Search filtering for current folder
+ *    - View mode toggle (grid/list)
+ *    - Selection mode for KG processing
+ *
+ * KEY FEATURES:
+ *    Navigation:
+ *    - Up button (navigate to parent)
+ *    - Home button (return to root)
+ *    - Breadcrumb trail with click navigation
+ *
+ *    Search:
+ *    - Real-time filtering via searchQuery state
+ *
+ *    View Toggle:
+ *    - Grid view (LayoutGrid icon)
+ *    - List view (List icon)
+ *
+ *    Selection Mode (module-level only):
+ *    - Toggle between selection/browse modes
+ *    - Shows selected count
+ *    - Process button for KG vectorization
+ *
+ * STATE:
+ *    - searchQuery: Filter text for current folder
+ *    - viewMode: 'grid' or 'list'
+ *    - selectionMode: Multi-select enabled
+ *    - selectedIds: Set of selected item IDs
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons)
+ *    - Internal: stores/useExplorerStore
+ *
+ * @see: stores/useExplorerStore.ts - For navigation and UI state
+ * @note: Automatically disables selection mode when navigating out of modules
+ */
 import { useEffect } from 'react';
 import { useExplorerStore } from '../../stores';
 import {
@@ -221,4 +261,3 @@ export function Header() {
         </header>
     );
 }
-

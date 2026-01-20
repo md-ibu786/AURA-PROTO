@@ -1,52 +1,24 @@
-"""
-============================================================================
-FILE: stt.py (Speech-to-Text)
-LOCATION: services/stt.py
-============================================================================
+# stt.py
+# =========================
+#
+# Speech-to-text transcription service using Deepgram's Nova-3 model with speaker diarization.
+#
+# Features:
+# ---------
+# - Transcribes audio files (MP3, WAV, M4A, etc.) using Deepgram Nova-3
+# - Identifies and labels different speakers (diarization)
+# - Applies smart formatting (punctuation, capitalization)
+# - Returns structured transcript with sentence-level segmentation
+# - Handles various input types (bytes, file-like objects, Streamlit uploads)
+#
+# Classes/Functions:
+# ------------------
+# - _read_audio_bytes(audio_input): Converts various input types to raw bytes
+# - process_audio_file(audio_input): Main transcription function returning transcript and full response
+#
+# @see coc.py - Receives transcript output for cleaning
+# @note Requires DEEPGRAM_API_KEY environment variable; Nova-3 is Deepgram's highest quality model
 
-PURPOSE:
-    Provides audio transcription functionality using Deepgram's Nova-3 model.
-    Converts audio files (MP3, WAV, M4A, etc.) into text transcripts with
-    speaker diarization and smart formatting.
-
-ROLE IN PROJECT:
-    This is the first step in the audio-to-notes pipeline. When a user
-    uploads an audio recording through the React frontend, this service
-    transcribes it to text, which then flows to coc.py for cleaning.
-
-KEY COMPONENTS:
-    - _read_audio_bytes(audio_input): Convert various input types to raw bytes
-    - process_audio_file(audio_input): Main transcription function
-
-DEEPGRAM CONFIGURATION:
-    - Model: Nova-3 (latest, highest quality)
-    - Smart format: True (punctuation, capitalization)
-    - Diarization: True (speaker identification)
-    - Utterances: True (sentence-level segmentation)
-
-RETURN FORMAT:
-    {
-        "text": "The full transcript text...",
-        "full_response": { ... Deepgram raw response ... }
-    }
-
-DEPENDENCIES:
-    - External: deepgram-sdk (Deepgram API client)
-    - Internal: None
-
-ENVIRONMENT VARIABLES:
-    - DEEPGRAM_API_KEY: Required API key for Deepgram service
-
-USAGE:
-    from services.stt import process_audio_file
-    
-    # From file bytes
-    with open("lecture.mp3", "rb") as f:
-        result = process_audio_file(f.read())
-    
-    transcript = result["text"]
-============================================================================
-"""
 from typing import BinaryIO, Union, Dict, Any
 import io
 import os
@@ -85,19 +57,19 @@ def process_audio_file(
     Process an audio file using Deepgram Nova-3 and return the transcript.
 
     Args:
-        audio_input: A file-like object (from Streamlit's file uploader) 
+        audio_input: A file-like object (from Streamlit's file uploader)
                     or raw bytes containing audio data
 
     Returns:
         dict: A dictionary containing:
               - "text": The full transcript text.
               - "full_response": The raw JSON response from Deepgram.
-    
+
     Raises:
         ValueError: If DEEPGRAM_API_KEY is missing or input is empty.
         Exception: If the Deepgram API call fails.
     """
-    
+
     api_key = os.getenv("DEEPGRAM_API_KEY")
     if not api_key:
         raise ValueError("DEEPGRAM_API_KEY environment variable is not set.")
@@ -123,7 +95,7 @@ def process_audio_file(
 
         # SDK expects a `request=` kwarg (raw bytes, or an iterator)
         response = deepgram.listen.v1.media.transcribe_file(request=audio_bytes, **options)
-        
+
         # Extract transcript
         # Deepgram Nova-3 with smart_format typically returns nicely formatted paragraphs.
         transcript_text = ""

@@ -1,3 +1,37 @@
+/**
+ * ============================================================================
+ * FILE: KGStatusBadge.tsx
+ * LOCATION: frontend/src/features/kg/components/KGStatusBadge.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Visual badge component for displaying Knowledge Graph processing status.
+ *    Shows status with icon and optional label, with different colors for
+ *    pending, processing, ready, and failed states.
+ *
+ * ROLE IN PROJECT:
+ *    Used in GridView to show KG status for each note. Provides at-a-glance
+ *    status indication for documents in the processing pipeline.
+ *
+ * STATUS TYPES:
+ *    - pending: Gray - Waiting to be processed
+ *    - processing: Amber - Currently processing (spinning icon)
+ *    - ready: Green - Successfully processed
+ *    - failed: Red - Processing failed
+ *
+ * PROPS:
+ *    - status?: KGDocumentStatus - Status to display (default: 'pending')
+ *    - size?: 'sm' | 'md' - Badge size (default: 'md')
+ *    - showLabel?: boolean - Show status text (default: true)
+ *    - className?: string - Additional CSS classes
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons)
+ *    - Internal: types/kg.types (KGDocumentStatus)
+ *
+ * @see: types/kg.types.ts - KGDocumentStatus type definition
+ * @see: components/explorer/GridView.tsx - Usage location
+ */
 import type { KGDocumentStatus } from '../types/kg.types';
 import { Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
 
@@ -15,7 +49,13 @@ export function KGStatusBadge({
     className = ''
 }: KGStatusBadgeProps) {
 
-    const config = {
+    const config: Record<KGDocumentStatus, {
+        icon: typeof Clock;
+        color: string;
+        bg: string;
+        label: string;
+        animate?: boolean;
+    }> = {
         pending: {
             icon: Clock,
             color: 'text-gray-400',

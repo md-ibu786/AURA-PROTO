@@ -1,47 +1,26 @@
-"""
-============================================================================
-FILE: pdf_generator.py
-LOCATION: services/pdf_generator.py
-============================================================================
-
-PURPOSE:
-    Generates formatted PDF documents from text content (lecture notes,
-    summaries). Handles Markdown-like formatting including headers, bold
-    text, and bullet points. Provides both file and bytes output options.
-
-ROLE IN PROJECT:
-    This is the final step in the audio-to-notes pipeline. After the AI
-    generates structured notes, this module converts them to downloadable
-    PDF documents that are saved to the /pdfs directory.
-
-KEY COMPONENTS:
-    - preprocess_text_for_pdf(text): Normalize Unicode for PDF compatibility
-    - LectureNotesPDF: Custom FPDF class with headers/footers
-    - _build_pdf(summary_text, title): Internal PDF builder
-    - create_pdf(summary_text, title, output_filename): Generate PDF file
-    - create_pdf_bytes(summary_text, title): Generate PDF as bytes
-
-MARKDOWN SUPPORT:
-    - # Header 1 (large title)
-    - ## Header 2 (section)
-    - ### Header 3 (subsection)
-    - **bold text** (inline bold)
-    - - or * bullet points
-
-DEPENDENCIES:
-    - External: fpdf or fpdf2 (PDF generation library)
-    - Internal: None
-
-USAGE:
-    from services.pdf_generator import create_pdf, create_pdf_bytes
-    
-    # Create PDF file
-    create_pdf(notes_text, "Lecture 1", "pdfs/lecture1.pdf")
-    
-    # Get PDF as bytes (for streaming/in-memory use)
-    pdf_bytes = create_pdf_bytes(notes_text, "Lecture 1")
-============================================================================
-"""
+# pdf_generator.py
+# =========================
+#
+# Generates formatted PDF documents from lecture notes text with Markdown-like formatting support.
+#
+# Features:
+# ---------
+# - Converts text with Markdown headers (#, ##, ###) to formatted PDF sections
+# - Supports inline bold text (**text**) formatting
+# - Handles bullet points with proper indentation
+# - Normalizes Unicode characters for PDF compatibility
+# - Provides both file output and in-memory bytes output
+#
+# Classes/Functions:
+# ------------------
+# - preprocess_text_for_pdf(text): Normalizes Unicode characters for FPDF compatibility
+# - LectureNotesPDF: Custom FPDF class with header/footer support
+# - _build_pdf(summary_text, title): Internal PDF builder that renders formatted content
+# - create_pdf(summary_text, title, output_filename): Generates PDF file on disk
+# - create_pdf_bytes(summary_text, title): Generates PDF as bytes for streaming
+#
+# @see summarizer.py - Notes source for PDF generation
+# @note Requires fpdf or fpdf2 library; fpdf2 preferred for better Unicode support
 
 from typing import Optional
 
@@ -166,4 +145,3 @@ def create_pdf_bytes(summary_text: str, title: str) -> bytes:
 
 
 __all__ = ['preprocess_text_for_pdf', '_build_pdf', 'create_pdf', 'create_pdf_bytes']
-

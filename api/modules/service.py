@@ -1,13 +1,34 @@
 # service.py
-# Business logic for M2KG Module CRUD operations with Firestore
-
+# =========================
+#
+# Business logic for M2KG Module CRUD operations with Firestore.
 # Provides ModuleService class that handles all module data operations.
-# Modules are stored in Firestore 'modules' collection with ID format:
+# Modules are stored in Firestore 'm2kg_modules' collection with ID format:
 # {code}_{year}_S{semester} (e.g., CS201_2026_S1)
-
+#
+# Features:
+# ----------
+# - Deterministic module ID generation
+# - Full CRUD operations with pagination
+# - Soft delete via status archival
+# - Document count tracking
+# - Published status management
+#
+# Classes/Functions:
+# ------------------
+# - ModuleService: Main service class for module CRUD operations
+# - create(): Create new module with generated ID
+# - get_by_id(): Retrieve module by ID
+# - list(): List modules with filters and pagination
+# - update(): Update module fields
+# - delete(): Soft delete (archive) module
+# - increment_document_count(): Track document assignments
+# - publish(): Publish module for student access
+#
 # @see: models.py - Pydantic schemas used by this service
 # @see: router.py - FastAPI endpoints that call this service
-# @note: Uses sync Firestore client, but methods are async for future flexibility
+# @note: Uses sync Firestore client, but methods follow async pattern for future flexibility
+# @note: Uses 'm2kg_modules' collection to avoid collision with hierarchy modules
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime

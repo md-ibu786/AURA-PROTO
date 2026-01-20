@@ -1,4 +1,44 @@
-import React from 'react';
+/**
+ * ============================================================================
+ * FILE: ProcessingQueue.tsx
+ * LOCATION: frontend/src/features/kg/components/ProcessingQueue.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Fixed-position panel showing currently processing Knowledge Graph
+ *    documents. Displays progress bars, status, and errors for each
+ *    document in the processing queue.
+ *
+ * ROLE IN PROJECT:
+ *    Background notification panel that appears when documents are being
+ *    processed. Shows real-time progress for the batch processing queue.
+ *    Automatically hides when the queue is empty.
+ *
+ * KEY FEATURES:
+ *    - Fixed position at bottom-right of screen
+ *    - Shows document count and status
+ *    - Progress bar with percentage for each item
+ *    - Error display for failed items
+ *    - Auto-hides when queue is empty
+    *    - Polling refresh (2s interval when processing)
+ *
+ * COMPONENTS:
+ *    - ProcessingQueue: Main container with header
+ *    - QueueItem: Individual queue item display
+ *
+ * STATE:
+ *    - queue: Array of ProcessingQueueItem from API
+ *    - isLoading: Initial load state
+ *    - error: Failed to load queue
+ *
+ * DEPENDENCIES:
+ *    - External: lucide-react (icons)
+ *    - Internal: hooks/useKGProcessing, types/kg.types
+ *
+ * @see: hooks/useKGProcessing.ts - useProcessingQueue hook
+ * @see: types/kg.types.ts - ProcessingQueueItem type
+ * @note: Only visible when queue has items
+ */
 import { useKGProcessing } from '../hooks/useKGProcessing';
 import { Loader2, AlertCircle } from 'lucide-react';
 import type { ProcessingQueueItem } from '../types/kg.types';

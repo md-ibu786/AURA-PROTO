@@ -1,52 +1,24 @@
-"""
-============================================================================
-FILE: summarizer.py
-LOCATION: services/summarizer.py
-============================================================================
+# summarizer.py
+# =========================
+#
+# AI-powered lecture note generator that transforms cleaned transcripts into university-grade structured notes.
+#
+# Features:
+# ---------
+# - Generates structured academic notes from cleaned lecture transcripts
+# - Creates hierarchical document structure (Executive Summary, Core Concepts, Glossary, Takeaways)
+# - Uses closed-domain policy to ensure content is derived strictly from transcript
+# - Produces comprehensive notes with definitions, examples, and technical terminology
+# - Supports editor's analogies/examples for complex concepts without explanations
+#
+# Classes/Functions:
+# ------------------
+# - generate_university_notes(topic, cleaned_transcript): Main function that generates structured notes
+#
+# @see coc.py - Source of cleaned transcripts for note generation
+# @see pdf_generator.py - Receives output for PDF generation
+# @note Uses Gemini 3 Flash with temperature 1.0 for creative reasoning; max 32000 tokens
 
-PURPOSE:
-    Generates university-grade structured lecture notes from cleaned
-    transcripts using AI (Google Gemini via Vertex AI). Transforms raw
-    lecture content into a formal academic document structure.
-
-ROLE IN PROJECT:
-    This is the "note generation" step in the audio-to-notes pipeline.
-    After coc.py cleans the transcript, this module transforms it into
-    structured, textbook-quality notes with sections, definitions,
-    examples, and key takeaways.
-
-KEY COMPONENTS:
-    - generate_university_notes(topic, cleaned_transcript): Main function
-
-OUTPUT STRUCTURE:
-    # COURSE MODULE: [Topic]
-    ## 1. EXECUTIVE SUMMARY
-    ## 2. CORE CONCEPTS & THEORETICAL FRAMEWORK
-        ### 2.x [SUBTOPIC TITLE]
-        - CONCEPT DEFINITION
-        - ELABORATION & MECHANICS
-        - ILLUSTRATIVE EXAMPLES
-    ## 3. TECHNICAL GLOSSARY
-    ## 4. KEY TAKEAWAYS
-
-AI CONFIGURATION:
-    - Model: Gemini 3 Flash Preview (thinking model)
-    - Temperature: 1.0 (creative reasoning)
-    - Max tokens: 32000
-
-DEPENDENCIES:
-    - External: google-cloud-aiplatform (Vertex AI SDK)
-    - Internal: vertex_ai_client.py (get_model, generate_content)
-
-USAGE:
-    from services.summarizer import generate_university_notes
-    
-    notes = generate_university_notes(
-        topic="Data Structures and Algorithms",
-        cleaned_transcript=cleaned_text
-    )
-============================================================================
-"""
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
@@ -54,7 +26,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
     """Generates structured, university-grade notes from a cleaned transcript."""
 
     model = get_model(model_name="models/gemini-3-flash-preview")
-    
+
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
         You are an Expert Academic Author and Curriculum Designer. Your task is to transform raw lecture transcripts into high-density, university-grade textbook chapters. You prioritize structural logic, rigorous definitions, and academic tone.

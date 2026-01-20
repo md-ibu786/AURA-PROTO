@@ -1,13 +1,32 @@
 # publishing.py
-# Module publishing workflow for M2KG system
-
-# Manages module lifecycle transitions (draft → published → archived).
+# =========================
+#
+# Module publishing workflow for M2KG system.
+# Manages module lifecycle transitions (draft -> published -> archived).
 # Maintains published_modules collection for AURA-CHAT access.
 # Logs all actions to audit trail for compliance.
-
+#
+# Features:
+# ----------
+# - Module publishing (draft -> published) with validation
+# - Module unpublishing (published -> draft)
+# - Sync to published_modules collection for AURA-CHAT discovery
+# - Comprehensive audit trail logging
+# - Idempotent publish operations
+#
+# Classes/Functions:
+# ------------------
+# - ModulePublisher: Service for module publishing workflow
+# - publish(): Publish module for student access
+# - unpublish(): Hide module from students
+# - get_published_modules(): List all published modules
+# - get_audit_log(): Get module action history
+# - _log_audit(): Internal audit entry creation
+#
 # @see: service.py - Base ModuleService for CRUD operations
 # @see: router.py - Endpoints that use this publisher
-# @note: Uses sync Firestore but methods follow async pattern for future
+# @note: Uses sync Firestore but methods follow async pattern for future flexibility
+# @note: Published modules stored in separate 'published_modules' collection
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
