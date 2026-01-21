@@ -50,25 +50,16 @@ beforeAll(() => {
     });
 });
 
-// Mock fetch globally
+// Mock fetch globally with a basic implementation
 beforeAll(() => {
-    global.fetch = vi.fn();
+    global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+        return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({}),
+        } as Response);
+    });
 });
-
-// Mock API client functions
-vi.mock('../api/client', () => ({
-    fetchApi: vi.fn(),
-    fetchFormData: vi.fn(),
-    DuplicateError: class DuplicateError extends Error {
-        code: string;
-        constructor(message: string, code: string) {
-            super(message);
-            this.name = 'DuplicateError';
-            this.code = code;
-        }
-    },
-    API_BASE: '/api',
-}));
 
 // Mock React Query hooks used in components
 vi.mock('@tanstack/react-query', async () => {
