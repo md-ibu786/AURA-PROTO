@@ -172,8 +172,9 @@ $RECYCLE.BIN/
 # =============================================================================
 tests/
 test_women_empowerment.py
-e2e/
+# e2e/ - Keep E2E tests tracked (frontend/e2e/)
 test-results/
+playwright-report/
 .pytest_cache/
 
 # =============================================================================
