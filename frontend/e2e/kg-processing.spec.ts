@@ -1,15 +1,18 @@
 // kg-processing.spec.ts
-// E2E tests for Knowledge Graph processing features in AURA-NOTES-MANAGER.
+// kg-processing.spec.ts
+// Playwright E2E tests for KG processing flows in AURA-NOTES-MANAGER.
 
-// Tests cover: selection mode for notes, process dialog UI, batch processing
-// initiation, processing queue display, status updates, and error handling.
+// Longer description (2-4 lines):
+// - Exercises selection mode, processing dialogs, queue display, and error handling.
+// - Validates selection-driven processing UX and status indicators.
+// - Covers queue rendering with mocked KG processing endpoints.
 
-// @see: fixtures.ts - Shared mock data and utilities
-// @note: Uses mocked API responses for fast, reliable tests
+// @see: AURA-NOTES-MANAGER/frontend/src/features/kg
+// @note: Uses mocked API responses for speed and determinism
 
-import { test, expect, mockTreeResponse, mockCrudResponses, mockKGProcessingResponses, waitForLoading, mockExplorerTree, mockModule, mockNote } from './fixtures';
+import { test, expect, mockTreeResponse, mockCrudResponses, mockKGProcessingResponses, waitForLoading } from './fixtures';
 
-test.describe('Knowledge Graph Processing', () => {
+test.describe('Knowledge Graph Processing @critical', { tag: '@critical' }, () => {
   test.beforeEach(async ({ page }) => {
     // Set up mocks with notes that can be processed
     await mockTreeResponse(page);
@@ -36,7 +39,7 @@ test.describe('Knowledge Graph Processing', () => {
   });
 });
 
-test.describe('Selection Mode for Processing', () => {
+test.describe('Selection Mode for Processing @critical', { tag: '@critical' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);
@@ -132,7 +135,7 @@ test.describe('Selection Mode for Processing', () => {
   });
 });
 
-test.describe('Process Dialog', () => {
+test.describe('Process Dialog @crud', { tag: '@crud' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);
@@ -275,7 +278,7 @@ test.describe('Process Dialog', () => {
   });
 });
 
-test.describe('Processing Queue Display', () => {
+test.describe('Processing Queue Display @edge', { tag: '@edge' }, () => {
   test.beforeEach(async ({ page }) => {
     // Mock queue with items
     await page.route('**/api/kg/queue', async (route) => {
@@ -306,7 +309,7 @@ test.describe('Processing Queue Display', () => {
   });
 });
 
-test.describe('Processing Status Indicators', () => {
+test.describe('Processing Status Indicators @smoke', { tag: '@smoke' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
@@ -352,7 +355,7 @@ test.describe('Processing Status Indicators', () => {
   });
 });
 
-test.describe('Error Handling in Processing', () => {
+test.describe('Error Handling in Processing @edge', { tag: '@edge' }, () => {
   test('handles processing API errors gracefully', async ({ page }) => {
     // Mock error response
     await page.route('**/api/kg/process', async (route) => {
@@ -408,7 +411,7 @@ test.describe('Error Handling in Processing', () => {
   });
 });
 
-test.describe('Select All Functionality', () => {
+test.describe('Select All Functionality @crud', { tag: '@crud' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);

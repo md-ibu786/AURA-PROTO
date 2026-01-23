@@ -30,7 +30,7 @@
 # @note: Department ID used as top-level root collection in Firestore
 
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
 
 
@@ -40,14 +40,15 @@ class DepartmentResponse(BaseModel):
     code: str = Field(..., description="Department code (e.g., 'CS', 'IT')")
     name: str = Field(..., description="Department display name")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "dept_cs_001",
                 "code": "CS",
                 "name": "Computer Science"
             }
         }
+    )
 
 
 class SemesterResponse(BaseModel):
@@ -57,8 +58,8 @@ class SemesterResponse(BaseModel):
     year: Optional[int] = Field(None, description="Academic year")
     semester_number: int = Field(..., description="Semester number (1-8)")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "sem_2026_s1",
                 "name": "Semester 1",
@@ -66,6 +67,7 @@ class SemesterResponse(BaseModel):
                 "semester_number": 1
             }
         }
+    )
 
 
 class SubjectResponse(BaseModel):
@@ -75,8 +77,8 @@ class SubjectResponse(BaseModel):
     name: str = Field(..., description="Subject display name")
     module_count: int = Field(0, description="Number of modules in this subject")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "subj_cs201",
                 "code": "CS201",
@@ -84,6 +86,7 @@ class SubjectResponse(BaseModel):
                 "module_count": 5
             }
         }
+    )
 
 
 class ModuleHierarchyResponse(BaseModel):
@@ -95,8 +98,8 @@ class ModuleHierarchyResponse(BaseModel):
     document_count: int = Field(0, description="Number of documents in this module")
     module_number: Optional[int] = Field(None, description="Module ordering number")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "mod_cs201_m01",
                 "code": "M01",
@@ -106,6 +109,7 @@ class ModuleHierarchyResponse(BaseModel):
                 "module_number": 1
             }
         }
+    )
 
 
 # List response models with pagination info
@@ -115,8 +119,8 @@ class DepartmentListResponse(BaseModel):
     items: List[DepartmentResponse] = Field(default_factory=list, description="List of departments")
     total: int = Field(..., description="Total count of departments")
     
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "items": [
                     {"id": "dept_cs_001", "code": "CS", "name": "Computer Science"}
@@ -124,6 +128,7 @@ class DepartmentListResponse(BaseModel):
                 "total": 1
             }
         }
+    )
 
 
 class SemesterListResponse(BaseModel):

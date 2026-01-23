@@ -21,8 +21,9 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import { ProcessDialog } from './ProcessDialog';
-import { useExplorerStore } from '../../../stores';
+import { useExplorerStore, type UseExplorerStore } from '../../../stores';
 import { useKGProcessing } from '../hooks/useKGProcessing';
 
 // Mock the store
@@ -35,6 +36,23 @@ vi.mock('../hooks/useKGProcessing', () => ({
     useKGProcessing: vi.fn(),
 }));
 
+// Type for mocked store (extends store type with mock methods)
+type MockedExplorerStore = UseExplorerStore & {
+    mockReturnValue: (value: Partial<UseExplorerStore>) => void;
+};
+
+// Type for mocked useKGProcessing hook (actual return type + mock method)
+type MockedKGProcessingHook = {
+    processFiles: {
+        mutate: ReturnType<typeof vi.fn>;
+        isPending: boolean;
+    };
+};
+
+type MockedKGProcessing = MockedKGProcessingHook & {
+    mockReturnValue: (value: MockedKGProcessingHook) => void;
+};
+
 describe('ProcessDialog', () => {
     const mockCloseProcessDialog = vi.fn();
     const mockClearSelection = vi.fn();
@@ -45,7 +63,7 @@ describe('ProcessDialog', () => {
         vi.clearAllMocks();
 
         // Default store state - dialog closed
-        (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+        (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
             processDialog: { open: false, fileIds: [], moduleId: '' },
             closeProcessDialog: mockCloseProcessDialog,
             clearSelection: mockClearSelection,
@@ -53,7 +71,7 @@ describe('ProcessDialog', () => {
         });
 
         // Default hook state
-        (useKGProcessing as ReturnType<typeof vi.fn>).mockReturnValue({
+        (useKGProcessing as unknown as MockedKGProcessing).mockReturnValue({
             processFiles: {
                 mutate: mockMutate,
                 isPending: false,
@@ -68,7 +86,7 @@ describe('ProcessDialog', () => {
         });
 
         it('renders dialog when open is true', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1', 'file-2'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -80,7 +98,7 @@ describe('ProcessDialog', () => {
         });
 
         it('displays correct file count', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1', 'file-2', 'file-3'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -94,7 +112,7 @@ describe('ProcessDialog', () => {
 
     describe('Processing Actions List', () => {
         it('displays all processing action items', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -111,7 +129,7 @@ describe('ProcessDialog', () => {
 
     describe('Submit Behavior', () => {
         it('calls processFiles.mutate on confirm', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1', 'file-2'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -128,7 +146,7 @@ describe('ProcessDialog', () => {
         });
 
         it('shows loading state during processing', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -146,7 +164,7 @@ describe('ProcessDialog', () => {
 
     describe('Cancel Behavior', () => {
         it('closes dialog on cancel click', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -160,7 +178,7 @@ describe('ProcessDialog', () => {
         });
 
         it('closes dialog on overlay click', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -182,7 +200,7 @@ describe('ProcessDialog', () => {
                 onSuccessCallback = callbacks.onSuccess;
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1', 'file-2'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -194,7 +212,9 @@ describe('ProcessDialog', () => {
 
             // Trigger success callback
             if (onSuccessCallback) {
-                onSuccessCallback();
+                act(() => {
+                    onSuccessCallback?.();
+                });
             }
 
             await waitFor(() => {
@@ -208,7 +228,7 @@ describe('ProcessDialog', () => {
                 onSuccessCallback = callbacks.onSuccess;
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['f1', 'f2', 'f3'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -218,7 +238,11 @@ describe('ProcessDialog', () => {
             render(<ProcessDialog />);
             fireEvent.click(screen.getByText('Start Processing'));
             
-            if (onSuccessCallback) onSuccessCallback();
+            if (onSuccessCallback) {
+                act(() => {
+                    onSuccessCallback?.();
+                });
+            }
 
             await waitFor(() => {
                 expect(screen.getByText(/3 document\(s\) have been queued/)).toBeInTheDocument();
@@ -233,7 +257,7 @@ describe('ProcessDialog', () => {
                 onErrorCallback = callbacks.onError;
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as MockedExplorerStore).mockReturnValue({
                 processDialog: { open: true, fileIds: ['file-1'], moduleId: 'mod-1' },
                 closeProcessDialog: mockCloseProcessDialog,
                 clearSelection: mockClearSelection,
@@ -244,7 +268,9 @@ describe('ProcessDialog', () => {
             fireEvent.click(screen.getByText('Start Processing'));
 
             if (onErrorCallback) {
-                onErrorCallback(new Error('Network error'));
+                act(() => {
+                    onErrorCallback?.(new Error('Network error'));
+                });
             }
 
             await waitFor(() => {

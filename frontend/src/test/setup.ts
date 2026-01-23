@@ -27,6 +27,15 @@ import '@testing-library/jest-dom';
 import { afterEach, vi, beforeAll } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
+vi.mock('../api/client', async () => {
+    const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
+    return {
+        ...actual,
+        fetchApi: vi.fn(actual.fetchApi),
+        fetchFormData: vi.fn(actual.fetchFormData),
+    };
+});
+
 // Cleanup after each test
 afterEach(() => {
     cleanup();
@@ -52,13 +61,14 @@ beforeAll(() => {
 
 // Mock fetch globally with a basic implementation
 beforeAll(() => {
-    global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    global.fetch = vi.fn().mockImplementation((_url: string | URL, _options?: RequestInit | undefined) => {
         return Promise.resolve({
             ok: true,
             status: 200,
             json: () => Promise.resolve({}),
         } as Response);
-    });
+    }) as unknown as typeof global.fetch;
 });
 
 // Mock React Query hooks used in components

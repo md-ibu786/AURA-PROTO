@@ -6,7 +6,8 @@ sys.path.insert(0, os.path.abspath('.'))
 
 from services.summarizer import generate_university_notes
 
-def test_women_empowerment_essay():
+
+def _run_women_empowerment_essay():
     """Test the summarizer with a women empowerment topic."""
     
     print("Generating Women Empowerment Essay using the configured model...")
@@ -72,11 +73,17 @@ def test_women_empowerment_essay():
         traceback.print_exc()
         return None
 
+
+def test_women_empowerment_essay():
+    """Test the summarizer with a women empowerment topic."""
+    essay = _run_women_empowerment_essay()
+    assert isinstance(essay, str) and len(essay) > 0
+
 if __name__ == "__main__":
     print("Women Empowerment Essay Generator Test")
     print("=" * 60)
 
-    result = test_women_empowerment_essay()
+    result = _run_women_empowerment_essay()
 
     if result:
         print("\nTest completed successfully!")

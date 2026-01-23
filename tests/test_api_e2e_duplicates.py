@@ -1,6 +1,22 @@
+# test_api_e2e_duplicates.py
+# E2E duplicate module handling checks against running API
+#
+# Skips when the local API server is unavailable.
+#
+# @see: api/hierarchy_crud.py - Module creation and numbering
+# @note: Requires localhost:8000 server
+
+import os
 import requests
 import time
 import sys
+import pytest
+
+if os.getenv("AURA_TEST_MODE", "").lower() == "true":
+    pytest.skip(
+        "AURA-NOTES-MANAGER E2E API tests are disabled in test mode.",
+        allow_module_level=True,
+    )
 
 BASE_URL = "http://localhost:8000/api"
 
@@ -18,6 +34,8 @@ def wait_for_server():
 
 def test_duplicate_module_handling():
     print("\n--- Testing Duplicate Module Handling ---")
+    if not wait_for_server():
+        pytest.skip("AURA-NOTES-MANAGER API server is not running on localhost:8000")
     
     # 1. Setup: Create Department -> Semester -> Subject
     print("Creating hierarchy...")

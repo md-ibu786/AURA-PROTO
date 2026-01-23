@@ -153,6 +153,10 @@ export default function ExplorerPage() {
         );
     }
 
+    if (import.meta.env.DEV) {
+        (window as { __auraStore?: typeof useExplorerStore }).__auraStore = useExplorerStore;
+    }
+
     return (
         <div className="explorer-layout" onClick={handleBackgroundClick}>
             <Sidebar tree={tree} isLoading={isLoading} />

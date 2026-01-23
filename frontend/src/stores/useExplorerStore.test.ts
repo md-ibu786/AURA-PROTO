@@ -450,4 +450,430 @@ describe('useExplorerStore', () => {
             expect(state.activeNodeId).toBeNull();
         });
     });
+
+    // ============================================================================
+    // Additional Store Tests (completing 23 missing tests)
+    // ============================================================================
+
+    describe('Active Node Actions', () => {
+        it('should set active node', () => {
+            const node: FileSystemNode = { id: 'dept-1', name: 'CS', type: 'department', children: [] };
+
+            act(() => {
+                useExplorerStore.getState().setActiveNode(node);
+            });
+
+            expect(useExplorerStore.getState().activeNodeId).toBe('dept-1');
+        });
+
+        it('should clear active node when null is passed', () => {
+            useExplorerStore.setState({ activeNodeId: 'dept-1' });
+
+            act(() => {
+                useExplorerStore.getState().setActiveNode(null);
+            });
+
+            expect(useExplorerStore.getState().activeNodeId).toBeNull();
+        });
+
+        it('should only set active node without affecting selection', () => {
+            const node: FileSystemNode = { id: 'dept-1', name: 'CS', type: 'department', children: [] };
+            useExplorerStore.setState({
+                selectedIds: new Set(['item-1', 'item-2']),
+                lastSelectedId: 'item-2',
+            });
+
+            act(() => {
+                useExplorerStore.getState().setActiveNode(node);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.activeNodeId).toBe('dept-1');
+            // setActiveNode does NOT clear selections (only navigateTo does)
+            expect(state.selectedIds.size).toBe(2);
+        });
+    });
+
+    describe('Multi-Select Edge Cases', () => {
+        it('should handle toggle when nothing was previously selected', () => {
+            useExplorerStore.setState({ selectedIds: new Set(), lastSelectedId: null });
+
+            act(() => {
+                useExplorerStore.getState().toggleSelect('new-item');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.has('new-item')).toBe(true);
+            expect(state.lastSelectedId).toBe('new-item');
+        });
+
+        it('should preserve existing selections during toggle', () => {
+            useExplorerStore.setState({
+                selectedIds: new Set(['existing-1', 'existing-2']),
+                lastSelectedId: 'existing-2',
+            });
+
+            act(() => {
+                useExplorerStore.getState().toggleSelect('new-item');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.has('existing-1')).toBe(true);
+            expect(state.selectedIds.has('existing-2')).toBe(true);
+            expect(state.selectedIds.has('new-item')).toBe(true);
+            expect(state.selectedIds.size).toBe(3);
+        });
+
+        it('should handle range select with no previous selection', () => {
+            useExplorerStore.setState({ lastSelectedId: null, selectedIds: new Set() });
+
+            act(() => {
+                useExplorerStore.getState().rangeSelect('c', ['a', 'b', 'c', 'd', 'e']);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.has('c')).toBe(true);
+            expect(state.selectedIds.size).toBe(1);
+        });
+
+        it('should handle range select when lastSelectedId not in allIds', () => {
+            useExplorerStore.setState({
+                lastSelectedId: 'not-in-list',
+                selectedIds: new Set(['not-in-list']),
+            });
+
+            act(() => {
+                useExplorerStore.getState().rangeSelect('c', ['a', 'b', 'c', 'd', 'e']);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.has('c')).toBe(true);
+            expect(state.selectedIds.size).toBe(1);
+        });
+
+        it('should select all in correct order', () => {
+            const ids = ['z', 'a', 'm'];
+
+            act(() => {
+                useExplorerStore.getState().selectAll(ids);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.has('z')).toBe(true);
+            expect(state.selectedIds.has('a')).toBe(true);
+            expect(state.selectedIds.has('m')).toBe(true);
+            expect(state.lastSelectedId).toBe('m'); // Last in array
+        });
+
+        it('should handle empty selectAll call', () => {
+            act(() => {
+                useExplorerStore.getState().selectAll([]);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.selectedIds.size).toBe(0);
+            expect(state.lastSelectedId).toBeNull();
+        });
+    });
+
+    describe('Tree Expansion Edge Cases', () => {
+        it('should handle expand on already expanded node', () => {
+            useExplorerStore.setState({ expandedIds: new Set(['node-1']) });
+
+            act(() => {
+                useExplorerStore.getState().expand('node-1');
+            });
+
+            expect(useExplorerStore.getState().expandedIds.has('node-1')).toBe(true);
+        });
+
+        it('should handle collapse on already collapsed node', () => {
+            useExplorerStore.setState({ expandedIds: new Set() });
+
+            act(() => {
+                useExplorerStore.getState().collapse('node-1');
+            });
+
+            expect(useExplorerStore.getState().expandedIds.has('node-1')).toBe(false);
+        });
+
+        it('should toggle expand from expanded to collapsed', () => {
+            useExplorerStore.setState({ expandedIds: new Set(['node-1']) });
+
+            act(() => {
+                useExplorerStore.getState().toggleExpand('node-1');
+            });
+
+            expect(useExplorerStore.getState().expandedIds.has('node-1')).toBe(false);
+        });
+
+        it('should toggle expand from collapsed to expanded', () => {
+            useExplorerStore.setState({ expandedIds: new Set() });
+
+            act(() => {
+                useExplorerStore.getState().toggleExpand('node-1');
+            });
+
+            expect(useExplorerStore.getState().expandedIds.has('node-1')).toBe(true);
+        });
+
+        it('should expand multiple nodes independently', () => {
+            act(() => {
+                useExplorerStore.getState().expand('node-1');
+                useExplorerStore.getState().expand('node-2');
+                useExplorerStore.getState().expand('node-3');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.expandedIds.has('node-1')).toBe(true);
+            expect(state.expandedIds.has('node-2')).toBe(true);
+            expect(state.expandedIds.has('node-3')).toBe(true);
+            expect(state.expandedIds.size).toBe(3);
+        });
+    });
+
+    describe('Clipboard Edge Cases', () => {
+        it('should handle cut mode', () => {
+            act(() => {
+                useExplorerStore.getState().setClipboard(['item-1', 'item-2'], 'cut');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.clipboard.nodeIds).toEqual(['item-1', 'item-2']);
+            expect(state.clipboard.mode).toBe('cut');
+        });
+
+        it('should handle copy mode', () => {
+            act(() => {
+                useExplorerStore.getState().setClipboard(['item-1'], 'copy');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.clipboard.nodeIds).toEqual(['item-1']);
+            expect(state.clipboard.mode).toBe('copy');
+        });
+
+        it('should replace clipboard contents on new set', () => {
+            useExplorerStore.setState({
+                clipboard: { nodeIds: ['old-1'], mode: 'copy' }
+            });
+
+            act(() => {
+                useExplorerStore.getState().setClipboard(['new-1', 'new-2'], 'cut');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.clipboard.nodeIds).toEqual(['new-1', 'new-2']);
+            expect(state.clipboard.mode).toBe('cut');
+        });
+    });
+
+    describe('Dialog State Edge Cases', () => {
+        it('should clear context menu when delete dialog opens', () => {
+            useExplorerStore.setState({
+                contextMenuPosition: { x: 100, y: 200 },
+                contextMenuNodeId: 'node-1',
+            });
+
+            const node = { id: '1', type: 'department' as const, label: 'CS' };
+            act(() => {
+                useExplorerStore.getState().openDeleteDialog(node);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.deleteDialogOpen).toBe(true);
+            expect(state.contextMenuPosition).toBeNull();
+            expect(state.contextMenuNodeId).toBeNull();
+        });
+
+        it('should handle opening process dialog multiple times', () => {
+            act(() => {
+                useExplorerStore.getState().openProcessDialog(['file-1'], 'mod-1');
+            });
+
+            act(() => {
+                useExplorerStore.getState().openProcessDialog(['file-2', 'file-3'], 'mod-2');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.processDialog.open).toBe(true);
+            expect(state.processDialog.fileIds).toEqual(['file-2', 'file-3']);
+            expect(state.processDialog.moduleId).toBe('mod-2');
+        });
+    });
+
+    // ============================================================================
+    // warningTimeoutId Tests (critical missing tests)
+    // ============================================================================
+
+    describe('Warning Timeout Tests', () => {
+        beforeEach(() => {
+            vi.useFakeTimers();
+        });
+
+        afterEach(() => {
+            vi.useRealTimers();
+        });
+
+        it('should have null warningTimeoutId initially', () => {
+            const state = useExplorerStore.getState();
+            expect(state.warningTimeoutId).toBeNull();
+        });
+
+        it('should set warningTimeoutId when opening warning dialog', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'Test message');
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.warningTimeoutId).not.toBeNull();
+            expect(state.warningDialog.isOpen).toBe(true);
+        });
+
+        it('should clear warningTimeoutId when closing warning dialog', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'Test message');
+            });
+
+            const timeoutId = useExplorerStore.getState().warningTimeoutId;
+            expect(timeoutId).not.toBeNull();
+
+            act(() => {
+                useExplorerStore.getState().closeWarningDialog();
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.warningTimeoutId).toBeNull();
+            expect(state.warningDialog.isOpen).toBe(false);
+        });
+
+        it('should clear existing timeout when opening new warning', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'First message');
+            });
+
+            const firstTimeoutId = useExplorerStore.getState().warningTimeoutId;
+
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('duplicate', 'Second message');
+            });
+
+            const secondTimeoutId = useExplorerStore.getState().warningTimeoutId;
+            // Should be a different timeout ID
+            expect(secondTimeoutId).not.toBe(firstTimeoutId);
+            expect(secondTimeoutId).not.toBeNull();
+        });
+
+        it('should clear timeout on unmount equivalent (via closeWarningDialog)', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'Test message');
+            });
+
+            const timeoutId = useExplorerStore.getState().warningTimeoutId;
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+            act(() => {
+                useExplorerStore.getState().closeWarningDialog();
+            });
+
+            expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
+            clearTimeoutSpy.mockRestore();
+        });
+
+        it('should auto-close warning dialog after 5 seconds', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'Auto-close message');
+            });
+
+            expect(useExplorerStore.getState().warningDialog.isOpen).toBe(true);
+
+            // Fast-forward time by 5 seconds
+            act(() => {
+                vi.advanceTimersByTime(5000);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.warningDialog.isOpen).toBe(false);
+            expect(state.warningTimeoutId).toBeNull();
+        });
+
+        it('should clear timeout if it exists before setting new one', () => {
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'First');
+            });
+
+            const firstTimeoutId = useExplorerStore.getState().warningTimeoutId;
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+            act(() => {
+                useExplorerStore.getState().openWarningDialog('error', 'Second');
+            });
+
+            expect(clearTimeoutSpy).toHaveBeenCalledWith(firstTimeoutId);
+            clearTimeoutSpy.mockRestore();
+        });
+
+        it('should handle closeWarningDialog when no timeout is set', () => {
+            useExplorerStore.setState({ warningTimeoutId: null });
+
+            const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+            act(() => {
+                useExplorerStore.getState().closeWarningDialog();
+            });
+
+            // Should not call clearTimeout when timeoutId is null
+            expect(clearTimeoutSpy).not.toHaveBeenCalled();
+            clearTimeoutSpy.mockRestore();
+        });
+    });
+
+    // ============================================================================
+    // KG Polling Tests
+    // ============================================================================
+
+    describe('KG Polling Tests', () => {
+        it('should have initial polling state as false', () => {
+            const state = useExplorerStore.getState();
+            expect(state.kgPolling.moduleId).toBeNull();
+            expect(state.kgPolling.isPolling).toBe(false);
+        });
+
+        it('should set polling state correctly', () => {
+            act(() => {
+                useExplorerStore.getState().setKGPolling('mod-123', true);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.kgPolling.moduleId).toBe('mod-123');
+            expect(state.kgPolling.isPolling).toBe(true);
+        });
+
+        it('should stop polling when set to false', () => {
+            useExplorerStore.setState({
+                kgPolling: { moduleId: 'mod-123', isPolling: true }
+            });
+
+            act(() => {
+                useExplorerStore.getState().setKGPolling('mod-123', false);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.kgPolling.isPolling).toBe(false);
+        });
+
+        it('should clear moduleId when polling is stopped', () => {
+            useExplorerStore.setState({
+                kgPolling: { moduleId: 'mod-123', isPolling: true }
+            });
+
+            act(() => {
+                useExplorerStore.getState().setKGPolling(null, false);
+            });
+
+            const state = useExplorerStore.getState();
+            expect(state.kgPolling.moduleId).toBeNull();
+            expect(state.kgPolling.isPolling).toBe(false);
+        });
+    });
 });

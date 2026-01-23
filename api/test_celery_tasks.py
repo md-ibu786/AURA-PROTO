@@ -22,6 +22,8 @@ USAGE:
 
 import sys
 import os
+
+import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, MagicMock
 
@@ -46,10 +48,10 @@ def test_imports():
             KGProcessingTask
         )
         print("  [PASS] All task imports successful")
-        return True
+        assert True
     except ImportError as e:
         print(f"  [FAIL] Import error: {e}")
-        return False
+        pytest.fail(f"Import error: {e}")
 
 
 def test_app_configuration():
@@ -73,7 +75,7 @@ def test_app_configuration():
     assert process_document_task.soft_time_limit == 1500, "Soft time limit should be 1500"
     print("  [PASS] Time limits configured correctly")
 
-    return True
+    assert True
 
 
 def test_processing_states():
@@ -92,7 +94,7 @@ def test_processing_states():
         assert hasattr(ProcessingState, state), f"Missing state: {state}"
 
     print(f"  [PASS] All {len(expected_states)} processing states defined")
-    return True
+    assert True
 
 
 def test_task_decorators():
@@ -116,7 +118,7 @@ def test_task_decorators():
     assert process_batch_task.max_retries == 3, "Batch max retries should be 3"
     print("  [PASS] process_batch_task has correct configuration")
 
-    return True
+    assert True
 
 
 def test_task_request_format():
@@ -134,7 +136,7 @@ def test_task_request_format():
     assert hasattr(process_document_task, 'request'), "Task should have request attribute"
     print("  [PASS] Task request format is correct")
 
-    return True
+    assert True
 
 
 def test_progress_tracking():
@@ -157,7 +159,7 @@ def test_progress_tracking():
         print(f"  - {state.value}: {progress}% - {description}")
 
     print("  [PASS] Progress tracking stages defined correctly")
-    return True
+    assert True
 
 
 def test_kg_processing_task_base():
@@ -174,7 +176,7 @@ def test_kg_processing_task_base():
     assert hasattr(task, 'update_progress'), "Task should have update_progress method"
     print("  [PASS] KGProcessingTask base class is correct")
 
-    return True
+    assert True
 
 
 def test_helper_functions():
@@ -196,7 +198,7 @@ def test_helper_functions():
     print("  [PASS] get_task_progress works correctly")
     print("  [PASS] cancel_task is callable")
 
-    return True
+    assert True
 
 
 def test_result_structure():
@@ -219,7 +221,7 @@ def test_result_structure():
         print(f"    - {key}")
 
     print("  [PASS] Result structure documented correctly")
-    return True
+    assert True
 
 
 def test_batch_result_structure():
@@ -240,7 +242,7 @@ def test_batch_result_structure():
         print(f"    - {key}")
 
     print("  [PASS] Batch result structure documented correctly")
-    return True
+    assert True
 
 
 def test_retry_policy():
@@ -257,7 +259,7 @@ def test_retry_policy():
     print("  Auto-retries on: ConnectionError, TimeoutError")
 
     print("  [PASS] Retry policy documented correctly")
-    return True
+    assert True
 
 
 def test_celery_config_yaml_compatibility():
@@ -283,7 +285,7 @@ def test_celery_config_yaml_compatibility():
         assert hasattr(app.conf, setting), f"Missing required setting: {setting}"
 
     print(f"  [PASS] All {len(required_settings)} required settings present")
-    return True
+    assert True
 
 
 def simulate_task_execution():

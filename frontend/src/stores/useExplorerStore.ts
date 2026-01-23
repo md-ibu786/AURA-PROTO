@@ -159,6 +159,8 @@ interface ExplorerState {
     closeWarningDialog: () => void;
 }
 
+export type UseExplorerStore = ReturnType<typeof useExplorerStore>;
+
 export const useExplorerStore = create<ExplorerState>((set, get) => ({
     // Initial state
     currentPath: [],

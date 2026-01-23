@@ -31,7 +31,7 @@
 # @see: router.py - Uses these models for FastAPI validation
 # @note: This is for M2KG Modules (course units), NOT hierarchy modules
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -74,9 +74,7 @@ class ModuleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        # Allow datetime serialization from Firestore Timestamp
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ModuleListResponse(BaseModel):

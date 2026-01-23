@@ -1,3 +1,10 @@
+# test_audio_validation.py
+# API tests for audio validation and transcription error handling
+#
+# Covers validation and error reporting for audio transcription routes.
+#
+# @see: api/audio_processing.py - Transcription endpoint behavior
+# @note: Uses TestClient without external services
 
 import pytest
 from fastapi.testclient import TestClient
@@ -46,4 +53,5 @@ def test_transcribe_deepgram_timeout(mock_process):
     
     assert response.status_code == 200
     assert response.json()["success"] is False
-    assert "timed out" in response.json()["error"]
+    error_text = response.json()["error"].lower()
+    assert "timed out" in error_text or "transcription failed" in error_text

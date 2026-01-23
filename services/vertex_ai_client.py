@@ -54,6 +54,18 @@ _LOCATION = os.environ.get("VERTEX_LOCATION", "global")
 _INITIALIZED = False
 
 
+class _TestGenerativeModel:
+    def __init__(self, model_name: str) -> None:
+        self._model_name = model_name
+
+    def generate_content(self, *args, **kwargs):
+        class _TestResponse:
+            def __init__(self, text: str) -> None:
+                self.text = text
+
+        return _TestResponse("Test-mode notes output.")
+
+
 class VertexAIRequestError(RuntimeError):
     def __init__(
         self,
@@ -112,6 +124,10 @@ def init_vertex_ai() -> None:
     if _INITIALIZED:
         return
 
+    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
+        _INITIALIZED = True
+        return
+
     # Set GOOGLE_APPLICATION_CREDENTIALS from VERTEX_CREDENTIALS if not already set
     vertex_creds = os.environ.get("VERTEX_CREDENTIALS")
     if vertex_creds and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
@@ -154,6 +170,9 @@ def normalize_model_name(model_name: str) -> str:
 
 
 def get_model(model_name: str) -> GenerativeModel:
+    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
+        return _TestGenerativeModel(model_name)
+
     init_vertex_ai()
 
     normalized = normalize_model_name(model_name)

@@ -152,9 +152,12 @@ def close_neo4j():
 
 
 # Initialize driver on module import
-try:
-    neo4j_driver = init_neo4j()
-except Exception as e:
-    print(f"Warning: Neo4j driver initialization failed: {e}")
-    print("Please ensure Neo4j is running and credentials are set in .env")
+if os.getenv("AURA_TEST_MODE", "").lower() == "true":
     neo4j_driver = None
+else:
+    try:
+        neo4j_driver = init_neo4j()
+    except Exception as e:
+        print(f"Warning: Neo4j driver initialization failed: {e}")
+        print("Please ensure Neo4j is running and credentials are set in .env")
+        neo4j_driver = None

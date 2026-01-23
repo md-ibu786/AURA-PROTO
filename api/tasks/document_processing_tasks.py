@@ -40,6 +40,7 @@ USAGE:
 import os
 import sys
 import logging
+import asyncio
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from enum import Enum
@@ -70,6 +71,35 @@ except ImportError:
 # FIRESTORE STATUS UPDATE HELPER
 # ============================================================================
 
+def _find_note_by_id(document_id: str):
+    """Find a note document by ID using collection_group query.
+
+    Notes are stored in nested subcollections: modules/{module_id}/notes/{note_id}
+    Use collection_group to find them regardless of their parent module.
+
+    Args:
+        document_id: The note document ID to find
+
+    Returns:
+        The note document reference if found, None otherwise
+    """
+    try:
+        # Use collection_group to find note in any modules subcollection
+        notes = list(
+            db.collection_group("notes")
+            .where("__name__", ">=", document_id)
+            .where("__name__", "<=", document_id + "\uf8ff")
+            .limit(1)
+            .stream()
+        )
+        if notes:
+            return notes[0].reference
+        return None
+    except Exception as e:
+        logger.error(f"Error finding note {document_id}: {e}")
+        return None
+
+
 def update_document_status(
     document_id: str,
     status: str,
@@ -81,7 +111,7 @@ def update_document_status(
 ):
     """
     Update document KG status in Firestore.
-    
+
     Args:
         document_id: Firestore document ID
         status: KG status (pending, processing, ready, failed)
@@ -91,12 +121,18 @@ def update_document_status(
         chunk_count: Number of chunks created (for ready status)
         entity_count: Number of entities extracted (for ready status)
     """
-    doc_ref = db.collection("documents").document(document_id)
+    # Find the note in nested subcollections
+    doc_ref = _find_note_by_id(document_id)
+
+    if doc_ref is None:
+        logger.error(f"No document found to update: {document_id}")
+        return
+
     update_data = {
         "kg_status": status,
         "updated_at": datetime.utcnow()
     }
-    
+
     if error:
         update_data["kg_error"] = error
     if progress is not None:
@@ -111,7 +147,7 @@ def update_document_status(
             update_data["kg_chunk_count"] = chunk_count
         if entity_count is not None:
             update_data["kg_entity_count"] = entity_count
-    
+
     try:
         doc_ref.update(update_data)
         logger.debug(f"Updated KG status for document {document_id}: {status}")
@@ -316,14 +352,17 @@ def process_document_task(
             raise ValueError("user_id is required")
 
         # Idempotency check: skip if already processed
-        doc = db.collection("documents").document(document_id).get()
-        if doc.exists and doc.to_dict().get("kg_status") == "ready":
-            task_logger.info(f"Document {document_id} already processed, skipping")
-            return {
-                "document_id": document_id,
-                "status": "skipped",
-                "reason": "already_processed"
-            }
+        # Find note in nested subcollections (modules/{id}/notes/{id})
+        doc_ref = _find_note_by_id(document_id)
+        if doc_ref is not None:
+            doc = doc_ref.get()
+            if doc.exists and doc.to_dict().get("kg_status") == "ready":
+                task_logger.info(f"Document {document_id} already processed, skipping")
+                return {
+                    "document_id": document_id,
+                    "status": "skipped",
+                    "reason": "already_processed"
+                }
 
         # Update Firestore status to PROCESSING
         update_document_status(document_id, "processing", progress=5, step="starting")
@@ -333,12 +372,13 @@ def process_document_task(
         task_logger.debug(f"Stage PARSING: Extracting text from document")
 
         # Process document (this handles parsing, chunking, embedding, extraction)
-        result = process_document_simple(
+        # Run the async function synchronously in Celery task
+        result = asyncio.run(process_document_simple(
             document_id=document_id,
             module_id=module_id,
             user_id=user_id,
             file_path=file_path
-        )
+        ))
 
         # Update state: STORING (70-90%)
         self.update_progress('storing', 75, {'status': 'Storing in Neo4j'})

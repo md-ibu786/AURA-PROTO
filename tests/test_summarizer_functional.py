@@ -1,5 +1,14 @@
+# test_summarizer_functional.py
+# Functional tests for the university notes summarizer
+#
+# Validates GenAI/Vertex fallback behavior and configuration constants.
+#
+# @see: services/summarizer.py - Summarizer implementation under test
+# @note: Uses path-based source checks for config verification
+
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
 import sys
 import os
 
@@ -86,7 +95,8 @@ class TestSummarizerFunctional(unittest.TestCase):
 
     def test_configuration_parameters_are_in_source_code(self):
         """Verify that the required configuration parameters are in the source code."""
-        with open('services/summarizer.py', 'r', encoding='utf-8') as f:
+        summarizer_path = Path(__file__).resolve().parents[1] / "services" / "summarizer.py"
+        with open(summarizer_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         # Check that the required values are present in the code

@@ -849,10 +849,18 @@ class KnowledgeGraphProcessor:
         # Try Firestore if available
         try:
             from config import db
-            doc_ref = db.collection("documents").document(document_id)
-            doc = doc_ref.get()
-            if doc.exists:
-                return doc.to_dict().get("content", "")
+            # Find note in nested subcollections (modules/{id}/notes/{id})
+            notes = list(
+                db.collection_group("notes")
+                .where("__name__", ">=", document_id)
+                .where("__name__", "<=", document_id + "\uf8ff")
+                .limit(1)
+                .stream()
+            )
+            if notes:
+                doc_data = notes[0].to_dict()
+                # Return content field if present (some notes store parsed content)
+                return doc_data.get("content", "")
         except Exception as e:
             logger.warning(f"Failed to fetch document from Firestore: {e}")
 

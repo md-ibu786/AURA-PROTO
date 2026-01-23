@@ -1,5 +1,14 @@
+# test_summarizer_integration.py
+# Integration tests for summarizer configuration and inputs
+#
+# Ensures fallback parameters and function contracts meet requirements.
+#
+# @see: services/summarizer.py - Summarizer implementation under test
+# @note: Uses source inspection for config values
+
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
 from services.summarizer import generate_university_notes
 
 
@@ -100,7 +109,8 @@ class TestConfigurationValues(unittest.TestCase):
         import inspect
         
         # Read the source code to verify the values are correct
-        with open('services/summarizer.py', 'r') as f:
+        summarizer_path = Path(__file__).resolve().parents[1] / "services" / "summarizer.py"
+        with open(summarizer_path, 'r') as f:
             source = f.read()
         
         # Parse the AST to find the configuration values

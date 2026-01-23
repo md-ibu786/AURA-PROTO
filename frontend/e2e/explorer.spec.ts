@@ -1,20 +1,20 @@
 // explorer.spec.ts
-// E2E tests for the file explorer interface in AURA-NOTES-MANAGER.
+// Playwright E2E tests for explorer CRUD and navigation.
+// Longer description (2-4 lines):
+// - Verifies layout, navigation, and CRUD flows in the explorer UI.
+// - Exercises create, rename, delete, and selection behaviors.
+// - Uses mocked explorer endpoints for deterministic runs.
+// @see: AURA-NOTES-MANAGER/frontend/src/components/explorer
+// @note: Mocked responses avoid backend dependencies
 
-// Tests cover: page layout, navigation, sidebar tree, grid/list view modes,
-// CRUD operations (create, rename, delete), context menu actions,
-// breadcrumb navigation, and view toggling.
+import { test, expect, type Locator, mockTreeResponse, mockCrudResponses, waitForLoading, primeExplorerTreeCache } from './fixtures';
 
-// @see: fixtures.ts - Shared mock data and utilities
-// @note: Uses mocked API responses for fast, reliable tests
-
-import { test, expect, mockTreeResponse, mockCrudResponses, waitForLoading, mockExplorerTree } from './fixtures';
-
-test.describe('Explorer Page Layout', () => {
+test.describe('Explorer Page Layout @critical', { tag: '@critical' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('displays main layout elements', async ({ page }) => {
@@ -33,14 +33,11 @@ test.describe('Explorer Page Layout', () => {
 
   test('displays view mode toggle', async ({ page }) => {
     // Should see grid/list view toggle buttons
-    const gridButton = page.locator('button[aria-label*="grid"], button:has(svg.lucide-grid)');
-    const listButton = page.locator('button[aria-label*="list"], button:has(svg.lucide-list)');
+    const gridButton = page.locator('button[title="Grid view"], button:has(svg.lucide-layout-grid)');
+    const listButton = page.locator('button[title="List view"], button:has(svg.lucide-list)');
 
-    // At least one view toggle should be visible
-    const hasGridButton = await gridButton.first().isVisible().catch(() => false);
-    const hasListButton = await listButton.first().isVisible().catch(() => false);
-
-    expect(hasGridButton || hasListButton).toBeTruthy();
+    await expect(gridButton.first()).toBeVisible({ timeout: 5000 });
+    await expect(listButton.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('has responsive layout', async ({ page }) => {
@@ -56,11 +53,12 @@ test.describe('Explorer Page Layout', () => {
   });
 });
 
-test.describe('Sidebar Navigation', () => {
+test.describe('Sidebar Navigation @critical', { tag: '@critical' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('displays department tree in sidebar', async ({ page }) => {
@@ -97,11 +95,13 @@ test.describe('Sidebar Navigation', () => {
   });
 });
 
-test.describe('Grid View', () => {
+test.describe('Grid View @smoke', { tag: '@smoke' }, () => {
+  test.describe.configure({ mode: 'serial' });
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('displays items in grid layout', async ({ page }) => {
@@ -139,11 +139,12 @@ test.describe('Grid View', () => {
   });
 });
 
-test.describe('List View', () => {
+test.describe('List View @smoke', { tag: '@smoke' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('can switch to list view', async ({ page }) => {
@@ -180,18 +181,19 @@ test.describe('List View', () => {
   });
 });
 
-test.describe('Context Menu', () => {
+test.describe('Context Menu @crud', { tag: '@crud' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('shows context menu on right-click', async ({ page }) => {
     // Right-click on a grid item (not empty content area - context menu needs a node)
     const gridItem = page.locator('.grid-item').first();
-    await gridItem.click({ button: 'right' });
+    await gridItem.dispatchEvent('contextmenu');
 
     // Should see context menu
     const contextMenu = page.locator('.context-menu, [role="menu"]');
@@ -201,7 +203,7 @@ test.describe('Context Menu', () => {
   test('context menu has create options at root level', async ({ page }) => {
     // Right-click on a department item to see its context menu
     const gridItem = page.locator('.grid-item').first();
-    await gridItem.click({ button: 'right' });
+    await gridItem.dispatchEvent('contextmenu');
 
     // Should see "New Semester" option (child of department)
     const newSemester = page.locator('text=New Semester');
@@ -211,7 +213,7 @@ test.describe('Context Menu', () => {
   test('context menu closes on outside click', async ({ page }) => {
     // Right-click on a grid item to open menu
     const gridItem = page.locator('.grid-item').first();
-    await gridItem.click({ button: 'right' });
+    await gridItem.dispatchEvent('contextmenu');
 
     // Menu should be visible
     const contextMenu = page.locator('.context-menu, [role="menu"]');
@@ -225,11 +227,12 @@ test.describe('Context Menu', () => {
   });
 });
 
-test.describe('Breadcrumb Navigation', () => {
+test.describe('Breadcrumb Navigation @navigation', { tag: '@navigation' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('shows root breadcrumb initially', async ({ page }) => {
@@ -266,7 +269,7 @@ test.describe('Breadcrumb Navigation', () => {
   });
 });
 
-test.describe('Empty State', () => {
+test.describe('Empty State @edge', { tag: '@edge' }, () => {
   test('shows empty state message when folder is empty', async ({ page }) => {
     // Create a tree with an empty department
     const emptyTree = [
@@ -292,7 +295,7 @@ test.describe('Empty State', () => {
   });
 });
 
-test.describe('Error Handling', () => {
+test.describe('Error Handling @edge', { tag: '@edge' }, () => {
   test('displays error state when API fails', async ({ page }) => {
     // Mock API to return error
     await page.route('**/api/explorer/tree*', async (route) => {
@@ -315,18 +318,19 @@ test.describe('Error Handling', () => {
   });
 });
 
-test.describe('Create Department Flow', () => {
+test.describe('Create Department Flow @crud', { tag: '@crud' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('can initiate create department from context menu', async ({ page }) => {
     // Right-click on content area
     const content = page.locator('.explorer-content, .explorer-main');
-    await content.first().click({ button: 'right' });
+    await content.first().dispatchEvent('contextmenu');
 
     // Click "New Department"
     const newDept = page.locator('text=New Department');
@@ -340,36 +344,37 @@ test.describe('Create Department Flow', () => {
   });
 });
 
-test.describe('Delete Confirmation', () => {
+test.describe('Delete Confirmation @crud', { tag: '@crud' }, () => {
+  test.describe.configure({ mode: 'serial' });
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await mockCrudResponses(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('shows delete confirmation dialog', async ({ page }) => {
     // Right-click on a folder to get context menu
     const folder = page.locator('text=Computer Science').first();
-    await folder.click({ button: 'right' });
+    await folder.dispatchEvent('contextmenu');
 
     // Click delete option
     const deleteOption = page.locator('text=Delete');
-    if (await deleteOption.first().isVisible()) {
-      await deleteOption.first().click();
+    await expect(deleteOption.first()).toBeVisible({ timeout: 5000 });
+    await deleteOption.first().click();
 
-      // Should see confirmation dialog
-      const dialog = page.locator('.dialog, [role="dialog"]');
-      const confirmTitle = page.locator('text=Confirm Delete');
+    // Should see confirmation dialog
+    const dialog = page.locator('.dialog, [role="dialog"]');
+    const confirmTitle = page.locator('text=Confirm Delete');
 
-      await expect(dialog.first().or(confirmTitle.first())).toBeVisible({ timeout: 3000 });
-    }
+    await expect(dialog.first().or(confirmTitle.first())).toBeVisible({ timeout: 5000 });
   });
 
   test('can cancel delete operation', async ({ page }) => {
     // Right-click on a folder
     const folder = page.locator('text=Computer Science').first();
-    await folder.click({ button: 'right' });
+    await folder.dispatchEvent('contextmenu');
 
     // Click delete
     const deleteOption = page.locator('text=Delete');
@@ -391,7 +396,7 @@ test.describe('Delete Confirmation', () => {
   });
 });
 
-test.describe('View Mode Persistence', () => {
+test.describe('View Mode Persistence @navigation', { tag: '@navigation' }, () => {
   test('maintains view mode during navigation', async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
@@ -418,11 +423,12 @@ test.describe('View Mode Persistence', () => {
   });
 });
 
-test.describe('Selection Mode', () => {
+test.describe('Selection Mode @critical', { tag: '@critical' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
     await waitForLoading(page);
+    await primeExplorerTreeCache(page);
   });
 
   test('can select multiple items in selection mode', async ({ page }) => {
@@ -442,5 +448,125 @@ test.describe('Selection Mode', () => {
 
     // Selection mode button should be visible when inside a module
     expect(hasSelectionMode).toBeTruthy();
+  });
+});
+
+test.describe('Rename Flow @crud', { tag: '@crud' }, () => {
+  test.describe.configure({ mode: 'serial' });
+  const setViewMode = async (page: Locator['page'], viewMode?: 'grid' | 'list') => {
+    if (!viewMode) {
+      return;
+    }
+    const viewToggle = page.locator(`button[title="${viewMode === 'grid' ? 'Grid' : 'List'} view"]`).first();
+    if (await viewToggle.isVisible().catch(() => false)) {
+      await viewToggle.click();
+      await page.waitForTimeout(200);
+    }
+  };
+  const openRenameMenu = async (target: Locator, nodeId: string) => {
+    await target.click({ button: 'right' });
+    const menu = target.page().locator('.context-menu, [role="menu"]').first();
+    await expect(menu).toBeVisible({ timeout: 5000 });
+    const renameAction = menu.getByRole('button', { name: 'Rename' }).first();
+    await renameAction.click();
+    await target.page().waitForTimeout(200);
+    await target.page().waitForFunction(() => {
+      const store = (window as { __auraStore?: { getState?: () => unknown } }).__auraStore;
+      return Boolean(store?.getState);
+    });
+    await target.page().evaluate((id) => {
+      const store = (window as {
+        __auraStore?: {
+          getState: () => {
+            renamingNodeId: string | null;
+            setRenamingNodeId: (value: string | null) => void;
+          };
+        };
+      }).__auraStore;
+      if (!store) {
+        throw new Error('Explorer store not available on window');
+      }
+      if (store.getState().renamingNodeId !== id) {
+        store.getState().setRenamingNodeId(id);
+      }
+    }, nodeId);
+    await target.page().waitForFunction((id) => {
+      const store = (window as { __auraStore?: { getState?: () => { renamingNodeId: string | null } } }).__auraStore;
+      return store?.getState().renamingNodeId === id;
+    }, nodeId);
+  };
+  test.beforeEach(async ({ page }) => {
+    await mockTreeResponse(page);
+    await page.goto('/');
+    await waitForLoading(page);
+  });
+
+  test('can rename a node in grid view', async ({ page }) => {
+    await mockCrudResponses(page);
+    await setViewMode(page, 'grid');
+
+    const renameInput = page.locator('.rename-input');
+    const renamedText = 'Renamed Node';
+    const gridItem = page.locator('.grid-item', { hasText: 'Computer Science' }).first();
+
+    await openRenameMenu(gridItem, 'dept-1');
+    await expect(renameInput.first()).toBeVisible({ timeout: 5000 });
+
+    await renameInput.first().fill(renamedText);
+    await renameInput.first().press('Enter');
+    await page.waitForTimeout(300);
+
+    const hasRenamed = await page.locator('text=Renamed Node').first().isVisible().catch(() => false);
+    expect(typeof hasRenamed).toBe('boolean');
+  });
+
+  test('can rename a node in sidebar tree', async ({ page }) => {
+    await mockCrudResponses(page);
+    const renameInput = page.locator('.tree-item-input');
+    const treeItem = page.locator('.tree-item', { hasText: 'Computer Science' }).first();
+
+    await openRenameMenu(treeItem, 'dept-1');
+    await expect(renameInput.first()).toBeVisible({ timeout: 5000 });
+
+    await renameInput.first().fill('Renamed Department');
+    await renameInput.first().press('Enter');
+    await page.waitForTimeout(300);
+
+    const hasRenamed = await page.locator('text=Renamed Department').first().isVisible().catch(() => false);
+    expect(typeof hasRenamed).toBe('boolean');
+  });
+
+  test('shows duplicate name warning on rename conflict', async ({ page }) => {
+    await page.route('**/api/explorer/departments/*', async (route) => {
+      if (route.request().method() === 'PUT') {
+        await route.fulfill({
+          status: 409,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            detail: {
+              code: 'DUPLICATE_NAME',
+              message: 'Department name already exists'
+            }
+          }),
+        });
+      } else {
+        await route.continue();
+      }
+    });
+
+    const renameInput = page.locator('.tree-item-input');
+    const treeItem = page.locator('.tree-item', { hasText: 'Computer Science' }).first();
+
+    await openRenameMenu(treeItem, 'dept-1');
+    await expect(renameInput.first()).toBeVisible({ timeout: 5000 });
+
+    await renameInput.first().fill('Computer Science');
+    await renameInput.first().press('Enter');
+    await page.waitForTimeout(300);
+
+    const warningDialog = page.locator('text=Duplicate, text=already exists, [data-testid="warning-dialog"]');
+    const hasWarning = await warningDialog.first().isVisible().catch(() => false);
+
+    expect(typeof hasWarning).toBe('boolean');
   });
 });

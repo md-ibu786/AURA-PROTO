@@ -1,15 +1,18 @@
 // health.spec.ts
-// E2E tests for application health and basic navigation in AURA-NOTES-MANAGER.
+// health.spec.ts
+// Playwright E2E checks for AURA-NOTES-MANAGER health and navigation.
 
-// Tests cover: application loading, layout structure, toast notifications,
-// loading states, and responsive design across different viewport sizes.
+// Longer description (2-4 lines):
+// - Covers layout visibility, loading states, responsiveness, and error recovery.
+// - Ensures basic navigation stability across viewports and mocked explorer APIs.
+// - Validates toast and loading indicators for baseline UX confidence.
 
-// @see: fixtures.ts - Shared mock data and utilities
-// @note: These tests verify fundamental app functionality
+// @see: AURA-NOTES-MANAGER/frontend/src/pages/ExplorerPage.tsx
+// @note: Mocked explorer tree data avoids backend dependencies
 
 import { test, expect, mockTreeResponse, waitForLoading } from './fixtures';
 
-test.describe('Application Health', () => {
+test.describe('Application Health @smoke', { tag: '@smoke' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
   });
@@ -49,7 +52,7 @@ test.describe('Application Health', () => {
   });
 });
 
-test.describe('Loading States', () => {
+test.describe('Loading States @edge', { tag: '@edge' }, () => {
   test('shows loading indicator while fetching data', async ({ page }) => {
     // Delay the API response to see loading state
     await page.route('**/api/explorer/tree*', async (route) => {
@@ -87,7 +90,7 @@ test.describe('Loading States', () => {
   });
 });
 
-test.describe('Toast Notifications', () => {
+test.describe('Toast Notifications @edge', { tag: '@edge' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
   });
@@ -146,7 +149,7 @@ test.describe('Toast Notifications', () => {
   });
 });
 
-test.describe('Responsive Design', () => {
+test.describe('Responsive Design @navigation', { tag: '@navigation' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
   });
@@ -193,7 +196,7 @@ test.describe('Responsive Design', () => {
   });
 });
 
-test.describe('Keyboard Navigation', () => {
+test.describe('Keyboard Navigation @navigation', { tag: '@navigation' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
     await page.goto('/');
@@ -251,7 +254,7 @@ test.describe('Keyboard Navigation', () => {
   });
 });
 
-test.describe('URL Handling', () => {
+test.describe('URL Handling @navigation', { tag: '@navigation' }, () => {
   test.beforeEach(async ({ page }) => {
     await mockTreeResponse(page);
   });
@@ -273,7 +276,7 @@ test.describe('URL Handling', () => {
   });
 });
 
-test.describe('Error Recovery', () => {
+test.describe('Error Recovery @edge', { tag: '@edge' }, () => {
   test('recovers from network errors', async ({ page }) => {
     // First request fails
     let requestCount = 0;
@@ -318,7 +321,7 @@ test.describe('Error Recovery', () => {
   });
 });
 
-test.describe('Performance Basics', () => {
+test.describe('Performance Basics @performance', { tag: '@performance' }, () => {
   test('page loads within acceptable time', async ({ page }) => {
     await mockTreeResponse(page);
 

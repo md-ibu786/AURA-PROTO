@@ -226,7 +226,7 @@ def create_department(dept: DepartmentCreate):
 
     try:
         new_ref = db.collection('departments').document()
-        data = dept.dict()
+        data = dept.model_dump()
         data['id'] = new_ref.id
         new_ref.set(data)
         return {"message": "Department created", "department": data}
@@ -239,7 +239,7 @@ def update_department(dept_id: str, dept: DepartmentUpdate):
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="Department not found")
     
-    updates = {k: v for k, v in dept.dict().items() if v is not None}
+    updates = {k: v for k, v in dept.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No updates")
     
@@ -310,7 +310,7 @@ def update_semester(sem_id: str, sem: SemesterUpdate):
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
     
-    updates = {k: v for k, v in sem.dict().items() if v is not None}
+    updates = {k: v for k, v in sem.model_dump().items() if v is not None}
     if not updates: raise HTTPException(status_code=400, detail="No updates")
     
     if 'name' in updates:
@@ -372,7 +372,7 @@ def update_subject(subj_id: str, subj: SubjectUpdate):
     doc_ref = find_doc_by_id('subjects', subj_id)
     if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
     
-    updates = {k: v for k, v in subj.dict().items() if v is not None}
+    updates = {k: v for k, v in subj.model_dump().items() if v is not None}
     if not updates: raise HTTPException(status_code=400, detail="No updates")
 
     if 'name' in updates:
@@ -429,7 +429,7 @@ def create_module(mod: ModuleCreate):
 def update_module(mod_id: str, mod: ModuleUpdate):
     doc_ref = find_doc_by_id('modules', mod_id)
     if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
-    updates = {k: v for k, v in mod.dict().items() if v is not None}
+    updates = {k: v for k, v in mod.model_dump().items() if v is not None}
     if not updates: raise HTTPException(status_code=400, detail="No updates")
 
     if 'name' in updates:

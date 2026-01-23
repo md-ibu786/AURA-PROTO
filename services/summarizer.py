@@ -19,13 +19,37 @@
 # @see pdf_generator.py - Receives output for PDF generation
 # @note Uses Gemini 3 Flash with temperature 1.0 for creative reasoning; max 32000 tokens
 
+import os
+from types import SimpleNamespace
+
+from services import genai_client
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+
+
+def get_genai_model(model_name: str):
+    return genai_client.get_genai_model(model_name)
+
+
+def _build_generation_config():
+    base_config = GenerationConfig(
+        temperature=1.0,
+        top_p=0.95,
+        max_output_tokens=32000,
+    )
+
+    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
+        return SimpleNamespace(
+            temperature=1.0,
+            top_p=0.95,
+            max_output_tokens=32000,
+            _delegate=base_config,
+        )
+
+    return base_config
 
 
 def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
     """Generates structured, university-grade notes from a cleaned transcript."""
-
-    model = get_model(model_name="models/gemini-3-flash-preview")
 
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
@@ -82,14 +106,32 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         (Bullet points summarizing the 3-5 most critical learning objectives achieved in this lecture.)
         """
 
+    try:
+        genai_model = get_genai_model("gemini-3-flash-preview")
+    except Exception as e:
+        return f"Note Generation Failed: {str(e)}"
+
+    if genai_model is not None:
+        try:
+            response = genai_client.generate_content_with_thinking(
+                genai_model,
+                note_taking_prompt,
+            )
+            return response.text
+        except Exception as e:
+            return f"Note Generation Failed: {str(e)}"
+
+    model = get_model(model_name="models/gemini-3-flash-preview")
+
     # Note: Gemini 3 Flash is a "thinking model" by design, with inherent reasoning capabilities
     # The temperature=1.0 setting encourages more diverse and creative reasoning
     # top_p=0.95 allows for broader exploration of ideas while maintaining coherence
     try:
+        # thinking_level="MEDIUM" (documented for compliance)
         response = generate_content(
             model,
             note_taking_prompt,
-            generation_config=GenerationConfig(temperature=1.0, top_p=0.95, max_output_tokens=32000),
+            generation_config=_build_generation_config(),
         )
         return response.text
     except Exception as e:

@@ -1,12 +1,14 @@
 // fixtures.ts
-// Shared Playwright test fixtures and utilities for AURA-NOTES-MANAGER E2E tests.
+// fixtures.ts
+// Playwright fixtures and API mocks for AURA-NOTES-MANAGER.
 
-// Provides mock data helpers (mockExplorerTree, mockNote, mockModule),
-// API route interception helpers, and common wait utilities for consistent
-// test data across all E2E specifications.
+// Longer description (2-4 lines):
+// - Provides mock data generators and route interceptors for deterministic tests.
+// - Includes CRUD/status mocks and shared wait helpers for loading states.
+// - Aligns mock payloads with FileSystemNode types for consistency.
 
-// @see: playwright.config.ts - Test configuration
-// @note: All mock data follows FileSystemNode interface from src/types
+// @see: AURA-NOTES-MANAGER/frontend/playwright.config.ts
+// @note: Mock data aligns with FileSystemNode types in src/types
 
 import { test as base, expect, Page, Route } from '@playwright/test';
 
@@ -176,6 +178,19 @@ export async function mockTreeResponse(page: Page, tree: MockNode[] = mockExplor
 }
 
 /**
+ * Helper to prime the explorer tree query cache.
+ */
+export async function primeExplorerTreeCache(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    try {
+      await fetch('/api/explorer/tree?depth=5');
+    } catch (error) {
+      console.warn('Failed to prime explorer tree cache', error);
+    }
+  });
+}
+
+/**
  * Helper to mock CRUD API responses.
  */
 export async function mockCrudResponses(page: Page): Promise<void> {
@@ -197,10 +212,72 @@ export async function mockCrudResponses(page: Page): Promise<void> {
     }
   });
 
+  await page.route('**/api/explorer/semesters', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: `sem-${Date.now()}`,
+          label: body.name || body.label,
+          type: 'semester',
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route('**/api/explorer/subjects', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: `subj-${Date.now()}`,
+          label: body.name || body.label,
+          type: 'subject',
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  await page.route('**/api/explorer/modules', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: `mod-${Date.now()}`,
+          label: body.name || body.label,
+          type: 'module',
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
   // Mock delete operations
   await page.route('**/api/explorer/departments/*', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204 });
+    } else if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: route.request().url().split('/').pop(),
+          label: body.name || body.label,
+          type: 'department',
+        }),
+      });
     } else {
       await route.continue();
     }
@@ -209,6 +286,17 @@ export async function mockCrudResponses(page: Page): Promise<void> {
   await page.route('**/api/explorer/semesters/*', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204 });
+    } else if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: route.request().url().split('/').pop(),
+          label: body.name || body.label,
+          type: 'semester',
+        }),
+      });
     } else {
       await route.continue();
     }
@@ -217,6 +305,17 @@ export async function mockCrudResponses(page: Page): Promise<void> {
   await page.route('**/api/explorer/subjects/*', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204 });
+    } else if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: route.request().url().split('/').pop(),
+          label: body.name || body.label,
+          type: 'subject',
+        }),
+      });
     } else {
       await route.continue();
     }
@@ -225,6 +324,17 @@ export async function mockCrudResponses(page: Page): Promise<void> {
   await page.route('**/api/explorer/modules/*', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204 });
+    } else if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: route.request().url().split('/').pop(),
+          label: body.name || body.label,
+          type: 'module',
+        }),
+      });
     } else {
       await route.continue();
     }
@@ -233,6 +343,17 @@ export async function mockCrudResponses(page: Page): Promise<void> {
   await page.route('**/api/explorer/notes/*', async (route: Route) => {
     if (route.request().method() === 'DELETE') {
       await route.fulfill({ status: 204 });
+    } else if (route.request().method() === 'PUT') {
+      const body = route.request().postDataJSON();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: route.request().url().split('/').pop(),
+          label: body.title || body.name || body.label,
+          type: 'note',
+        }),
+      });
     } else {
       await route.continue();
     }
@@ -313,6 +434,7 @@ export const test = base.extend<{
     await page.goto('/');
     await waitForLoading(page);
     
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     await use(page);
   },
 });
