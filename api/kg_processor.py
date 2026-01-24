@@ -110,6 +110,15 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.embeddings import EmbeddingService
 
+# Import semantic entity deduplicator (09-06-PLAN)
+try:
+    from services.entity_deduplicator import EntityDeduplicator
+except ImportError:
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.entity_deduplicator import EntityDeduplicator
+
 # ============================================================================
 # CHUNKING CONFIGURATION
 # ============================================================================
@@ -774,6 +783,7 @@ class KnowledgeGraphProcessor:
         use_hierarchical_chunking: bool = False,
         use_llm_extraction: bool = True,
         generate_entity_embeddings: bool = True,
+        enable_semantic_dedup: bool = True,
     ) -> Dict[str, Any]:
         """
         Process a single document into a knowledge graph.
@@ -793,12 +803,16 @@ class KnowledgeGraphProcessor:
             generate_entity_embeddings: If True, generate 768-dim embeddings for
                 all extracted entities and store them in Neo4j. This enables
                 semantic search over entities. Default: True.
+            enable_semantic_dedup: If True, deduplicate entities using semantic
+                similarity (0.85 cosine threshold) on embeddings. Reduces duplicates
+                like "ML" and "Machine Learning". Default: True.
 
         Returns:
             Dict containing processing summary:
             - document_id: The processed document ID
             - chunk_count: Number of chunks created
             - entity_count: Number of entities extracted
+            - entities_deduplicated: Number of entities after deduplication
             - parent_chunk_count: Number of parent chunks (if hierarchical)
             - extraction_method: 'llm' or 'basic' depending on method used
             - entities_embedded: Number of entities with embeddings (if generated)
@@ -810,6 +824,7 @@ class KnowledgeGraphProcessor:
             "module_id": module_id,
             "chunk_count": 0,
             "entity_count": 0,
+            "entities_deduplicated": 0,
             "parent_chunk_count": 0,
             "extraction_method": "basic",
             "entities_embedded": 0,
@@ -948,6 +963,78 @@ class KnowledgeGraphProcessor:
                     entity_relationships = []
 
             self._emit_progress("storing", 0, 1, "Storing in Neo4j")
+
+            # Step 4.7: Semantic deduplication of entities (09-06-PLAN)
+            dedup_mapping = {}  # Maps old entity name -> canonical name
+            if enable_semantic_dedup and len(all_entities) >= 3:
+                self._emit_progress(
+                    "deduplication",
+                    0,
+                    1,
+                    f"Deduplicating {len(all_entities)} entities semantically",
+                )
+                try:
+                    # Generate embeddings for deduplication
+                    embedding_service = EmbeddingService(api_key=self.gemini.api_key)
+                    entity_embeddings = {}
+                    entity_names = [e.get("name", "") if isinstance(e, dict) else getattr(e, "name", "") for e in all_entities]
+                    embeddings_list = embedding_service.embed_batch(entity_names)
+                    for name, emb in zip(entity_names, embeddings_list):
+                        if emb:  # Only add if embedding was generated
+                            entity_embeddings[name] = emb
+                    
+                    # Run deduplication
+                    if entity_embeddings:
+                        deduplicator = EntityDeduplicator(
+                            similarity_threshold=ENTITY_DEDUP_SIMILARITY_THRESHOLD
+                        )
+                        # Convert all_entities to list of dicts if needed
+                        entities_as_dicts = [
+                            e if isinstance(e, dict) else {
+                                "name": e.name,
+                                "id": e.id,
+                                "entity_type": str(e.entity_type),
+                                "definition": e.definition,
+                                "confidence_score": e.properties.get("confidence", 0.7) if hasattr(e, "properties") else 0.7,
+                            }
+                            for e in all_entities
+                        ]
+                        deduplicated_entities, dedup_mapping = deduplicator.deduplicate(
+                            entities_as_dicts, entity_embeddings
+                        )
+                        
+                        original_count = len(all_entities)
+                        deduped_count = len(deduplicated_entities)
+                        reduction_pct = ((original_count - deduped_count) / original_count * 100) if original_count > 0 else 0
+                        
+                        result["entities_deduplicated"] = deduped_count
+                        result["dedup_reduction_percent"] = round(reduction_pct, 1)
+                        result["dedup_mappings"] = dedup_mapping
+                        
+                        # Update all_entities with deduplicated list
+                        all_entities = deduplicated_entities
+                        
+                        # Update chunk.entities to point to canonical entities
+                        if dedup_mapping:
+                            for chunk in chunks:
+                                if hasattr(chunk, "entities"):
+                                    chunk.entities = [
+                                        e for e in chunk.entities
+                                        if (e.get("name", "") if isinstance(e, dict) else getattr(e, "name", "")) not in dedup_mapping
+                                    ]
+                        
+                        logger.info(
+                            f"Semantic deduplication: {original_count} -> {deduped_count} entities "
+                            f"({reduction_pct:.1f}% reduction)"
+                        )
+                    else:
+                        logger.warning("No embeddings generated for deduplication, skipping")
+                        result["entities_deduplicated"] = len(all_entities)
+                except Exception as e:
+                    logger.warning(f"Semantic deduplication failed: {e}")
+                    result["entities_deduplicated"] = len(all_entities)
+            else:
+                result["entities_deduplicated"] = len(all_entities)
 
             # Step 5: Store everything in Neo4j with module_id tagging
             await self._store_in_neo4j(
