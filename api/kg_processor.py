@@ -83,6 +83,16 @@ except ImportError:
         normalize_text,
     )
 
+# Import LLM entity extractor (ported from AURA-CHAT)
+try:
+    from services.llm_entity_extractor import LLMEntityExtractor, ExtractedEntity
+except ImportError:
+    # Fallback if services module not in path
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.llm_entity_extractor import LLMEntityExtractor, ExtractedEntity
+
 # ============================================================================
 # CHUNKING CONFIGURATION
 # ============================================================================
@@ -745,6 +755,7 @@ class KnowledgeGraphProcessor:
         file_path: str = None,
         document_data: Dict[str, Any] = None,
         use_hierarchical_chunking: bool = False,
+        use_llm_extraction: bool = True,
     ) -> Dict[str, Any]:
         """
         Process a single document into a knowledge graph.
@@ -758,6 +769,9 @@ class KnowledgeGraphProcessor:
             use_hierarchical_chunking: If True, use parent-child chunking strategy
                 for improved RAG retrieval. Parent chunks (~1500 tokens) provide
                 section-level context, child chunks (~800 tokens) for precise search.
+            use_llm_extraction: If True, use LLMEntityExtractor for entity extraction.
+                This provides better extraction quality with confidence scoring.
+                Falls back to GeminiClient extraction if LLM extraction fails.
 
         Returns:
             Dict containing processing summary:
@@ -765,6 +779,7 @@ class KnowledgeGraphProcessor:
             - chunk_count: Number of chunks created
             - entity_count: Number of entities extracted
             - parent_chunk_count: Number of parent chunks (if hierarchical)
+            - extraction_method: 'llm' or 'basic' depending on method used
             - status: 'success' or 'error'
             - error: Error message if failed
         """
@@ -774,9 +789,27 @@ class KnowledgeGraphProcessor:
             "chunk_count": 0,
             "entity_count": 0,
             "parent_chunk_count": 0,
+            "extraction_method": "basic",
             "status": "processing",
             "error": None,
         }
+
+        # Store extraction mode for use in _extract_entities
+        self._use_llm_extraction = use_llm_extraction
+
+        # Initialize LLM extractor if using LLM extraction
+        if use_llm_extraction:
+            try:
+                self._llm_extractor = LLMEntityExtractor(api_key=self.gemini.api_key)
+                result["extraction_method"] = "llm"
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize LLMEntityExtractor, falling back to basic: {e}"
+                )
+                self._llm_extractor = None
+                self._use_llm_extraction = False
+        else:
+            self._llm_extractor = None
 
         try:
             self._emit_progress("loading", 0, 1, f"Loading document {document_id}")
@@ -1880,7 +1913,10 @@ class KnowledgeGraphProcessor:
 
     async def _extract_entities(self, chunk: Chunk) -> List[Entity]:
         """
-        Extract entities from a chunk using Gemini LLM.
+        Extract entities from a chunk using LLM or basic extraction.
+
+        Uses LLMEntityExtractor when self._use_llm_extraction is True,
+        otherwise falls back to GeminiClient extraction.
 
         Args:
             chunk: Chunk to extract entities from
@@ -1888,7 +1924,24 @@ class KnowledgeGraphProcessor:
         Returns:
             List of extracted Entity objects with module_id tagging
         """
-        # Use the new extract_entities method from GeminiClient
+        # Try LLM extraction if enabled
+        if getattr(self, "_use_llm_extraction", False) and getattr(
+            self, "_llm_extractor", None
+        ):
+            try:
+                llm_entities = await self._extract_entities_via_llm(chunk)
+                if llm_entities:
+                    logger.debug(
+                        f"LLM extracted {len(llm_entities)} entities from chunk {chunk.id}"
+                    )
+                    return llm_entities
+            except Exception as e:
+                logger.warning(
+                    f"LLM entity extraction failed for chunk {chunk.id}, "
+                    f"falling back to basic extraction: {e}"
+                )
+
+        # Fallback to basic GeminiClient extraction
         raw_entities = await self.gemini.extract_entities(chunk.text, chunk.id)
         logger.debug(
             f"Extracted {len(raw_entities)} raw entities from chunk {chunk.id}"
@@ -1910,11 +1963,100 @@ class KnowledgeGraphProcessor:
                     "confidence": entity_data.get("confidence", 0.7),
                     "context_snippet": entity_data.get("context_snippet", ""),
                     "chunk_id": entity_data.get("chunk_id", chunk.id),
+                    "extraction_method": "basic",
                 },
             )
             entities.append(entity)
 
         logger.debug(f"Converted {len(entities)} entities from chunk {chunk.id}")
+        return entities
+
+    async def _extract_entities_via_llm(self, chunk: Chunk) -> List[Entity]:
+        """
+        Extract entities using LLMEntityExtractor.
+
+        Provides higher quality extraction with confidence scoring
+        and structured output.
+
+        Args:
+            chunk: Chunk to extract entities from
+
+        Returns:
+            List of Entity objects with extraction_method="llm"
+        """
+        if not self._llm_extractor:
+            raise ValueError("LLMEntityExtractor not initialized")
+
+        # Extract using LLM extractor
+        extracted = await self._llm_extractor.extract_entities(
+            text=chunk.text, doc_id=chunk.id
+        )
+
+        # Convert ExtractedEntity objects to Entity objects
+        entities = []
+        type_to_entity_type = {
+            "Topic": EntityType.TOPIC,
+            "Concept": EntityType.CONCEPT,
+            "Methodology": EntityType.METHODOLOGY,
+            "Finding": EntityType.FINDING,
+        }
+
+        for entity_type_key, extracted_list in extracted.items():
+            for ext_entity in extracted_list:
+                # Handle both ExtractedEntity objects and dict formats
+                if hasattr(ext_entity, "name"):
+                    # It's an ExtractedEntity object
+                    name = ext_entity.name
+                    entity_type_str = ext_entity.type
+                    definition = ext_entity.definition
+                    confidence = ext_entity.confidence_score
+                    context = ext_entity.source_text or ""
+                    category = ext_entity.category
+                else:
+                    # It's a dict (shouldn't happen but handle gracefully)
+                    name = ext_entity.get("name", "")
+                    entity_type_str = ext_entity.get("type", "Concept")
+                    definition = ext_entity.get("definition", "")
+                    confidence = ext_entity.get("confidence_score", 0.7)
+                    context = ext_entity.get("source_text", "")
+                    category = ext_entity.get("category", "General")
+
+                if not name:
+                    continue
+
+                entity_type = type_to_entity_type.get(
+                    entity_type_str, EntityType.CONCEPT
+                )
+
+                entity_id = f"{entity_type_str.lower()}_{hashlib.md5(name.lower().encode()).hexdigest()[:12]}"
+
+                entity = Entity(
+                    id=entity_id,
+                    name=name,
+                    entity_type=entity_type,
+                    definition=definition,
+                    properties={
+                        "category": category,
+                        "confidence": confidence,
+                        "confidence_score": confidence,  # Also store as confidence_score for compatibility
+                        "context_snippet": context[:200] if context else "",
+                        "chunk_id": chunk.id,
+                        "extraction_method": "llm",
+                    },
+                )
+                entities.append(entity)
+
+        # Log extraction statistics
+        concepts_count = len(extracted.get("concepts", []))
+        topics_count = len(extracted.get("topics", []))
+        methodologies_count = len(extracted.get("methodologies", []))
+        findings_count = len(extracted.get("findings", []))
+
+        logger.info(
+            f"Extracted via LLM: {concepts_count} concepts, {topics_count} topics, "
+            f"{methodologies_count} methodologies, {findings_count} findings"
+        )
+
         return entities
 
     def _deduplicate_entities(self, entities: List[Entity]) -> List[Entity]:
@@ -2204,6 +2346,8 @@ class KnowledgeGraphProcessor:
             e.module_id = $module_id,
             e.category = $category,
             e.confidence = $confidence,
+            e.confidence_score = $confidence_score,
+            e.extraction_method = $extraction_method,
             e.context_snippet = $context_snippet,
             e.chunk_id = $chunk_id,
             e.embedding = $embedding
@@ -2216,6 +2360,10 @@ class KnowledgeGraphProcessor:
             "module_id": module_id,
             "category": entity.properties.get("category", "General"),
             "confidence": entity.properties.get("confidence", 0.7),
+            "confidence_score": entity.properties.get(
+                "confidence_score", entity.properties.get("confidence", 0.7)
+            ),
+            "extraction_method": entity.properties.get("extraction_method", "basic"),
             "context_snippet": entity.properties.get("context_snippet", "")[:200],
             "chunk_id": entity.properties.get("chunk_id", ""),
             "embedding": entity.embedding,
