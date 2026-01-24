@@ -38,6 +38,11 @@ MAX_GRAPH_HOP_DEPTH = 4  # Maximum allowed hop depth
 PARENT_CHUNK_BOOST = 1.2  # Score boost for parent chunk context
 MAX_EXPANDED_ENTITIES = 20  # Maximum entities from graph expansion
 
+# Query expansion parameters
+MAX_EXPANSION_TERMS = 10  # Maximum terms to add during expansion
+MIN_EXPANSION_TERM_WEIGHT = 0.3  # Minimum weight for expansion terms
+ENTITY_SIMILARITY_THRESHOLD = 0.7  # Min similarity for entity matching
+
 # Relationship type weights for ranking (higher = stronger semantic connection)
 RELATIONSHIP_WEIGHTS = {
     "DEFINES": 1.0,
@@ -142,6 +147,37 @@ class EnrichedSearchResults(BaseModel):
         }
     )
     graph_context: Optional[GraphContext] = None
+
+
+class ExpansionTerm(BaseModel):
+    """Individual term added during query expansion."""
+
+    term: str
+    source_entity: str
+    relationship: str
+    weight: float = Field(ge=0.0, le=1.0)
+
+
+class ExpandedQuery(BaseModel):
+    """Result of query expansion operation."""
+
+    original_query: str
+    expanded_query: str
+    expansion_terms: List[ExpansionTerm] = Field(default_factory=list)
+    entities_found: List[str] = Field(default_factory=list)
+    entity_ids: List[str] = Field(default_factory=list)
+    expansion_time_ms: float = 0.0
+
+
+class Entity(BaseModel):
+    """Entity found in the knowledge graph."""
+
+    id: str
+    name: str
+    entity_type: str
+    definition: Optional[str] = None
+    module_id: Optional[str] = None
+    score: Optional[float] = None  # Similarity score if from vector search
 
 
 # ============================================================================
@@ -1076,6 +1112,526 @@ class RAGEngine:
                 weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
                 graph_context=None,
             )
+
+    # ========================================================================
+    # QUERY EXPANSION METHODS
+    # ========================================================================
+
+    async def expand_query(
+        self,
+        query: str,
+        module_ids: Optional[List[str]] = None,
+        max_expansions: int = MAX_EXPANSION_TERMS,
+        min_weight: float = MIN_EXPANSION_TERM_WEIGHT,
+    ) -> ExpandedQuery:
+        """
+        Expand query using knowledge graph entities and relationships.
+
+        Algorithm:
+        1. Identify entities in the query (via text matching and vector similarity)
+        2. Get related entities through relationships (DEFINES, USES, etc.)
+        3. Select top expansion terms by weight
+        4. Format expanded query for fulltext search
+
+        Args:
+            query: Original query text
+            module_ids: Optional module IDs to filter entity lookup
+            max_expansions: Maximum number of expansion terms (default: 10)
+            min_weight: Minimum weight for expansion terms (default: 0.3)
+
+        Returns:
+            ExpandedQuery with original and expanded query text
+        """
+        start_time = time.time()
+
+        if not query or not query.strip():
+            return ExpandedQuery(
+                original_query=query or "",
+                expanded_query=query or "",
+                expansion_terms=[],
+                entities_found=[],
+                entity_ids=[],
+                expansion_time_ms=0.0,
+            )
+
+        try:
+            # Step 1: Identify entities in the query
+            entities = await self._identify_entities_in_query(query, module_ids)
+
+            if not entities:
+                elapsed_ms = (time.time() - start_time) * 1000
+                logger.debug(f"No entities found in query, skipping expansion")
+                return ExpandedQuery(
+                    original_query=query,
+                    expanded_query=query,
+                    expansion_terms=[],
+                    entities_found=[],
+                    entity_ids=[],
+                    expansion_time_ms=elapsed_ms,
+                )
+
+            entity_names = [e.name for e in entities]
+            entity_ids = [e.id for e in entities]
+
+            # Step 2: Get expansion terms from related entities
+            expansion_terms = await self._get_expansion_terms(
+                entities, module_ids, max_expansions, min_weight
+            )
+
+            # Step 3: Build expanded query
+            # Add expansion terms to original query for fulltext search
+            expansion_text = " ".join(t.term for t in expansion_terms)
+            expanded_query = f"{query} {expansion_text}".strip() if expansion_text else query
+
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                f"Query expansion: {len(entities)} entities -> "
+                f"{len(expansion_terms)} terms in {elapsed_ms:.1f}ms"
+            )
+
+            return ExpandedQuery(
+                original_query=query,
+                expanded_query=expanded_query,
+                expansion_terms=expansion_terms,
+                entities_found=entity_names,
+                entity_ids=entity_ids,
+                expansion_time_ms=elapsed_ms,
+            )
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.warning(f"Query expansion failed: {e}")
+            return ExpandedQuery(
+                original_query=query,
+                expanded_query=query,
+                expansion_terms=[],
+                entities_found=[],
+                entity_ids=[],
+                expansion_time_ms=elapsed_ms,
+            )
+
+    async def _identify_entities_in_query(
+        self,
+        query: str,
+        module_ids: Optional[List[str]],
+    ) -> List[Entity]:
+        """
+        Identify entities mentioned in the query.
+
+        Uses two approaches:
+        1. Text matching: Find entities whose names/definitions contain query terms
+        2. Vector similarity: Find semantically similar entities
+
+        Args:
+            query: Query text
+            module_ids: Optional module IDs to filter
+
+        Returns:
+            List of Entity objects found in the query
+        """
+        entities = []
+        seen_ids: set = set()
+
+        try:
+            # Approach 1: Text-based entity lookup
+            text_entities = await self._lookup_entities_by_text(query, module_ids)
+            for e in text_entities:
+                if e.id not in seen_ids:
+                    seen_ids.add(e.id)
+                    entities.append(e)
+
+            # Approach 2: Vector similarity (if embedding service available)
+            if self.embedding_service:
+                vector_entities = await self._lookup_entities_by_vector(
+                    query, module_ids
+                )
+                for e in vector_entities:
+                    if e.id not in seen_ids:
+                        seen_ids.add(e.id)
+                        entities.append(e)
+
+            logger.debug(f"Identified {len(entities)} entities in query")
+            return entities[:10]  # Limit to top 10 entities
+
+        except Exception as e:
+            logger.warning(f"Entity identification failed: {e}")
+            return []
+
+    async def _lookup_entities_by_text(
+        self,
+        query: str,
+        module_ids: Optional[List[str]],
+    ) -> List[Entity]:
+        """
+        Find entities by text matching on name and definition.
+
+        Args:
+            query: Query text to match
+            module_ids: Optional module IDs to filter
+
+        Returns:
+            List of matching Entity objects
+        """
+        try:
+            # Extract key terms from query for matching
+            query_terms = [
+                t.strip().lower()
+                for t in query.split()
+                if len(t.strip()) > 2
+            ]
+
+            if not query_terms:
+                return []
+
+            # Build module filter
+            module_filter = ""
+            params: Dict[str, Any] = {"query_lower": query.lower()}
+
+            if module_ids:
+                module_filter = "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                params["module_ids"] = module_ids
+
+            # Search entity names and definitions
+            cypher = f"""
+            MATCH (e)
+            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+            AND (toLower(e.name) CONTAINS $query_lower
+                 OR toLower(e.definition) CONTAINS $query_lower)
+            {module_filter}
+            RETURN e.id as id, e.name as name, labels(e)[0] as entity_type,
+                   e.definition as definition, e.module_id as module_id
+            LIMIT 5
+            """
+
+            entities = []
+            with self.driver.session() as session:
+                result = session.run(cypher, params)
+                for record in result:
+                    entities.append(
+                        Entity(
+                            id=record["id"],
+                            name=record["name"],
+                            entity_type=record["entity_type"],
+                            definition=record.get("definition"),
+                            module_id=record.get("module_id"),
+                        )
+                    )
+
+            return entities
+
+        except Exception as e:
+            logger.warning(f"Text-based entity lookup failed: {e}")
+            return []
+
+    async def _lookup_entities_by_vector(
+        self,
+        query: str,
+        module_ids: Optional[List[str]],
+    ) -> List[Entity]:
+        """
+        Find entities by vector similarity.
+
+        Args:
+            query: Query text
+            module_ids: Optional module IDs to filter
+
+        Returns:
+            List of semantically similar Entity objects
+        """
+        try:
+            # Generate query embedding
+            query_embedding = self.embedding_service.embed_text(query)
+
+            if not query_embedding or len(query_embedding) != 768:
+                return []
+
+            # Build module filter
+            module_filter = ""
+            params: Dict[str, Any] = {
+                "query_embedding": query_embedding,
+                "threshold": ENTITY_SIMILARITY_THRESHOLD,
+            }
+
+            if module_ids:
+                module_filter = "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                params["module_ids"] = module_ids
+
+            # Search across entity vector indices
+            # Try concept index first as most common
+            entities = []
+
+            for entity_type in ["Concept", "Topic", "Methodology", "Finding"]:
+                index_name = f"{entity_type.lower()}_vector_index"
+                try:
+                    cypher = f"""
+                    CALL db.index.vector.queryNodes($index_name, 3, $query_embedding)
+                    YIELD node as e, score
+                    WHERE score > $threshold
+                    {module_filter}
+                    RETURN e.id as id, e.name as name, '{entity_type}' as entity_type,
+                           e.definition as definition, e.module_id as module_id, score
+                    """
+                    params["index_name"] = index_name
+
+                    with self.driver.session() as session:
+                        result = session.run(cypher, params)
+                        for record in result:
+                            entities.append(
+                                Entity(
+                                    id=record["id"],
+                                    name=record["name"],
+                                    entity_type=record["entity_type"],
+                                    definition=record.get("definition"),
+                                    module_id=record.get("module_id"),
+                                    score=record.get("score"),
+                                )
+                            )
+
+                except Exception:
+                    # Index may not exist yet
+                    continue
+
+            # Sort by score and return top results
+            entities.sort(key=lambda x: x.score or 0, reverse=True)
+            return entities[:5]
+
+        except Exception as e:
+            logger.warning(f"Vector-based entity lookup failed: {e}")
+            return []
+
+    async def _get_expansion_terms(
+        self,
+        entities: List[Entity],
+        module_ids: Optional[List[str]],
+        max_terms: int,
+        min_weight: float,
+    ) -> List[ExpansionTerm]:
+        """
+        Get expansion terms from related entities.
+
+        For each identified entity, find related entities through
+        relationships and extract their names as expansion terms.
+
+        Args:
+            entities: Entities identified in the query
+            module_ids: Optional module IDs to filter
+            max_terms: Maximum expansion terms to return
+            min_weight: Minimum weight for inclusion
+
+        Returns:
+            List of ExpansionTerm objects sorted by weight
+        """
+        if not entities:
+            return []
+
+        try:
+            entity_ids = [e.id for e in entities]
+            entity_names_lower = {e.name.lower() for e in entities}
+
+            # Build module filter
+            module_filter = ""
+            params: Dict[str, Any] = {"entity_ids": entity_ids}
+
+            if module_ids:
+                module_filter = "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
+                params["module_ids"] = module_ids
+
+            # Find related entities through relationships
+            cypher = f"""
+            MATCH (e)-[r]->(related)
+            WHERE e.id IN $entity_ids
+            AND (related:Topic OR related:Concept OR related:Methodology OR related:Finding)
+            AND NOT related.id IN $entity_ids
+            {module_filter}
+            RETURN DISTINCT related.name as term, e.name as source_entity,
+                   type(r) as relationship, r.confidence as confidence
+            LIMIT 30
+            """
+
+            expansion_terms = []
+            with self.driver.session() as session:
+                result = session.run(cypher, params)
+                for record in result:
+                    term = record["term"]
+                    rel_type = record["relationship"]
+
+                    # Skip if term is in original query entities
+                    if term.lower() in entity_names_lower:
+                        continue
+
+                    # Calculate weight based on relationship type
+                    base_weight = RELATIONSHIP_WEIGHTS.get(rel_type, 0.4)
+                    confidence = record.get("confidence", 1.0) or 1.0
+                    weight = base_weight * confidence
+
+                    if weight >= min_weight:
+                        expansion_terms.append(
+                            ExpansionTerm(
+                                term=term,
+                                source_entity=record["source_entity"],
+                                relationship=rel_type,
+                                weight=round(weight, 4),
+                            )
+                        )
+
+            # Sort by weight and limit
+            expansion_terms.sort(key=lambda x: x.weight, reverse=True)
+            return expansion_terms[:max_terms]
+
+        except Exception as e:
+            logger.warning(f"Expansion term retrieval failed: {e}")
+            return []
+
+    async def search_with_expansion(
+        self,
+        query: str,
+        module_ids: Optional[List[str]] = None,
+        top_k: int = TOP_K_RETRIEVAL,
+        expand: bool = True,
+        max_expansion_terms: int = MAX_EXPANSION_TERMS,
+        min_expansion_weight: float = MIN_EXPANSION_TERM_WEIGHT,
+    ) -> SearchResults:
+        """
+        Perform hybrid search with optional query expansion.
+
+        Expands the query using knowledge graph entities before search
+        to improve recall for queries that may not match exact terminology.
+
+        Args:
+            query: Search query text
+            module_ids: Optional list of module IDs to filter by
+            top_k: Number of results to return
+            expand: Whether to expand query (default: True)
+            max_expansion_terms: Maximum expansion terms (default: 10)
+            min_expansion_weight: Minimum term weight (default: 0.3)
+
+        Returns:
+            SearchResults with expansion_info in metadata
+        """
+        start_time = time.time()
+
+        expanded_query_obj = None
+        search_query = query
+
+        try:
+            # Step 1: Expand query if enabled
+            if expand:
+                expanded_query_obj = await self.expand_query(
+                    query=query,
+                    module_ids=module_ids,
+                    max_expansions=max_expansion_terms,
+                    min_weight=min_expansion_weight,
+                )
+
+                # Use expanded query for fulltext search
+                # (vector search uses original query - embeddings capture semantics)
+                if expanded_query_obj.expansion_terms:
+                    search_query = expanded_query_obj.expanded_query
+
+            # Step 2: Perform hybrid search
+            # For fulltext, use expanded query; for vector, use original
+            results = await self._search_with_split_query(
+                vector_query=query,  # Original for vector
+                fulltext_query=search_query,  # Expanded for fulltext
+                module_ids=module_ids,
+                top_k=top_k,
+            )
+
+            # Add expansion info to results metadata
+            if expanded_query_obj and expanded_query_obj.expansion_terms:
+                results.weights["expansion_applied"] = True
+                results.weights["expansion_terms"] = len(
+                    expanded_query_obj.expansion_terms
+                )
+
+            elapsed_ms = (time.time() - start_time) * 1000
+            results.search_time_ms = elapsed_ms
+
+            logger.info(
+                f"Search with expansion: {len(results.results)} results, "
+                f"expanded={expand and bool(expanded_query_obj and expanded_query_obj.expansion_terms)}, "
+                f"{elapsed_ms:.1f}ms"
+            )
+
+            return results
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(f"Search with expansion failed: {e}")
+            return SearchResults(
+                query=query,
+                results=[],
+                total_count=0,
+                search_time_ms=elapsed_ms,
+                weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
+            )
+
+    async def _search_with_split_query(
+        self,
+        vector_query: str,
+        fulltext_query: str,
+        module_ids: Optional[List[str]],
+        top_k: int,
+    ) -> SearchResults:
+        """
+        Perform hybrid search with different queries for vector and fulltext.
+
+        This allows using the original query for vector search (semantic)
+        while using the expanded query for fulltext search (lexical).
+
+        Args:
+            vector_query: Query for vector search (original)
+            fulltext_query: Query for fulltext search (expanded)
+            module_ids: Optional module IDs to filter
+            top_k: Number of results to return
+
+        Returns:
+            Combined SearchResults
+        """
+        # Generate embedding for vector query
+        query_embedding = self.embedding_service.embed_text(vector_query)
+
+        if not query_embedding or len(query_embedding) != 768:
+            logger.warning("Invalid query embedding, falling back to fulltext only")
+            fulltext_results = await self._fulltext_search(
+                fulltext_query, module_ids, top_k
+            )
+            return SearchResults(
+                query=vector_query,
+                results=fulltext_results,
+                total_count=len(fulltext_results),
+                search_time_ms=0,
+                weights={"vector": 0, "fulltext": 1.0},
+            )
+
+        # Execute both searches
+        vector_results = await self._vector_search(
+            query_embedding, module_ids, top_k * 2
+        )
+        fulltext_results = await self._fulltext_search(
+            fulltext_query, module_ids, top_k * 2
+        )
+
+        # Combine with weights
+        combined = self._combine_results(
+            vector_results,
+            fulltext_results,
+            self.vector_weight,
+            self.fulltext_weight,
+        )
+
+        # Filter and limit
+        filtered = [r for r in combined if r.score >= MIN_SCORE_THRESHOLD]
+        filtered = filtered[:top_k]
+
+        return SearchResults(
+            query=vector_query,
+            results=filtered,
+            total_count=len(filtered),
+            search_time_ms=0,
+            weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
+        )
 
     def _escape_lucene_query(self, query: str) -> str:
         """

@@ -189,6 +189,10 @@ class SearchResponse(BaseModel):
     weights: Dict[str, float] = Field(
         description="Weights used for hybrid search (vector, fulltext)"
     )
+    expansion_info: Optional["ExpansionInfo"] = Field(
+        default=None,
+        description="Information about query expansion if performed",
+    )
 
     class Config:
         """Pydantic configuration."""
@@ -211,6 +215,14 @@ class SearchResponse(BaseModel):
                 "total_count": 1,
                 "search_time_ms": 45.2,
                 "weights": {"vector": 0.7, "fulltext": 0.3},
+                "expansion_info": {
+                    "original_query": "machine learning",
+                    "expanded_query": "machine learning neural networks deep learning",
+                    "expansion_terms": [
+                        {"term": "neural networks", "source_entity": "ML", "relationship": "USES", "weight": 0.8}
+                    ],
+                    "entities_identified": ["Machine Learning"],
+                },
             }
         }
 
@@ -241,6 +253,114 @@ class FeedbackRequest(BaseModel):
         default=None,
         max_length=500,
         description="Optional feedback comment",
+    )
+
+
+# ============================================================================
+# QUERY EXPANSION SCHEMAS
+# ============================================================================
+
+
+class QueryExpansionConfig(BaseModel):
+    """
+    Configuration for query expansion.
+
+    Controls how queries are expanded using entity relationships
+    from the knowledge graph.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Whether to expand query using knowledge graph",
+    )
+    max_expansion_terms: int = Field(
+        default=10,
+        ge=0,
+        le=20,
+        description="Maximum number of expansion terms to add (0-20)",
+    )
+    min_term_weight: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Minimum weight threshold for expansion terms (0.0-1.0)",
+    )
+    use_entity_lookup: bool = Field(
+        default=True,
+        description="Use entity name/definition matching for expansion",
+    )
+    use_vector_similarity: bool = Field(
+        default=True,
+        description="Use vector similarity for entity matching",
+    )
+    use_relationship_expansion: bool = Field(
+        default=True,
+        description="Expand via related entities through relationships",
+    )
+
+
+class ExpansionTerm(BaseModel):
+    """
+    Individual term added during query expansion.
+
+    Contains the term itself and metadata about its source.
+    """
+
+    term: str = Field(description="The expansion term")
+    source_entity: str = Field(description="Entity that this term came from")
+    relationship: str = Field(
+        description="Relationship type (e.g., DEFINES, USES, RELATED_TO)"
+    )
+    weight: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Term weight based on relationship strength",
+    )
+
+
+class ExpansionInfo(BaseModel):
+    """
+    Information about query expansion performed.
+
+    Returned in search response for transparency.
+    """
+
+    original_query: str = Field(description="Original query before expansion")
+    expanded_query: str = Field(description="Query after expansion")
+    expansion_terms: List[ExpansionTerm] = Field(
+        default_factory=list,
+        description="Terms added during expansion",
+    )
+    entities_identified: List[str] = Field(
+        default_factory=list,
+        description="Entity names identified in the original query",
+    )
+    expansion_time_ms: float = Field(
+        default=0.0,
+        description="Time taken for query expansion in milliseconds",
+    )
+
+
+class ExpandedQuery(BaseModel):
+    """
+    Result of query expansion operation.
+
+    Contains the expanded query and metadata about the expansion process.
+    """
+
+    original_query: str = Field(description="Original query text")
+    expanded_query: str = Field(description="Expanded query for fulltext search")
+    expansion_terms: List[ExpansionTerm] = Field(
+        default_factory=list,
+        description="Terms added during expansion",
+    )
+    entities_found: List[str] = Field(
+        default_factory=list,
+        description="Entity names found in query",
+    )
+    entity_ids: List[str] = Field(
+        default_factory=list,
+        description="Entity IDs found in query",
     )
 
 
@@ -496,3 +616,10 @@ class EnrichedSearchResponse(SearchResponse):
             }
         }
 
+
+# ============================================================================
+# FORWARD REFERENCE RESOLUTION
+# ============================================================================
+
+# Rebuild models to resolve forward references
+SearchResponse.model_rebuild()
