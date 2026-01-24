@@ -8,8 +8,10 @@
 # @see: api/schemas/search.py - SearchRequest/SearchResponse schemas
 # @see: api/schemas/analysis.py - AnalysisRequest/AnalysisResponse schemas
 # @see: api/schemas/graph.py - GraphSchema/GraphData schemas
+# @see: api/schemas/feedback.py - Feedback schemas for relevance judgments
 # @see: api/rag_engine.py - RAGEngine for hybrid search with graph expansion
 # @see: api/graph_manager.py - GraphManager for graph traversal operations
+# @see: api/feedback_manager.py - FeedbackManager for storing user feedback
 # @note: Neo4j connection errors return 503 Service Unavailable
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from neo4j.exceptions import ServiceUnavailable
 
+from api.feedback_manager import FeedbackManager
 from api.graph_manager import GraphManager
 from api.neo4j_config import neo4j_driver
 from api.rag_engine import RAGEngine, MultiDocOptions, MultiDocResponse
@@ -38,6 +41,14 @@ from api.schemas.graph import (
     GraphSchema,
     NodeTypeSchema,
     RelationshipTypeSchema,
+)
+from api.schemas.feedback import (
+    AnswerFeedback,
+    FeedbackResponse,
+    FeedbackStats,
+    ImplicitFeedback,
+    LowQualityResult,
+    ResultFeedback,
 )
 from api.schemas.search import (
     EnrichedSearchResponse,
@@ -156,6 +167,28 @@ async def get_graph_manager() -> GraphManager:
         )
 
     return GraphManager(neo4j_driver)
+
+
+async def get_feedback_manager() -> FeedbackManager:
+    """
+    Dependency to get FeedbackManager instance.
+
+    Creates a new FeedbackManager with the global Neo4j driver.
+
+    Returns:
+        FeedbackManager: Configured feedback manager instance.
+
+    Raises:
+        HTTPException: 503 if Neo4j connection is unavailable.
+    """
+    if neo4j_driver is None:
+        logger.error("Neo4j driver not initialized")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+
+    return FeedbackManager(neo4j_driver)
 
 
 # ============================================================================
@@ -726,4 +759,270 @@ async def multi_document_query(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Multi-doc query error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ============================================================================
+# FEEDBACK ENDPOINTS
+# ============================================================================
+
+
+@router.post("/feedback/result", response_model=FeedbackResponse)
+async def submit_result_feedback(
+    feedback: ResultFeedback,
+    feedback_manager: FeedbackManager = Depends(get_feedback_manager),
+) -> FeedbackResponse:
+    """
+    Submit relevance feedback for a search result.
+
+    Stores user feedback on how relevant a specific search result was to their query.
+    Used for continuous improvement of search quality.
+
+    Args:
+        feedback: Result feedback with relevance score (0-1) and metadata.
+        feedback_manager: Injected FeedbackManager instance.
+
+    Returns:
+        FeedbackResponse: Confirmation with feedback ID.
+
+    Raises:
+        HTTPException: 400 for invalid parameters, 503 for Neo4j errors.
+    """
+    logger.info(
+        f"Result feedback: result_id={feedback.result_id}, "
+        f"relevance={feedback.relevance_score:.2f}"
+    )
+
+    try:
+        feedback_id = await feedback_manager.submit_result_feedback(feedback)
+
+        return FeedbackResponse(
+            feedback_id=feedback_id,
+            status="success",
+            message="Result feedback recorded successfully",
+        )
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to store result feedback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/feedback/answer", response_model=FeedbackResponse)
+async def submit_answer_feedback(
+    feedback: AnswerFeedback,
+    feedback_manager: FeedbackManager = Depends(get_feedback_manager),
+) -> FeedbackResponse:
+    """
+    Submit quality feedback for a synthesized answer.
+
+    Stores user feedback on whether an answer was helpful and accurate.
+    Used for evaluating answer synthesis quality.
+
+    Args:
+        feedback: Answer feedback with helpfulness rating and optional accuracy.
+        feedback_manager: Injected FeedbackManager instance.
+
+    Returns:
+        FeedbackResponse: Confirmation with feedback ID.
+
+    Raises:
+        HTTPException: 400 for invalid parameters, 503 for Neo4j errors.
+    """
+    logger.info(
+        f"Answer feedback: answer_hash={feedback.answer_hash[:8]}..., "
+        f"helpful={feedback.helpful}"
+    )
+
+    try:
+        feedback_id = await feedback_manager.submit_answer_feedback(feedback)
+
+        return FeedbackResponse(
+            feedback_id=feedback_id,
+            status="success",
+            message="Answer feedback recorded successfully",
+        )
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to store answer feedback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post("/feedback/implicit", response_model=FeedbackResponse)
+async def submit_implicit_feedback(
+    feedback: ImplicitFeedback,
+    feedback_manager: FeedbackManager = Depends(get_feedback_manager),
+) -> FeedbackResponse:
+    """
+    Submit implicit feedback signals (clicks, dwell time).
+
+    Stores behavioral signals that can indicate result relevance without
+    requiring explicit user input.
+
+    Args:
+        feedback: Implicit feedback with click or dwell time data.
+        feedback_manager: Injected FeedbackManager instance.
+
+    Returns:
+        FeedbackResponse: Confirmation with feedback ID.
+
+    Raises:
+        HTTPException: 400 for invalid parameters, 503 for Neo4j errors.
+    """
+    logger.debug(
+        f"Implicit feedback: type={feedback.feedback_type.value}, "
+        f"result_id={feedback.result_id}"
+    )
+
+    try:
+        feedback_id = await feedback_manager.submit_implicit_feedback(feedback)
+
+        return FeedbackResponse(
+            feedback_id=feedback_id,
+            status="success",
+            message="Implicit feedback recorded successfully",
+        )
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except ValueError as e:
+        logger.warning(f"Invalid implicit feedback: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to store implicit feedback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/feedback/stats", response_model=FeedbackStats)
+async def get_feedback_stats(
+    module_id: Optional[str] = Query(
+        default=None,
+        description="Filter stats by module ID",
+    ),
+    start_date: Optional[datetime] = Query(
+        default=None,
+        description="Start of time range (ISO format)",
+    ),
+    end_date: Optional[datetime] = Query(
+        default=None,
+        description="End of time range (ISO format)",
+    ),
+    feedback_manager: FeedbackManager = Depends(get_feedback_manager),
+) -> FeedbackStats:
+    """
+    Get aggregated feedback statistics.
+
+    Returns statistics on feedback including total count, positive ratio,
+    average relevance scores, and breakdowns by type and module.
+
+    Args:
+        module_id: Optional module ID to filter statistics.
+        start_date: Optional start of time range.
+        end_date: Optional end of time range.
+        feedback_manager: Injected FeedbackManager instance.
+
+    Returns:
+        FeedbackStats: Aggregated feedback metrics.
+
+    Raises:
+        HTTPException: 503 for Neo4j errors.
+    """
+    logger.info(f"Fetching feedback stats: module_id={module_id}")
+
+    try:
+        time_range = None
+        if start_date and end_date:
+            time_range = (start_date, end_date)
+        elif start_date:
+            time_range = (start_date, datetime.utcnow())
+        elif end_date:
+            # Default to 30 days before end_date
+            from datetime import timedelta
+
+            time_range = (end_date - timedelta(days=30), end_date)
+
+        stats = await feedback_manager.get_feedback_stats(
+            module_id=module_id,
+            time_range=time_range,
+        )
+
+        return stats
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch feedback stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/feedback/low-quality", response_model=List[LowQualityResult])
+async def get_low_quality_results(
+    threshold: float = Query(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Maximum average relevance score (0.0-1.0)",
+    ),
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of results to return",
+    ),
+    feedback_manager: FeedbackManager = Depends(get_feedback_manager),
+) -> List[LowQualityResult]:
+    """
+    Get results that consistently receive low relevance scores.
+
+    Identifies chunks and entities that may need content quality review
+    based on user feedback patterns. Useful for finding problematic content.
+
+    Args:
+        threshold: Maximum average relevance to be considered low-quality.
+        limit: Maximum results to return.
+        feedback_manager: Injected FeedbackManager instance.
+
+    Returns:
+        List[LowQualityResult]: Problem content with feedback details.
+
+    Raises:
+        HTTPException: 503 for Neo4j errors.
+    """
+    logger.info(f"Finding low-quality results: threshold={threshold}, limit={limit}")
+
+    try:
+        results = await feedback_manager.get_low_quality_results(
+            threshold=threshold,
+            limit=limit,
+        )
+
+        return results
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to find low-quality results: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
