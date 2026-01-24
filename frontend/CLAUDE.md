@@ -114,6 +114,15 @@ src/
 | Documentation | `document-writer` | READMEs, guides, AGENTS.md |
 | Hard debugging | `oracle` | After 2+ failed fix attempts |
 
+### Use Sub-Agents to Extend Sessions
+- **Use suitable and available sub-agents whenever possible** to extend the current session by conserving the context window
+- Sub-agents are crucial for **long-running tasks** that involve multiple files, complex exploration, or extensive modifications
+- Launching sub-agents allows:
+  - Fresh context windows for each subtask
+  - Parallel execution of independent operations
+  - Better focus on specific domains (visual, documentation, debugging)
+- Delegate appropriately using the guidelines above — don't try to handle everything in a single session
+
 ### Evidence Requirements
 Task is NOT complete without:
 - [ ] `lsp_diagnostics` clean on changed files

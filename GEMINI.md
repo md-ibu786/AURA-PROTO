@@ -146,7 +146,31 @@
         <action>Test changes before considering complete</action>
       </enforcement>
     </rule>
-    
+
+    <rule id="use-subagents" priority="HIGH">
+      <name>Use Sub-Agents to Extend Sessions</name>
+      <description>
+        Use suitable and available sub-agents whenever possible to extend the current session by conserving the context window.
+        Sub-agents are crucial for long-running tasks that involve multiple files, complex exploration, or extensive modifications.
+
+        Benefits of using sub-agents:
+        - Fresh context windows for each subtask
+        - Parallel execution of independent operations
+        - Better focus on specific domains (visual, documentation, debugging)
+        - Reduced cognitive load on main session
+
+        When to use sub-agents:
+        - Multi-file modifications across different features
+        - Complex exploration or research tasks
+        - Visual/UI changes requiring specialized attention
+        - Documentation updates
+        - Long-running debugging sessions
+        - Tasks that would exceed practical context limits
+
+        Don't try to handle everything in a single session — delegate appropriately.
+      </description>
+    </rule>
+
   </behavioral_rules>
   
   <!-- PROJECT OVERVIEW -->
