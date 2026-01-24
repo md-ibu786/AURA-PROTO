@@ -2,10 +2,11 @@
 # Pydantic schemas for hybrid search API requests and responses
 
 # Defines the API contracts for the /v1/kg/query endpoint including request
-# validation, response models, and weight normalization. Ensures consistent
-# interface between frontend and RAG engine.
+# validation, response models, and weight normalization. Enhanced with graph
+# expansion schemas for multi-hop entity traversal support.
 
 # @see: api/rag_engine.py - Uses these schemas for type safety
+# @see: api/graph_manager.py - Graph traversal operations
 # @see: api/routers/query.py - API endpoint using these schemas (Phase 10-04)
 # @note: vector_weight + fulltext_weight normalized to 1.0 via validator
 
@@ -241,3 +242,257 @@ class FeedbackRequest(BaseModel):
         max_length=500,
         description="Optional feedback comment",
     )
+
+
+# ============================================================================
+# GRAPH EXPANSION SCHEMAS
+# ============================================================================
+
+
+class GraphExpansionConfig(BaseModel):
+    """Configuration for graph-based entity expansion."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Whether to expand results via graph traversal",
+    )
+    max_hops: int = Field(
+        default=2,
+        ge=1,
+        le=4,
+        description="Maximum traversal depth (1-4 hops)",
+    )
+    max_expanded_entities: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum expanded entities to return (1-100)",
+    )
+    relationship_types: Optional[List[str]] = Field(
+        default=None,
+        description=(
+            "Specific relationship types to traverse. "
+            "Options: DEFINES, DEPENDS_ON, USES, SUPPORTS, EXTENDS, "
+            "IMPLEMENTS, CONTRADICTS, REFERENCES, RELATED_TO. "
+            "If None, all types are traversed."
+        ),
+    )
+
+    @field_validator("relationship_types")
+    @classmethod
+    def validate_relationship_types(
+        cls, v: Optional[List[str]]
+    ) -> Optional[List[str]]:
+        """Validate relationship types against allowed values."""
+        if v is None:
+            return None
+
+        allowed = {
+            "DEFINES",
+            "DEPENDS_ON",
+            "USES",
+            "SUPPORTS",
+            "EXTENDS",
+            "IMPLEMENTS",
+            "CONTRADICTS",
+            "REFERENCES",
+            "RELATED_TO",
+        }
+
+        validated = []
+        for rel_type in v:
+            if rel_type.upper() in allowed:
+                validated.append(rel_type.upper())
+
+        return validated if validated else None
+
+
+class EnrichedSearchRequest(SearchRequest):
+    """
+    Extended search request with graph expansion configuration.
+
+    Inherits all fields from SearchRequest and adds graph expansion options.
+
+    Example:
+        {
+            "query": "machine learning algorithms",
+            "module_ids": ["mod_123"],
+            "top_k": 15,
+            "graph_expansion": {
+                "enabled": true,
+                "max_hops": 2,
+                "max_expanded_entities": 20
+            }
+        }
+    """
+
+    graph_expansion: GraphExpansionConfig = Field(
+        default_factory=GraphExpansionConfig,
+        description="Graph expansion configuration",
+    )
+
+
+class EntityContext(BaseModel):
+    """
+    Entity discovered through graph traversal.
+
+    Represents a related entity found by expanding the knowledge graph
+    from initial search results.
+    """
+
+    entity_id: str = Field(description="Unique entity identifier")
+    entity_name: str = Field(description="Entity name")
+    entity_type: str = Field(
+        description="Entity type: Topic, Concept, Methodology, or Finding"
+    )
+    definition: Optional[str] = Field(
+        default=None,
+        description="Entity definition text",
+    )
+    relationship_to_query: str = Field(
+        description="Relationship type connecting this entity to the query context",
+    )
+    hops_from_result: int = Field(
+        ge=1,
+        le=4,
+        description="Number of hops from the original search result",
+    )
+    relevance_score: float = Field(
+        ge=0.0,
+        le=1.0,
+        description="Computed relevance score based on relationship and distance",
+    )
+
+
+class EntityPath(BaseModel):
+    """
+    Path representing a relationship between two entities.
+
+    Used to trace how entities are connected through the knowledge graph.
+    """
+
+    source_entity: str = Field(description="Name of the source entity")
+    target_entity: str = Field(description="Name of the target entity")
+    relationship_type: str = Field(
+        description="Type of relationship (DEFINES, USES, etc.)"
+    )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score for this relationship",
+    )
+    hops: int = Field(
+        default=1,
+        ge=1,
+        le=4,
+        description="Number of hops from seed entity",
+    )
+
+
+class EnrichedSearchResult(SearchResult):
+    """
+    Search result enriched with graph context.
+
+    Extends SearchResult with related entities discovered through
+    graph traversal and the paths connecting them.
+    """
+
+    related_entities: List[EntityContext] = Field(
+        default_factory=list,
+        description="Entities discovered through graph expansion",
+    )
+    graph_paths: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="Relationship paths connecting entities to this result",
+    )
+
+
+class GraphContextResponse(BaseModel):
+    """
+    Graph context summary returned with enriched search results.
+
+    Contains metadata about the graph traversal operation.
+    """
+
+    seed_entities: List[str] = Field(
+        default_factory=list,
+        description="Entity IDs used as seeds for expansion",
+    )
+    total_expanded: int = Field(
+        default=0,
+        description="Total number of entities discovered",
+    )
+    max_depth_reached: int = Field(
+        default=0,
+        description="Maximum traversal depth reached",
+    )
+    traversal_time_ms: float = Field(
+        default=0.0,
+        description="Time taken for graph traversal in milliseconds",
+    )
+
+
+class EnrichedSearchResponse(SearchResponse):
+    """
+    Extended search response with graph context.
+
+    Inherits from SearchResponse and adds graph expansion results.
+    """
+
+    results: List[EnrichedSearchResult] = Field(
+        description="List of enriched search results with graph context"
+    )
+    graph_context: Optional[GraphContextResponse] = Field(
+        default=None,
+        description="Summary of graph expansion operation",
+    )
+
+    class Config:
+        """Pydantic configuration."""
+
+        json_schema_extra = {
+            "example": {
+                "query": "machine learning algorithms",
+                "results": [
+                    {
+                        "id": "chunk_doc123_5",
+                        "node_type": "Chunk",
+                        "text": "Machine learning algorithms...",
+                        "score": 0.85,
+                        "vector_score": 0.9,
+                        "fulltext_score": 0.7,
+                        "document_id": "doc_123",
+                        "module_id": "mod_456",
+                        "related_entities": [
+                            {
+                                "entity_id": "concept_nn",
+                                "entity_name": "Neural Networks",
+                                "entity_type": "Concept",
+                                "relationship_to_query": "USES",
+                                "hops_from_result": 1,
+                                "relevance_score": 0.8,
+                            }
+                        ],
+                        "graph_paths": [
+                            {
+                                "source_entity": "Machine Learning",
+                                "target_entity": "Neural Networks",
+                                "relationship_type": "USES",
+                                "confidence": 0.95,
+                            }
+                        ],
+                    }
+                ],
+                "total_count": 1,
+                "search_time_ms": 125.3,
+                "weights": {"vector": 0.7, "fulltext": 0.3},
+                "graph_context": {
+                    "seed_entities": ["concept_ml"],
+                    "total_expanded": 5,
+                    "max_depth_reached": 2,
+                    "traversal_time_ms": 45.2,
+                },
+            }
+        }
+

@@ -1,14 +1,16 @@
 # rag_engine.py
-# Hybrid RAG engine combining vector search and fulltext search for AURA-NOTES-MANAGER
+# Hybrid RAG engine combining vector search, fulltext search, and graph traversal
 
 # Implements hybrid search with weighted combination of vector similarity (0.7) and
-# fulltext matching (0.3). Searches across Chunk, ParentChunk, and Entity nodes
+# fulltext matching (0.3). Enhanced with graph traversal for multi-hop entity expansion
+# supporting 2-hop reasoning queries. Searches across Chunk, ParentChunk, and Entity nodes
 # with module_id filtering for scoped queries. Supports configurable weights and top_k.
 
 # @see: api/kg_processor.py - Document processing and chunk creation
 # @see: api/neo4j_config.py - Neo4j configuration with vector/fulltext indices
+# @see: api/graph_manager.py - Graph traversal operations
 # @see: services/embeddings.py - Query embedding generation
-# @note: Latency target < 500ms for hybrid search
+# @note: Latency target < 500ms for hybrid search, < 700ms with graph expansion
 
 from __future__ import annotations
 
@@ -29,6 +31,25 @@ FULLTEXT_WEIGHT = 0.3  # Weight for fulltext/BM25 scores
 # Retrieval parameters
 TOP_K_RETRIEVAL = 15  # Default number of results to return
 MIN_SCORE_THRESHOLD = 0.3  # Minimum combined score threshold
+
+# Graph traversal parameters
+GRAPH_HOP_DEPTH = 2  # Default number of hops for graph expansion
+MAX_GRAPH_HOP_DEPTH = 4  # Maximum allowed hop depth
+PARENT_CHUNK_BOOST = 1.2  # Score boost for parent chunk context
+MAX_EXPANDED_ENTITIES = 20  # Maximum entities from graph expansion
+
+# Relationship type weights for ranking (higher = stronger semantic connection)
+RELATIONSHIP_WEIGHTS = {
+    "DEFINES": 1.0,
+    "DEPENDS_ON": 0.9,
+    "USES": 0.8,
+    "SUPPORTS": 0.8,
+    "EXTENDS": 0.7,
+    "IMPLEMENTS": 0.7,
+    "CONTRADICTS": 0.6,
+    "REFERENCES": 0.5,
+    "RELATED_TO": 0.4,
+}
 
 # ============================================================================
 # LOGGING
@@ -55,6 +76,43 @@ class SearchResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class EntityPath(BaseModel):
+    """Represents a path between two entities in the graph."""
+
+    source_entity: str
+    target_entity: str
+    relationship_type: str
+    confidence: float = 1.0
+    hops: int = 1
+
+
+class GraphContext(BaseModel):
+    """Container for expanded graph context from entity traversal."""
+
+    seed_entities: List[str] = Field(default_factory=list)
+    expanded_entities: List[Dict[str, Any]] = Field(default_factory=list)
+    paths: List[EntityPath] = Field(default_factory=list)
+    total_entities: int = 0
+    max_depth_reached: int = 0
+    traversal_time_ms: float = 0.0
+
+
+class EnrichedSearchResult(BaseModel):
+    """Search result enriched with graph context."""
+
+    id: str
+    node_type: Literal["Chunk", "ParentChunk", "Entity"]
+    text: str
+    score: float
+    vector_score: Optional[float] = None
+    fulltext_score: Optional[float] = None
+    document_id: str
+    module_id: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    related_entities: List[Dict[str, Any]] = Field(default_factory=list)
+    graph_paths: List[EntityPath] = Field(default_factory=list)
+
+
 class SearchResults(BaseModel):
     """Container for search results with metadata."""
 
@@ -70,6 +128,22 @@ class SearchResults(BaseModel):
     )
 
 
+class EnrichedSearchResults(BaseModel):
+    """Container for search results enriched with graph context."""
+
+    query: str
+    results: List[EnrichedSearchResult]
+    total_count: int
+    search_time_ms: float
+    weights: Dict[str, float] = Field(
+        default_factory=lambda: {
+            "vector": VECTOR_WEIGHT,
+            "fulltext": FULLTEXT_WEIGHT,
+        }
+    )
+    graph_context: Optional[GraphContext] = None
+
+
 # ============================================================================
 # RAG ENGINE CLASS
 # ============================================================================
@@ -80,11 +154,13 @@ class RAGEngine:
     Hybrid search RAG engine for AURA-NOTES-MANAGER.
 
     Combines vector similarity search with fulltext search for improved retrieval
-    quality. Supports module_id filtering for scoped queries.
+    quality. Enhanced with graph traversal for multi-hop entity expansion.
+    Supports module_id filtering for scoped queries.
 
     Features:
     - Vector search (0.7 weight) using Neo4j vector indices
     - Fulltext search (0.3 weight) using Neo4j fulltext indices
+    - Graph traversal for 2-hop entity expansion
     - Module filtering for multi-tenant scenarios
     - Parent chunk context retrieval
     - Configurable weights and top_k parameters
@@ -97,10 +173,18 @@ class RAGEngine:
         embedding_service = EmbeddingService()
         engine = RAGEngine(neo4j_driver, embedding_service)
 
+        # Basic hybrid search
         results = await engine.search(
             query="machine learning algorithms",
             module_ids=["module_123"],
             top_k=10
+        )
+
+        # Search with graph expansion
+        enriched = await engine.search_with_graph_expansion(
+            query="neural networks",
+            module_ids=["module_123"],
+            expand_entities=True
         )
     """
 
@@ -526,6 +610,472 @@ class RAGEngine:
         except Exception as e:
             logger.warning(f"Failed to get parent context: {e}")
             return {}
+
+    # ========================================================================
+    # GRAPH TRAVERSAL METHODS
+    # ========================================================================
+
+    async def expand_graph_context(
+        self,
+        entity_ids: List[str],
+        hop_depth: int = GRAPH_HOP_DEPTH,
+        module_ids: Optional[List[str]] = None,
+        max_entities: int = MAX_EXPANDED_ENTITIES,
+    ) -> GraphContext:
+        """
+        Expand graph context from seed entities through multi-hop traversal.
+
+        Traverses relationships up to hop_depth, collecting related entities
+        and weighting them by relationship type and path distance.
+
+        Args:
+            entity_ids: Seed entity IDs to expand from
+            hop_depth: Maximum traversal depth (default: 2, max: 4)
+            module_ids: Optional module IDs to filter results
+            max_entities: Maximum expanded entities to return (default: 20)
+
+        Returns:
+            GraphContext with expanded entities and relationship paths
+        """
+        start_time = time.time()
+
+        if not entity_ids:
+            return GraphContext(
+                seed_entities=[],
+                expanded_entities=[],
+                paths=[],
+                total_entities=0,
+                max_depth_reached=0,
+                traversal_time_ms=0.0,
+            )
+
+        try:
+            hop_depth = min(hop_depth, MAX_GRAPH_HOP_DEPTH)
+
+            # Build module filter
+            module_filter = ""
+            params: Dict[str, Any] = {
+                "entity_ids": entity_ids,
+                "limit": max_entities,
+            }
+
+            if module_ids:
+                module_filter = (
+                    "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
+                )
+                params["module_ids"] = module_ids
+
+            # Multi-hop traversal query - handles 1-hop and 2-hop
+            if hop_depth == 1:
+                cypher = f"""
+                MATCH (start)-[r]->(related)
+                WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)
+                AND start.id IN $entity_ids
+                AND (related:Topic OR related:Concept OR related:Methodology OR related:Finding)
+                {module_filter}
+                RETURN start.name as source, related.name as target,
+                       related.id as target_id, related.definition as definition,
+                       labels(related)[0] as entity_type, related.module_id as module_id,
+                       type(r) as relationship_type, r.confidence as confidence,
+                       1 as hops
+                ORDER BY r.confidence DESC
+                LIMIT $limit
+                """
+            else:
+                # 2-hop traversal with intermediate entities
+                hop1_filter = module_filter.replace("related", "hop1")
+                hop2_filter = module_filter.replace("related", "hop2")
+                cypher = f"""
+                // 1-hop results
+                MATCH (start)-[r1]->(hop1)
+                WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)
+                AND start.id IN $entity_ids
+                AND (hop1:Topic OR hop1:Concept OR hop1:Methodology OR hop1:Finding)
+                {hop1_filter}
+                WITH start, hop1, r1, 1 as hops
+                RETURN start.name as source, hop1.name as target,
+                       hop1.id as target_id, hop1.definition as definition,
+                       labels(hop1)[0] as entity_type, hop1.module_id as module_id,
+                       type(r1) as relationship_type, r1.confidence as confidence,
+                       hops
+
+                UNION ALL
+
+                // 2-hop results
+                MATCH (start)-[r1]->(hop1)-[r2]->(hop2)
+                WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)
+                AND start.id IN $entity_ids
+                AND (hop1:Topic OR hop1:Concept OR hop1:Methodology OR hop1:Finding)
+                AND (hop2:Topic OR hop2:Concept OR hop2:Methodology OR hop2:Finding)
+                AND NOT hop2.id IN $entity_ids
+                {hop2_filter}
+                WITH start, hop2, r2, 2 as hops
+                RETURN start.name as source, hop2.name as target,
+                       hop2.id as target_id, hop2.definition as definition,
+                       labels(hop2)[0] as entity_type, hop2.module_id as module_id,
+                       type(r2) as relationship_type, r2.confidence as confidence,
+                       hops
+                ORDER BY hops ASC, confidence DESC
+                LIMIT $limit
+                """
+
+            expanded_entities: List[Dict[str, Any]] = []
+            paths: List[EntityPath] = []
+            seen_ids: set = set()
+            max_depth = 0
+
+            with self.driver.session() as session:
+                result = session.run(cypher, params)
+                for record in result:
+                    target_id = record["target_id"]
+
+                    # Track max depth
+                    hops = record["hops"]
+                    if hops > max_depth:
+                        max_depth = hops
+
+                    # Add path
+                    rel_type = record["relationship_type"]
+                    paths.append(
+                        EntityPath(
+                            source_entity=record["source"],
+                            target_entity=record["target"],
+                            relationship_type=rel_type,
+                            confidence=record.get("confidence", 1.0) or 1.0,
+                            hops=hops,
+                        )
+                    )
+
+                    # Add entity if not seen
+                    if target_id not in seen_ids:
+                        seen_ids.add(target_id)
+                        # Calculate weighted relevance score
+                        rel_weight = RELATIONSHIP_WEIGHTS.get(rel_type, 0.4)
+                        hop_decay = 1.0 / hops  # Closer entities score higher
+                        confidence = record.get("confidence", 1.0) or 1.0
+                        relevance = rel_weight * hop_decay * confidence
+
+                        expanded_entities.append(
+                            {
+                                "id": target_id,
+                                "name": record["target"],
+                                "entity_type": record["entity_type"],
+                                "definition": record.get("definition"),
+                                "module_id": record.get("module_id"),
+                                "relationship_type": rel_type,
+                                "hops": hops,
+                                "relevance_score": round(relevance, 4),
+                            }
+                        )
+
+            # Sort by relevance score
+            expanded_entities.sort(key=lambda x: x["relevance_score"], reverse=True)
+            expanded_entities = expanded_entities[:max_entities]
+
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                f"Graph expansion: {len(entity_ids)} seeds -> {len(expanded_entities)} entities "
+                f"in {elapsed_ms:.1f}ms (max depth: {max_depth})"
+            )
+
+            return GraphContext(
+                seed_entities=entity_ids,
+                expanded_entities=expanded_entities,
+                paths=paths,
+                total_entities=len(expanded_entities),
+                max_depth_reached=max_depth,
+                traversal_time_ms=elapsed_ms,
+            )
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(f"Graph context expansion failed: {e}")
+            return GraphContext(
+                seed_entities=entity_ids,
+                expanded_entities=[],
+                paths=[],
+                total_entities=0,
+                max_depth_reached=0,
+                traversal_time_ms=elapsed_ms,
+            )
+
+    async def _traverse_relationships(
+        self,
+        start_ids: List[str],
+        depth: int,
+        module_ids: Optional[List[str]],
+    ) -> List[EntityPath]:
+        """
+        Traverse graph relationships from start entities to given depth.
+
+        Args:
+            start_ids: Entity IDs to start traversal from
+            depth: Maximum hops to traverse
+            module_ids: Optional module IDs to filter by
+
+        Returns:
+            List of EntityPath objects representing discovered paths
+        """
+        if not start_ids:
+            return []
+
+        depth = min(depth, MAX_GRAPH_HOP_DEPTH)
+
+        try:
+            # Build module filter
+            module_filter = ""
+            params: Dict[str, Any] = {"entity_ids": start_ids, "depth": depth}
+
+            if module_ids:
+                module_filter = (
+                    "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
+                )
+                params["module_ids"] = module_ids
+
+            cypher = f"""
+            MATCH (start)-[r]->(related)
+            WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)
+            AND start.id IN $entity_ids
+            AND (related:Topic OR related:Concept OR related:Methodology OR related:Finding)
+            {module_filter}
+            RETURN start.name as source, related.name as target,
+                   type(r) as relationship_type, r.confidence as confidence
+            LIMIT 100
+            """
+
+            paths = []
+            with self.driver.session() as session:
+                result = session.run(cypher, params)
+                for record in result:
+                    paths.append(
+                        EntityPath(
+                            source_entity=record["source"],
+                            target_entity=record["target"],
+                            relationship_type=record["relationship_type"],
+                            confidence=record.get("confidence", 1.0) or 1.0,
+                            hops=1,
+                        )
+                    )
+
+            return paths
+
+        except Exception as e:
+            logger.warning(f"Relationship traversal failed: {e}")
+            return []
+
+    def _weight_path(self, path: EntityPath) -> float:
+        """
+        Calculate weighted score for an entity path.
+
+        Considers relationship type weight, confidence, and hop distance.
+
+        Args:
+            path: EntityPath to weight
+
+        Returns:
+            Weighted score between 0 and 1
+        """
+        rel_weight = RELATIONSHIP_WEIGHTS.get(path.relationship_type, 0.4)
+        hop_decay = 1.0 / path.hops  # Closer = higher score
+        confidence = path.confidence if path.confidence else 1.0
+
+        return rel_weight * hop_decay * confidence
+
+    async def _extract_entities_from_results(
+        self,
+        results: List[SearchResult],
+    ) -> List[str]:
+        """
+        Extract entity IDs from search results by finding connected entities.
+
+        Args:
+            results: List of SearchResult objects
+
+        Returns:
+            List of entity IDs mentioned in the result chunks
+        """
+        if not results:
+            return []
+
+        try:
+            chunk_ids = [r.id for r in results if r.node_type == "Chunk"]
+            if not chunk_ids:
+                return []
+
+            cypher = """
+            MATCH (c:Chunk)-[:CONTAINS_ENTITY]->(e)
+            WHERE c.id IN $chunk_ids
+            AND (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+            RETURN DISTINCT e.id as entity_id
+            LIMIT 20
+            """
+
+            entity_ids = []
+            with self.driver.session() as session:
+                result = session.run(cypher, {"chunk_ids": chunk_ids})
+                for record in result:
+                    entity_ids.append(record["entity_id"])
+
+            logger.debug(f"Extracted {len(entity_ids)} entities from {len(chunk_ids)} chunks")
+            return entity_ids
+
+        except Exception as e:
+            logger.warning(f"Entity extraction from results failed: {e}")
+            return []
+
+    async def search_with_graph_expansion(
+        self,
+        query: str,
+        module_ids: Optional[List[str]] = None,
+        top_k: int = TOP_K_RETRIEVAL,
+        expand_entities: bool = True,
+        hop_depth: int = GRAPH_HOP_DEPTH,
+        max_expanded: int = MAX_EXPANDED_ENTITIES,
+    ) -> EnrichedSearchResults:
+        """
+        Perform hybrid search with graph-based entity expansion.
+
+        Combines vector and fulltext search with graph traversal to provide
+        enriched results that include related entities through multi-hop
+        relationships.
+
+        Algorithm:
+        1. Run hybrid search to get initial results
+        2. Extract entity IDs from top results
+        3. Expand entities via graph traversal
+        4. Merge expanded context into results
+
+        Args:
+            query: Search query text
+            module_ids: Optional list of module IDs to filter by
+            top_k: Number of results to return
+            expand_entities: Whether to expand via graph (default: True)
+            hop_depth: Maximum traversal depth (default: 2)
+            max_expanded: Maximum expanded entities per result (default: 20)
+
+        Returns:
+            EnrichedSearchResults with graph context
+        """
+        start_time = time.time()
+
+        try:
+            # Step 1: Run base hybrid search
+            base_results = await self.search(
+                query=query,
+                module_ids=module_ids,
+                top_k=top_k,
+                include_parent_context=True,
+            )
+
+            if not base_results.results or not expand_entities:
+                # Return as enriched but without graph context
+                enriched_results = [
+                    EnrichedSearchResult(
+                        id=r.id,
+                        node_type=r.node_type,
+                        text=r.text,
+                        score=r.score,
+                        vector_score=r.vector_score,
+                        fulltext_score=r.fulltext_score,
+                        document_id=r.document_id,
+                        module_id=r.module_id,
+                        metadata=r.metadata,
+                        related_entities=[],
+                        graph_paths=[],
+                    )
+                    for r in base_results.results
+                ]
+
+                elapsed_ms = (time.time() - start_time) * 1000
+                return EnrichedSearchResults(
+                    query=query,
+                    results=enriched_results,
+                    total_count=len(enriched_results),
+                    search_time_ms=elapsed_ms,
+                    weights=base_results.weights,
+                    graph_context=None,
+                )
+
+            # Step 2: Extract entities from top results
+            entity_ids = await self._extract_entities_from_results(
+                base_results.results[:5]  # Only process top 5 for performance
+            )
+
+            # Step 3: Expand entities via graph traversal
+            graph_context = None
+            if entity_ids:
+                graph_context = await self.expand_graph_context(
+                    entity_ids=entity_ids,
+                    hop_depth=hop_depth,
+                    module_ids=module_ids,
+                    max_entities=max_expanded,
+                )
+
+            # Step 4: Build enriched results with graph context
+            enriched_results = []
+            for r in base_results.results:
+                # Find related entities for this result
+                related = []
+                paths = []
+
+                if graph_context and graph_context.expanded_entities:
+                    # Add top related entities
+                    related = graph_context.expanded_entities[:5]
+                    # Filter paths relevant to this result's entities
+                    result_text_lower = r.text.lower() if r.text else ""
+                    paths = [
+                        p
+                        for p in graph_context.paths
+                        if p.source_entity.lower() in result_text_lower
+                        or p.target_entity.lower() in result_text_lower
+                    ][:5]
+
+                enriched_results.append(
+                    EnrichedSearchResult(
+                        id=r.id,
+                        node_type=r.node_type,
+                        text=r.text,
+                        score=r.score,
+                        vector_score=r.vector_score,
+                        fulltext_score=r.fulltext_score,
+                        document_id=r.document_id,
+                        module_id=r.module_id,
+                        metadata=r.metadata,
+                        related_entities=related,
+                        graph_paths=paths,
+                    )
+                )
+
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                f"Search with graph expansion: {len(enriched_results)} results, "
+                f"{graph_context.total_entities if graph_context else 0} expanded entities, "
+                f"{elapsed_ms:.1f}ms total"
+            )
+
+            return EnrichedSearchResults(
+                query=query,
+                results=enriched_results,
+                total_count=len(enriched_results),
+                search_time_ms=elapsed_ms,
+                weights=base_results.weights,
+                graph_context=graph_context,
+            )
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(f"Search with graph expansion failed: {e}")
+
+            return EnrichedSearchResults(
+                query=query,
+                results=[],
+                total_count=0,
+                search_time_ms=elapsed_ms,
+                weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
+                graph_context=None,
+            )
 
     def _escape_lucene_query(self, query: str) -> str:
         """
