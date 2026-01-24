@@ -106,6 +106,9 @@ from api.routers.trends import router as trends_router
 # Import Templates API router (Phase 11-03)
 from api.routers.templates import router as templates_router
 
+# Import Schema API router (Phase 11-04)
+from api.routers.schema import router as schema_router
+
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
 # Rate limiting configuration
@@ -151,6 +154,9 @@ app.include_router(
 app.include_router(
     templates_router
 )  # Templates API (Phase 11-03) - prefix already set in router
+app.include_router(
+    schema_router
+)  # Schema API (Phase 11-04) - prefix already set in router
 
 
 from fastapi.staticfiles import StaticFiles
