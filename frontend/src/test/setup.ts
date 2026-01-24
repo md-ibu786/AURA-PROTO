@@ -72,28 +72,44 @@ beforeAll(() => {
 });
 
 // Mock React Query hooks used in components
+const mockUseQuery = vi.fn(() => ({
+    data: undefined,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+}));
+
+const mockUseMutation = vi.fn(() => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
+    isPending: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+}));
+
+const mockUseQueryClient = vi.fn(() => ({
+    invalidateQueries: vi.fn(),
+    refetchQueries: vi.fn(),
+    setQueryData: vi.fn(),
+    getQueryState: vi.fn(),
+    getQueryData: vi.fn(),
+    getQueryCache: vi.fn().mockReturnValue({
+        find: vi.fn(),
+        findAll: vi.fn().mockReturnValue([]),
+        build: vi.fn().mockReturnValue({ options: {} }),
+    }),
+    removeQueries: vi.fn(),
+    clear: vi.fn(),
+}));
+
 vi.mock('@tanstack/react-query', async () => {
     const actual = await vi.importActual('@tanstack/react-query');
     return {
         ...actual,
-        useQuery: vi.fn(() => ({
-            data: undefined,
-            isLoading: false,
-            error: null,
-            refetch: vi.fn(),
-        })),
-        useMutation: vi.fn(() => ({
-            mutate: vi.fn(),
-            mutateAsync: vi.fn(),
-            isPending: false,
-            isSuccess: false,
-            isError: false,
-            error: null,
-        })),
-        useQueryClient: vi.fn(() => ({
-            invalidateQueries: vi.fn(),
-            refetchQueries: vi.fn(),
-        })),
+        useQuery: mockUseQuery,
+        useMutation: mockUseMutation,
+        useQueryClient: mockUseQueryClient,
     };
 });
 
