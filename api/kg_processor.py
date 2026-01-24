@@ -49,6 +49,8 @@ import sys
 import json
 import hashlib
 import asyncio
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Callable, Union
@@ -62,6 +64,24 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from neo4j_config import neo4j_driver
 from logging_config import logger
+
+# Import chunking utilities (ported from AURA-CHAT)
+try:
+    from services.chunking_utils import (
+        count_tokens,
+        split_into_sentences,
+        normalize_text,
+    )
+except ImportError:
+    # Fallback if services module not in path
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.chunking_utils import (
+        count_tokens,
+        split_into_sentences,
+        normalize_text,
+    )
 
 # ============================================================================
 # CHUNKING CONFIGURATION
@@ -91,11 +111,17 @@ Output format (JSON only, no markdown):
 
 # Chunk size configuration
 # NOTE: These are now overridden by config values if available
-CHUNK_SIZE = 800          # Target tokens per chunk
+CHUNK_SIZE = 800  # Target tokens per chunk
 CHUNK_OVERLAP_SIZE = 100  # Overlap tokens between chunks
-MIN_CHUNK_SIZE = 500      # Minimum tokens for valid chunk
-MAX_CHUNK_SIZE = 1000     # Maximum tokens for valid chunk
+MIN_CHUNK_SIZE = 500  # Minimum tokens for valid chunk
+MAX_CHUNK_SIZE = 1000  # Maximum tokens for valid chunk
 SEMANTIC_SIMILARITY_THRESHOLD = 0.3  # Cosine distance threshold for boundaries
+
+# Hierarchical chunking configuration (ported from AURA-CHAT)
+# Parent chunks provide section-level context for LLM, child chunks for precise search
+PARENT_CHUNK_SIZE = 1500  # ~1500 tokens per parent chunk (3-4 paragraphs)
+CHILD_CHUNK_SIZE = 800  # ~800 tokens per child chunk
+CHILD_CHUNK_OVERLAP = 200  # Overlap between child chunks for context continuity
 
 
 # ============================================================================
@@ -131,18 +157,26 @@ Only extract entities that are explicitly defined or clearly explained in the te
 
 # Entity deduplication settings (from llm_entity_extractor.py patterns)
 ENTITY_BATCH_SIZE = 3000  # Tokens per batch for entity extraction
-ENTITY_MAX_PARALLEL = 2   # Max concurrent LLM requests
+ENTITY_MAX_PARALLEL = 2  # Max concurrent LLM requests
 ENTITY_DEDUP_SIMILARITY_THRESHOLD = 0.85  # Cosine similarity threshold
 
 # Relationship types for entity-entity relationships
 ENTITY_RELATIONSHIP_TYPES = [
-    "DEFINES", "DEPENDS_ON", "USES", "SUPPORTS", "CONTRADICTS",
-    "DERIVED_FROM", "INSTANCE_OF", "CAUSES", "RELATED_TO"
+    "DEFINES",
+    "DEPENDS_ON",
+    "USES",
+    "SUPPORTS",
+    "CONTRADICTS",
+    "DERIVED_FROM",
+    "INSTANCE_OF",
+    "CAUSES",
+    "RELATED_TO",
 ]
 
 
 class EntityType(str, Enum):
     """Supported entity types for knowledge graph extraction."""
+
     TOPIC = "Topic"
     CONCEPT = "Concept"
     METHODOLOGY = "Methodology"
@@ -154,6 +188,7 @@ class EntityType(str, Enum):
 @dataclass
 class Entity:
     """Represents an extracted entity from document content."""
+
     id: str
     name: str
     entity_type: EntityType
@@ -165,6 +200,7 @@ class Entity:
 @dataclass
 class Relationship:
     """Represents a relationship between entities."""
+
     source_id: str
     target_id: str
     rel_type: str
@@ -174,6 +210,7 @@ class Relationship:
 @dataclass
 class Chunk:
     """Represents a text chunk with embedding."""
+
     id: str
     text: str
     index: int
@@ -183,8 +220,35 @@ class Chunk:
 
 
 @dataclass
+class ParentChunk:
+    """
+    Represents a parent chunk containing child chunks for hierarchical RAG.
+
+    Parent chunks provide section-level context (~1500 tokens) while child
+    chunks are used for precise search (~800 tokens with overlap). When a
+    child matches a query, its parent provides expanded context to the LLM.
+
+    Attributes:
+        id: Unique identifier for the parent chunk
+        text: Full text content of the parent chunk
+        index: Position index within the document
+        token_count: Number of tokens in the parent chunk
+        embedding: Optional 768-dim embedding vector
+        child_indices: List of child chunk indices belonging to this parent
+    """
+
+    id: str
+    text: str
+    index: int
+    token_count: int
+    embedding: Optional[List[float]] = None
+    child_indices: List[int] = field(default_factory=list)
+
+
+@dataclass
 class ProcessingProgress:
     """Tracks progress for long-running processing operations."""
+
     stage: str
     current: int
     total: int
@@ -246,7 +310,7 @@ class GeminiClient:
             result = genai.embed_content(
                 model=self.embedding_model,
                 content=truncated_text,
-                task_type="semantic_similarity"
+                task_type="semantic_similarity",
             )
 
             embedding = result.get("embedding", [])
@@ -325,7 +389,9 @@ class GeminiClient:
             logger.error(f"Entity extraction failed: {e}")
             return self._mock_entities(chunk_text, chunk_id)
 
-    def _parse_entities_response(self, response_text: str, chunk_id: str) -> List[Entity]:
+    def _parse_entities_response(
+        self, response_text: str, chunk_id: str
+    ) -> List[Entity]:
         """Parse entity extraction response into Entity objects."""
         entities = []
 
@@ -346,14 +412,18 @@ class GeminiClient:
                 except ValueError:
                     entity_type = EntityType.CONCEPT
 
-                entity_id = self._generate_entity_id(item.get("name", "unknown"), chunk_id)
+                entity_id = self._generate_entity_id(
+                    item.get("name", "unknown"), chunk_id
+                )
 
-                entities.append(Entity(
-                    id=entity_id,
-                    name=item.get("name", "Unknown"),
-                    entity_type=entity_type,
-                    definition=item.get("definition", "")
-                ))
+                entities.append(
+                    Entity(
+                        id=entity_id,
+                        name=item.get("name", "Unknown"),
+                        entity_type=entity_type,
+                        definition=item.get("definition", ""),
+                    )
+                )
 
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse entity extraction response: {e}")
@@ -368,6 +438,7 @@ class GeminiClient:
     def _mock_embedding(self, text: str) -> List[float]:
         """Generate mock embedding for testing without API access."""
         import numpy as np
+
         np.random.seed(hash(text) % (2**32))
         return list(np.random.randn(768).astype(np.float64))
 
@@ -380,12 +451,14 @@ class GeminiClient:
         for i, word in enumerate(words):
             if len(word) > 5 and word.isalpha():
                 entity_id = self._generate_entity_id(word, chunk_id)
-                entities.append(Entity(
-                    id=entity_id,
-                    name=word,
-                    entity_type=EntityType.CONCEPT,
-                    definition=f"Extracted from chunk {chunk_id}"
-                ))
+                entities.append(
+                    Entity(
+                        id=entity_id,
+                        name=word,
+                        entity_type=EntityType.CONCEPT,
+                        definition=f"Extracted from chunk {chunk_id}",
+                    )
+                )
 
         return entities[:5]  # Limit to 5 entities per chunk
 
@@ -412,9 +485,8 @@ class GeminiClient:
             response = model.generate_content(
                 prompt,
                 generation_config=genai.GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=0.2
-                )
+                    max_output_tokens=max_tokens, temperature=0.2
+                ),
             )
 
             return response.text
@@ -440,6 +512,7 @@ class GeminiClient:
         """
         try:
             import tiktoken
+
             encoding = tiktoken.get_encoding("cl100k_base")
             return len(encoding.encode(text))
         except ImportError:
@@ -449,10 +522,12 @@ class GeminiClient:
     def _generate_entity_id(self, prefix: str, text: str) -> str:
         """Generate hash-based entity ID."""
         hash_str = hashlib.md5(text.lower().encode()).hexdigest()[:12]
-        clean_prefix = prefix.lower().replace('_', '')
+        clean_prefix = prefix.lower().replace("_", "")
         return f"{clean_prefix}_{hash_str}"
 
-    def _parse_entities_response(self, response_text: str, chunk_id: str) -> List[Dict[str, Any]]:
+    def _parse_entities_response(
+        self, response_text: str, chunk_id: str
+    ) -> List[Dict[str, Any]]:
         """
         Parse entity extraction response into structured format.
 
@@ -496,7 +571,7 @@ class GeminiClient:
                     "TOPIC": "Topic",
                     "CONCEPT": "Concept",
                     "METHODOLOGY": "Methodology",
-                    "FINDING": "Finding"
+                    "FINDING": "Finding",
                 }
                 entity_type = type_mapping.get(entity_type_str, "Concept")
                 prefix = entity_type.lower()
@@ -509,7 +584,7 @@ class GeminiClient:
                     "category": item.get("category", "General"),
                     "confidence": float(item.get("confidence", 0.7)),
                     "context_snippet": (item.get("context_snippet", "") or "")[:150],
-                    "chunk_id": chunk_id
+                    "chunk_id": chunk_id,
                 }
 
                 if entity["name"] and entity["name"] != "Unknown":
@@ -523,10 +598,7 @@ class GeminiClient:
         return entities
 
     async def extract_entities(
-        self,
-        chunk_text: str,
-        chunk_id: str,
-        max_tokens: int = 4096
+        self, chunk_text: str, chunk_id: str, max_tokens: int = 4096
     ) -> List[Dict[str, Any]]:
         """
         Extract entities from chunk text using Gemini LLM.
@@ -554,9 +626,8 @@ class GeminiClient:
             response = model.generate_content(
                 prompt,
                 generation_config=genai.GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=0.2
-                )
+                    max_output_tokens=max_tokens, temperature=0.2
+                ),
             )
 
             response_text = response.text
@@ -606,7 +677,7 @@ class KnowledgeGraphProcessor:
         chunk_size: int = 800,
         chunk_overlap: int = 100,
         min_chunk_tokens: int = 500,
-        max_chunk_tokens: int = 1000
+        max_chunk_tokens: int = 1000,
     ):
         """
         Initialize the Knowledge Graph Processor.
@@ -642,6 +713,7 @@ class KnowledgeGraphProcessor:
         """Initialize tiktoken encoder for accurate token counting."""
         try:
             import tiktoken
+
             self.encoding = tiktoken.get_encoding("cl100k_base")
         except ImportError:
             logger.warning("tiktoken not available, using whitespace tokenization")
@@ -656,19 +728,10 @@ class KnowledgeGraphProcessor:
         """
         self._progress_callback = callback
 
-    def _emit_progress(
-        self,
-        stage: str,
-        current: int,
-        total: int,
-        message: str
-    ):
+    def _emit_progress(self, stage: str, current: int, total: int, message: str):
         """Emit progress update via callback."""
         progress = ProcessingProgress(
-            stage=stage,
-            current=current,
-            total=total,
-            message=message
+            stage=stage, current=current, total=total, message=message
         )
         if self._progress_callback:
             self._progress_callback(progress)
@@ -680,7 +743,8 @@ class KnowledgeGraphProcessor:
         module_id: str,
         user_id: str,
         file_path: str = None,
-        document_data: Dict[str, Any] = None
+        document_data: Dict[str, Any] = None,
+        use_hierarchical_chunking: bool = False,
     ) -> Dict[str, Any]:
         """
         Process a single document into a knowledge graph.
@@ -691,12 +755,16 @@ class KnowledgeGraphProcessor:
             user_id: User who owns this document
             file_path: Path to the document file (PDF/TXT)
             document_data: Pre-loaded document data (alternative to file_path)
+            use_hierarchical_chunking: If True, use parent-child chunking strategy
+                for improved RAG retrieval. Parent chunks (~1500 tokens) provide
+                section-level context, child chunks (~800 tokens) for precise search.
 
         Returns:
             Dict containing processing summary:
             - document_id: The processed document ID
             - chunk_count: Number of chunks created
             - entity_count: Number of entities extracted
+            - parent_chunk_count: Number of parent chunks (if hierarchical)
             - status: 'success' or 'error'
             - error: Error message if failed
         """
@@ -705,8 +773,9 @@ class KnowledgeGraphProcessor:
             "module_id": module_id,
             "chunk_count": 0,
             "entity_count": 0,
+            "parent_chunk_count": 0,
             "status": "processing",
-            "error": None
+            "error": None,
         }
 
         try:
@@ -718,10 +787,54 @@ class KnowledgeGraphProcessor:
                 raise ValueError(f"Failed to load document content: {document_id}")
 
             result["text_length"] = len(text)
-            self._emit_progress("chunking", 0, 1, f"Creating chunks from {len(text)} chars")
 
-            # Step 2: Create semantic chunks
-            chunks = await self._create_chunks(text, document_id, module_id)
+            # Step 2: Create chunks (hierarchical or flat)
+            if use_hierarchical_chunking:
+                self._emit_progress(
+                    "chunking",
+                    0,
+                    1,
+                    f"Creating hierarchical chunks from {len(text)} chars",
+                )
+
+                # Use hierarchical parent-child chunking
+                hierarchical_result = await self.chunk_text_hierarchical(
+                    text, document_id, module_id
+                )
+                parent_chunks = hierarchical_result["parent_chunks"]
+                child_chunks_data = hierarchical_result["child_chunks"]
+                relationships = hierarchical_result["relationships"]
+
+                result["parent_chunk_count"] = len(parent_chunks)
+                result["chunk_count"] = len(child_chunks_data)
+
+                # Convert child chunk dicts to Chunk objects
+                chunks = []
+                for child_data in child_chunks_data:
+                    chunk = Chunk(
+                        id=f"chunk_{document_id}_{child_data['index']}",
+                        text=child_data["text"],
+                        index=child_data["index"],
+                        token_count=child_data["token_count"],
+                    )
+                    chunks.append(chunk)
+
+                self._emit_progress(
+                    "embeddings",
+                    0,
+                    len(chunks),
+                    f"Generating embeddings for {len(chunks)} child chunks",
+                )
+            else:
+                self._emit_progress(
+                    "chunking", 0, 1, f"Creating chunks from {len(text)} chars"
+                )
+
+                # Use flat chunking (original behavior)
+                chunks = await self._create_chunks(text, document_id, module_id)
+                parent_chunks = None
+                relationships = None
+
             result["chunk_count"] = len(chunks)
             self._emit_progress("embeddings", 0, len(chunks), "Generating embeddings")
 
@@ -743,22 +856,57 @@ class KnowledgeGraphProcessor:
                     "entities",
                     i + 1,
                     len(chunks),
-                    f"Extracted {len(entities)} entities from chunk {i + 1}"
+                    f"Extracted {len(entities)} entities from chunk {i + 1}",
                 )
 
             result["entity_count"] = len(all_entities)
             self._emit_progress("storing", 0, 1, "Storing in Neo4j")
 
             # Step 5: Store everything in Neo4j with module_id tagging
-            await self._store_in_neo4j(document_id, module_id, user_id, chunks, all_entities)
+            await self._store_in_neo4j(
+                document_id, module_id, user_id, chunks, all_entities
+            )
+
+            # Step 6: Store parent chunks and relationships (if hierarchical)
+            if use_hierarchical_chunking and parent_chunks:
+                self._emit_progress(
+                    "storing_parents",
+                    0,
+                    1,
+                    f"Storing {len(parent_chunks)} parent chunks",
+                )
+                await self._store_parent_chunks(
+                    parent_chunks, document_id, module_id, user_id
+                )
+
+                # Link child chunks to parent chunks
+                if relationships:
+                    with self.driver.session() as session:
+                        for rel in relationships:
+                            parent_id = (
+                                f"parent_chunk_{document_id}_{rel['parent_index']}"
+                            )
+                            child_id = f"chunk_{document_id}_{rel['child_index']}"
+                            await self._link_child_to_parent(
+                                session, child_id, parent_id
+                            )
 
             result["status"] = "success"
-            self._emit_progress("complete", 1, 1, f"Processed {document_id} successfully")
-
-            logger.info(
-                f"Document {document_id} processed: {len(chunks)} chunks, "
-                f"{len(all_entities)} entities"
+            self._emit_progress(
+                "complete", 1, 1, f"Processed {document_id} successfully"
             )
+
+            if use_hierarchical_chunking:
+                logger.info(
+                    f"Document {document_id} processed (hierarchical): "
+                    f"{len(parent_chunks)} parents, {len(chunks)} children, "
+                    f"{len(all_entities)} entities"
+                )
+            else:
+                logger.info(
+                    f"Document {document_id} processed: {len(chunks)} chunks, "
+                    f"{len(all_entities)} entities"
+                )
 
         except Exception as e:
             logger.error(f"Document processing failed for {document_id}: {e}")
@@ -773,7 +921,7 @@ class KnowledgeGraphProcessor:
         document_ids: List[str],
         module_id: str,
         user_id: str,
-        document_map: Dict[str, Dict[str, Any]] = None
+        document_map: Dict[str, Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Process multiple documents in batch.
@@ -795,14 +943,13 @@ class KnowledgeGraphProcessor:
         total = len(document_ids)
         for i, doc_id in enumerate(document_ids):
             self._emit_progress(
-                "batch",
-                i + 1,
-                total,
-                f"Processing document {i + 1}/{total}: {doc_id}"
+                "batch", i + 1, total, f"Processing document {i + 1}/{total}: {doc_id}"
             )
 
             doc_data = doc_map.get(doc_id)
-            result = await self.process_document(doc_id, module_id, user_id, document_data=doc_data)
+            result = await self.process_document(
+                doc_id, module_id, user_id, document_data=doc_data
+            )
             results.append(result)
 
         logger.info(f"Batch processing complete: {len(results)} documents")
@@ -812,7 +959,7 @@ class KnowledgeGraphProcessor:
         self,
         document_id: str,
         file_path: str = None,
-        document_data: Dict[str, Any] = None
+        document_data: Dict[str, Any] = None,
     ) -> str:
         """
         Extract text from PDF or plain text file.
@@ -849,6 +996,7 @@ class KnowledgeGraphProcessor:
         # Try Firestore if available
         try:
             from config import db
+
             # Find note in nested subcollections (modules/{id}/notes/{id})
             notes = list(
                 db.collection_group("notes")
@@ -926,13 +1074,13 @@ class KnowledgeGraphProcessor:
             File content as string
         """
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return f.read()
         except UnicodeDecodeError:
             # Try different encodings
-            for encoding in ['latin-1', 'cp1252', 'utf-16']:
+            for encoding in ["latin-1", "cp1252", "utf-16"]:
                 try:
-                    with open(file_path, 'r', encoding=encoding) as f:
+                    with open(file_path, "r", encoding=encoding) as f:
                         return f.read()
                 except UnicodeDecodeError:
                     continue
@@ -940,10 +1088,7 @@ class KnowledgeGraphProcessor:
             raise ValueError(f"Could not decode text file: {file_path}")
 
     async def _create_chunks(
-        self,
-        text: str,
-        document_id: str,
-        module_id: str
+        self, text: str, document_id: str, module_id: str
     ) -> List[Chunk]:
         """
         Split text into overlapping semantic chunks.
@@ -981,10 +1126,7 @@ class KnowledgeGraphProcessor:
 
             # Create chunk object
             chunk = Chunk(
-                id=chunk_id,
-                text=chunk_text,
-                index=chunk_count,
-                token_count=token_count
+                id=chunk_id, text=chunk_text, index=chunk_count, token_count=token_count
             )
             chunks.append(chunk)
 
@@ -1000,12 +1142,365 @@ class KnowledgeGraphProcessor:
         logger.info(f"Created {len(chunks)} chunks for document {document_id}")
         return chunks
 
-    async def create_semantic_chunks(
+    async def chunk_text_hierarchical(
+        self, text: str, document_id: str, module_id: str
+    ) -> Dict[str, Any]:
+        """
+        Create hierarchical parent-child chunks for improved RAG retrieval.
+
+        Parent chunks: ~1500 tokens (section-level context for LLM)
+        Child chunks: ~800 tokens with 200 overlap (for precise search)
+        When a child matches, its parent provides expanded context.
+
+        This method is ported from AURA-CHAT/backend/document_processor.py
+        to maintain consistency across the AURA monorepo.
+
+        Args:
+            text: Full document text
+            document_id: Document ID for chunk ID generation
+            module_id: Module ID for tagging
+
+        Returns:
+            Dict with:
+                - 'parent_chunks': List of parent chunk dicts
+                - 'child_chunks': List of child chunk dicts
+                - 'relationships': List of {parent_index, child_index} mappings
+        """
+        # Step 1: Normalize text while preserving paragraph structure
+        # Don't use normalize_text() here as it collapses newlines to spaces
+        # Instead, do lighter normalization that keeps paragraph breaks
+        normalized_text = unicodedata.normalize("NFKC", text)
+        # Replace various unicode whitespace with regular space (but keep \n)
+        normalized_text = re.sub(
+            r"[\u00a0\u2000-\u200b\u2028\u2029\u202f\u205f\u3000]", " ", normalized_text
+        )
+        # Remove control characters except newlines and tabs
+        normalized_text = re.sub(
+            r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", normalized_text
+        )
+        # Collapse multiple spaces to single (but keep newlines)
+        normalized_text = re.sub(r" +", " ", normalized_text)
+        normalized_text = normalized_text.strip()
+
+        total_tokens = count_tokens(normalized_text)
+        logger.info(f"Hierarchical chunking: {total_tokens} tokens total")
+
+        parent_chunks = []
+        child_chunks = []
+        relationships = []
+
+        # Step 2: Create parent chunks by grouping paragraphs
+        paragraphs = [p.strip() for p in normalized_text.split("\n") if p.strip()]
+
+        # If normalization collapsed newlines, try splitting on double spaces
+        if len(paragraphs) <= 1 and normalized_text:
+            # Try sentence-based splitting as fallback
+            paragraphs = split_into_sentences(normalized_text)
+
+        current_tokens = 0
+        current_text = []
+        parent_index = 0
+
+        for paragraph in paragraphs:
+            para_tokens = count_tokens(paragraph)
+
+            if current_tokens + para_tokens > PARENT_CHUNK_SIZE:
+                if current_text:
+                    parent_text = " ".join(current_text)
+                    parent_chunks.append(
+                        {
+                            "index": parent_index,
+                            "text": parent_text,
+                            "token_count": current_tokens,
+                            "type": "parent",
+                        }
+                    )
+                    parent_index += 1
+
+                # Keep some overlap for context continuity
+                overlap_paragraphs = []
+                overlap_token_count = 0
+                parent_overlap = min(200, PARENT_CHUNK_SIZE // 5)
+
+                for prev_para in reversed(current_text):
+                    prev_tokens = count_tokens(prev_para)
+                    if overlap_token_count + prev_tokens > parent_overlap:
+                        break
+                    overlap_paragraphs.insert(0, prev_para)
+                    overlap_token_count += prev_tokens
+
+                current_text = overlap_paragraphs
+                current_tokens = overlap_token_count
+
+            current_text.append(paragraph)
+            current_tokens += para_tokens
+
+        # Add final parent chunk
+        if current_text:
+            parent_text = " ".join(current_text)
+            parent_chunks.append(
+                {
+                    "index": parent_index,
+                    "text": parent_text,
+                    "token_count": current_tokens,
+                    "type": "parent",
+                }
+            )
+
+        logger.info(f"Created {len(parent_chunks)} parent chunks")
+
+        # Step 3: Create child chunks within each parent using sentence-aware splitting
+        child_index = 0
+        for parent in parent_chunks:
+            parent_text = parent["text"]
+            parent_id = parent["index"]
+
+            # Split parent into sentences for cleaner chunk boundaries
+            sentences = split_into_sentences(parent_text)
+            temp_tokens = 0
+            temp_sentences = []
+
+            for sentence in sentences:
+                sentence_tokens = count_tokens(sentence)
+
+                # Check if adding this sentence exceeds chunk size
+                if temp_tokens + sentence_tokens > CHILD_CHUNK_SIZE:
+                    # Create chunk from accumulated sentences
+                    if temp_sentences:
+                        chunk_text = " ".join(temp_sentences)
+                        child_chunks.append(
+                            {
+                                "index": child_index,
+                                "text": chunk_text,
+                                "token_count": temp_tokens,
+                                "parent_index": parent_id,
+                                "type": "child",
+                            }
+                        )
+                        relationships.append(
+                            {"parent_index": parent_id, "child_index": child_index}
+                        )
+                        child_index += 1
+
+                        # Keep overlap for context continuity
+                        overlap_sentences = []
+                        overlap_token_count = 0
+                        for prev_sent in reversed(temp_sentences):
+                            prev_tokens = count_tokens(prev_sent)
+                            if overlap_token_count + prev_tokens > CHILD_CHUNK_OVERLAP:
+                                break
+                            overlap_sentences.insert(0, prev_sent)
+                            overlap_token_count += prev_tokens
+
+                        temp_sentences = overlap_sentences
+                        temp_tokens = overlap_token_count
+
+                    # Handle oversized sentence (fallback to word-by-word)
+                    if sentence_tokens > CHILD_CHUNK_SIZE:
+                        words = sentence.split()
+                        word_temp = []
+                        word_tokens_temp = 0
+
+                        for word in words:
+                            word_tokens = count_tokens(word + " ")
+                            if word_tokens_temp + word_tokens > CHILD_CHUNK_SIZE:
+                                if word_temp:
+                                    chunk_text = " ".join(word_temp)
+                                    child_chunks.append(
+                                        {
+                                            "index": child_index,
+                                            "text": chunk_text,
+                                            "token_count": word_tokens_temp,
+                                            "parent_index": parent_id,
+                                            "type": "child",
+                                        }
+                                    )
+                                    relationships.append(
+                                        {
+                                            "parent_index": parent_id,
+                                            "child_index": child_index,
+                                        }
+                                    )
+                                    child_index += 1
+                                word_temp = [word]
+                                word_tokens_temp = word_tokens
+                            else:
+                                word_temp.append(word)
+                                word_tokens_temp += word_tokens
+
+                        # Add remaining words to temp for next iteration
+                        if word_temp:
+                            temp_sentences = [" ".join(word_temp)]
+                            temp_tokens = word_tokens_temp
+                    else:
+                        # Sentence fits after creating chunk, add to fresh temp
+                        temp_sentences.append(sentence)
+                        temp_tokens += sentence_tokens
+                else:
+                    # Sentence fits in current chunk, add it
+                    temp_sentences.append(sentence)
+                    temp_tokens += sentence_tokens
+
+            # Handle final chunk for this parent (with merge logic for small chunks)
+            if temp_sentences:
+                chunk_text = " ".join(temp_sentences)
+                token_count = temp_tokens
+
+                # Check if final chunk is too small (< 50% of target)
+                if token_count < CHILD_CHUNK_SIZE * 0.5 and child_chunks:
+                    # Only merge if previous chunk belongs to same parent
+                    prev_chunk = child_chunks[-1]
+                    if prev_chunk.get("parent_index") == parent_id:
+                        # Merge with previous chunk
+                        prev_chunk["text"] += " " + chunk_text
+                        prev_chunk["token_count"] = count_tokens(prev_chunk["text"])
+                        logger.debug(
+                            f"Merged small final chunk ({token_count} tokens) with previous"
+                        )
+                    else:
+                        # Different parent, keep separate
+                        child_chunks.append(
+                            {
+                                "index": child_index,
+                                "text": chunk_text,
+                                "token_count": token_count,
+                                "parent_index": parent_id,
+                                "type": "child",
+                            }
+                        )
+                        relationships.append(
+                            {"parent_index": parent_id, "child_index": child_index}
+                        )
+                        child_index += 1
+                else:
+                    # Normal size, add as new chunk
+                    child_chunks.append(
+                        {
+                            "index": child_index,
+                            "text": chunk_text,
+                            "token_count": token_count,
+                            "parent_index": parent_id,
+                            "type": "child",
+                        }
+                    )
+                    relationships.append(
+                        {"parent_index": parent_id, "child_index": child_index}
+                    )
+                    child_index += 1
+
+        logger.info(
+            f"Created {len(child_chunks)} child chunks with "
+            f"{len(relationships)} parent-child relationships"
+        )
+
+        # Step 4: Add default fields to child chunks for compatibility
+        for chunk in child_chunks:
+            chunk.setdefault("entities", [])
+            chunk.setdefault("entity_names", [])
+            chunk.setdefault("primary_entity", "")
+            if "position" not in chunk:
+                chunk["position"] = {
+                    "start": 0,
+                    "end": len(chunk.get("text", "")),
+                }
+
+        return {
+            "parent_chunks": parent_chunks,
+            "child_chunks": child_chunks,
+            "relationships": relationships,
+        }
+
+    async def _store_parent_chunks(
         self,
-        text: str,
+        parent_chunks: List[Dict[str, Any]],
         document_id: str,
         module_id: str,
-        use_llm: bool = True
+        user_id: str,
+    ) -> None:
+        """
+        Store parent chunks in Neo4j with HAS_PARENT_CHUNK relationship.
+
+        Creates ParentChunk nodes and links them to the Document node.
+        Also generates embeddings for parent chunks if not already present.
+
+        Args:
+            parent_chunks: List of parent chunk dicts from chunk_text_hierarchical
+            document_id: Document ID for relationship linking
+            module_id: Module ID for tagging all nodes
+            user_id: User who owns the document
+        """
+        if not self.driver:
+            raise ValueError("Neo4j driver not available")
+
+        # Generate embeddings for parent chunks if needed
+        parent_texts = [p["text"] for p in parent_chunks]
+        embeddings = await self._generate_embeddings(parent_texts)
+
+        for parent, embedding in zip(parent_chunks, embeddings):
+            parent["embedding"] = embedding
+
+        with self.driver.session() as session:
+            for parent in parent_chunks:
+                parent_id = f"parent_chunk_{document_id}_{parent['index']}"
+
+                # Create ParentChunk node
+                query = """
+                MERGE (pc:ParentChunk {id: $id})
+                SET pc.text = $text,
+                    pc.token_count = $token_count,
+                    pc.index = $index,
+                    pc.module_id = $module_id,
+                    pc.document_id = $document_id,
+                    pc.embedding = $embedding
+                RETURN pc.id
+                """
+                session.run(
+                    query,
+                    {
+                        "id": parent_id,
+                        "text": parent["text"][:10000],  # Limit text size for Neo4j
+                        "token_count": parent["token_count"],
+                        "index": parent["index"],
+                        "module_id": module_id,
+                        "document_id": document_id,
+                        "embedding": parent.get("embedding"),
+                    },
+                )
+
+                # Create HAS_PARENT_CHUNK relationship from Document
+                rel_query = """
+                MATCH (d:Document {id: $doc_id})
+                MATCH (pc:ParentChunk {id: $parent_id})
+                MERGE (d)-[r:HAS_PARENT_CHUNK]->(pc)
+                RETURN r
+                """
+                session.run(rel_query, {"doc_id": document_id, "parent_id": parent_id})
+
+        logger.info(
+            f"Stored {len(parent_chunks)} parent chunks for document {document_id}"
+        )
+
+    async def _link_child_to_parent(
+        self, session, child_chunk_id: str, parent_chunk_id: str
+    ) -> None:
+        """
+        Create BELONGS_TO_PARENT relationship between child and parent chunk.
+
+        Args:
+            session: Neo4j session
+            child_chunk_id: Child chunk ID
+            parent_chunk_id: Parent chunk ID
+        """
+        query = """
+        MATCH (c:Chunk {id: $child_id})
+        MATCH (pc:ParentChunk {id: $parent_id})
+        MERGE (c)-[r:BELONGS_TO_PARENT]->(pc)
+        RETURN r
+        """
+        session.run(query, {"child_id": child_chunk_id, "parent_id": parent_chunk_id})
+
+    async def create_semantic_chunks(
+        self, text: str, document_id: str, module_id: str, use_llm: bool = True
     ) -> List[Chunk]:
         """
         Create semantically coherent chunks using LLM.
@@ -1034,8 +1529,10 @@ class KnowledgeGraphProcessor:
                         semantic_chunks, document_id, module_id
                     )
                     self._emit_progress(
-                        "semantic_chunking", 1, 1,
-                        f"Created {len(final_chunks)} semantic chunks"
+                        "semantic_chunking",
+                        1,
+                        1,
+                        f"Created {len(final_chunks)} semantic chunks",
                     )
                     return final_chunks
             except Exception as e:
@@ -1045,16 +1542,24 @@ class KnowledgeGraphProcessor:
         self._emit_progress(
             "semantic_chunking", 0, 1, "Using sentence-based chunking fallback"
         )
-        fallback_chunks = await self._fallback_sentence_chunker(text, document_id, module_id)
-        final_chunks = self._add_overlap_to_chunks(fallback_chunks, document_id, module_id)
+        fallback_chunks = await self._fallback_sentence_chunker(
+            text, document_id, module_id
+        )
+        final_chunks = self._add_overlap_to_chunks(
+            fallback_chunks, document_id, module_id
+        )
 
         self._emit_progress(
-            "semantic_chunking", 1, 1,
-            f"Created {len(final_chunks)} chunks via sentence splitting"
+            "semantic_chunking",
+            1,
+            1,
+            f"Created {len(final_chunks)} chunks via sentence splitting",
         )
         return final_chunks
 
-    async def _create_chunks_with_llm(self, text: str, document_id: str) -> List[Dict[str, Any]]:
+    async def _create_chunks_with_llm(
+        self, text: str, document_id: str
+    ) -> List[Dict[str, Any]]:
         """
         Use LLM to identify semantic chunk boundaries.
 
@@ -1132,7 +1637,7 @@ class KnowledgeGraphProcessor:
                 chunk = {
                     "chunk_index": item.get("chunk_index", len(chunks)),
                     "content": item.get("content", "").strip(),
-                    "description": item.get("description", "").strip()
+                    "description": item.get("description", "").strip(),
                 }
                 if chunk["content"]:
                     chunks.append(chunk)
@@ -1144,10 +1649,7 @@ class KnowledgeGraphProcessor:
             return []
 
     def _add_overlap_to_chunks(
-        self,
-        chunks_data: List[Dict[str, Any]],
-        document_id: str,
-        module_id: str
+        self, chunks_data: List[Dict[str, Any]], document_id: str, module_id: str
     ) -> List[Chunk]:
         """
         Convert chunk data to Chunk objects with overlap.
@@ -1192,10 +1694,7 @@ class KnowledgeGraphProcessor:
 
             # Create Chunk object
             chunk = Chunk(
-                id=chunk_id,
-                text=content,
-                index=chunk_count,
-                token_count=token_count
+                id=chunk_id, text=content, index=chunk_count, token_count=token_count
             )
 
             # Store description in properties for later use
@@ -1209,11 +1708,7 @@ class KnowledgeGraphProcessor:
         return final_chunks
 
     def _split_oversized_chunk(
-        self,
-        content: str,
-        base_index: int,
-        document_id: str,
-        description: str
+        self, content: str, base_index: int, document_id: str, description: str
     ) -> List[Chunk]:
         """
         Split oversized chunks into smaller pieces.
@@ -1242,7 +1737,7 @@ class KnowledgeGraphProcessor:
                 id=chunk_id,
                 text=sub_content,
                 index=base_index + sub_count,
-                token_count=len(sub_tokens)
+                token_count=len(sub_tokens),
             )
             chunk.properties["description"] = f"{description} (part {sub_count + 1})"
             chunk.properties["is_split"] = True
@@ -1256,10 +1751,7 @@ class KnowledgeGraphProcessor:
         return chunks
 
     async def _fallback_sentence_chunker(
-        self,
-        text: str,
-        document_id: str,
-        module_id: str
+        self, text: str, document_id: str, module_id: str
     ) -> List[Dict[str, Any]]:
         """
         Fallback chunking using sentence boundaries.
@@ -1279,7 +1771,7 @@ class KnowledgeGraphProcessor:
         import re
 
         # Common sentence-ending punctuation
-        sentence_endings = re.compile(r'[.!?]\s+')
+        sentence_endings = re.compile(r"[.!?]\s+")
         sentences = sentence_endings.split(text)
 
         # Filter empty sentences and clean up
@@ -1295,14 +1787,19 @@ class KnowledgeGraphProcessor:
             sentence_tokens = self._count_tokens(sentence)
 
             # If adding this sentence would exceed max, start new chunk
-            if current_tokens + sentence_tokens > self.max_chunk_tokens and current_chunk:
+            if (
+                current_tokens + sentence_tokens > self.max_chunk_tokens
+                and current_chunk
+            ):
                 # Finalize current chunk
                 content = " ".join(current_chunk)
-                chunks.append({
-                    "chunk_index": chunk_index,
-                    "content": content,
-                    "description": f"Section {chunk_index + 1}"
-                })
+                chunks.append(
+                    {
+                        "chunk_index": chunk_index,
+                        "content": content,
+                        "description": f"Section {chunk_index + 1}",
+                    }
+                )
 
                 # Start new chunk with overlap
                 overlap_start = max(0, len(current_chunk) - 2)  # Keep last 2 sentences
@@ -1316,11 +1813,13 @@ class KnowledgeGraphProcessor:
         # Don't forget the last chunk
         if current_chunk:
             content = " ".join(current_chunk)
-            chunks.append({
-                "chunk_index": chunk_index,
-                "content": content,
-                "description": f"Section {chunk_index + 1}"
-            })
+            chunks.append(
+                {
+                    "chunk_index": chunk_index,
+                    "content": content,
+                    "description": f"Section {chunk_index + 1}",
+                }
+            )
 
         logger.info(f"Fallback chunker created {len(chunks)} chunks")
         return chunks
@@ -1368,7 +1867,7 @@ class KnowledgeGraphProcessor:
         all_embeddings = []
 
         for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+            batch = texts[i : i + batch_size]
             batch_embeddings = await self.gemini.get_embeddings_batch(batch)
             all_embeddings.extend(batch_embeddings)
 
@@ -1391,13 +1890,18 @@ class KnowledgeGraphProcessor:
         """
         # Use the new extract_entities method from GeminiClient
         raw_entities = await self.gemini.extract_entities(chunk.text, chunk.id)
-        logger.debug(f"Extracted {len(raw_entities)} raw entities from chunk {chunk.id}")
+        logger.debug(
+            f"Extracted {len(raw_entities)} raw entities from chunk {chunk.id}"
+        )
 
         # Convert to Entity objects
         entities = []
         for entity_data in raw_entities:
             entity = Entity(
-                id=entity_data.get("id", f"entity_{hashlib.md5(entity_data.get('name', '').encode()).hexdigest()[:12]}"),
+                id=entity_data.get(
+                    "id",
+                    f"entity_{hashlib.md5(entity_data.get('name', '').encode()).hexdigest()[:12]}",
+                ),
                 name=entity_data.get("name", "Unknown"),
                 entity_type=EntityType(entity_data.get("entity_type", "CONCEPT")),
                 definition=entity_data.get("definition", ""),
@@ -1405,8 +1909,8 @@ class KnowledgeGraphProcessor:
                     "category": entity_data.get("category", "General"),
                     "confidence": entity_data.get("confidence", 0.7),
                     "context_snippet": entity_data.get("context_snippet", ""),
-                    "chunk_id": entity_data.get("chunk_id", chunk.id)
-                }
+                    "chunk_id": entity_data.get("chunk_id", chunk.id),
+                },
             )
             entities.append(entity)
 
@@ -1446,7 +1950,9 @@ class KnowledgeGraphProcessor:
                     existing_context = existing.properties.get("context_snippet", "")
                     new_context = entity.properties.get("context_snippet", "")
                     if existing_context and new_context:
-                        existing.properties["context_snippet"] = f"{existing_context} ... {new_context}"
+                        existing.properties["context_snippet"] = (
+                            f"{existing_context} ... {new_context}"
+                        )
                     seen[key] = entity
 
         name_deduped = list(seen.values())
@@ -1465,7 +1971,7 @@ class KnowledgeGraphProcessor:
     def _semantic_entity_deduplication(
         self,
         entities: List[Entity],
-        similarity_threshold: float = ENTITY_DEDUP_SIMILARITY_THRESHOLD
+        similarity_threshold: float = ENTITY_DEDUP_SIMILARITY_THRESHOLD,
     ) -> List[Entity]:
         """
         Merge entities with high semantic similarity using embedding comparison.
@@ -1487,6 +1993,7 @@ class KnowledgeGraphProcessor:
 
         try:
             import google.generativeai as genai
+
             if self.gemini.api_key:
                 genai.configure(api_key=self.gemini.api_key)
                 embeddings = []
@@ -1494,7 +2001,7 @@ class KnowledgeGraphProcessor:
                     result = genai.embed_content(
                         model=self.gemini.embedding_model,
                         content=name,
-                        task_type="semantic_similarity"
+                        task_type="semantic_similarity",
                     )
                     embeddings.append(result.get("embedding", []))
             else:
@@ -1549,23 +2056,35 @@ class KnowledgeGraphProcessor:
             else:
                 # Pick highest confidence as canonical
                 cluster_entities = [entities[i] for i in indices]
-                canonical = max(cluster_entities, key=lambda e: e.properties.get("confidence", 0))
+                canonical = max(
+                    cluster_entities, key=lambda e: e.properties.get("confidence", 0)
+                )
 
                 # Merge definitions and contexts
-                all_definitions = [e.definition for e in cluster_entities if e.definition]
+                all_definitions = [
+                    e.definition for e in cluster_entities if e.definition
+                ]
                 if all_definitions:
                     canonical.definition = all_definitions[0]
 
-                all_contexts = [e.properties.get("context_snippet", "") for e in cluster_entities if e.properties.get("context_snippet")]
+                all_contexts = [
+                    e.properties.get("context_snippet", "")
+                    for e in cluster_entities
+                    if e.properties.get("context_snippet")
+                ]
                 if all_contexts:
-                    canonical.properties["context_snippet"] = " ... ".join(all_contexts[:2])
+                    canonical.properties["context_snippet"] = " ... ".join(
+                        all_contexts[:2]
+                    )
 
                 merged_entities.append(canonical)
 
         original_count = len(entities)
         merged_count = len(merged_entities)
         if merged_count < original_count:
-            logger.info(f"Semantic deduplication: {original_count} -> {merged_count} entities")
+            logger.info(
+                f"Semantic deduplication: {original_count} -> {merged_count} entities"
+            )
 
         return merged_entities
 
@@ -1575,7 +2094,7 @@ class KnowledgeGraphProcessor:
         module_id: str,
         user_id: str,
         chunks: List[Chunk],
-        entities: List[Entity]
+        entities: List[Entity],
     ):
         """
         Store document, chunks, and entities in Neo4j with module_id tagging.
@@ -1623,12 +2142,8 @@ class KnowledgeGraphProcessor:
         )
 
     async def _create_document_node(
-        self,
-        session,
-        document_id: str,
-        module_id: str,
-        user_id: str,
-        chunks: List ):
+        self, session, document_id: str, module_id: str, user_id: str, chunks: List
+    ):
         """Create or update Document node with module_id."""
         query = """
         MERGE (d:Document {id: $id})
@@ -1638,13 +2153,16 @@ class KnowledgeGraphProcessor:
             d.updated_at = $updated_at
         RETURN d.id
         """
-        session.run(query, {
-            "id": document_id,
-            "module_id": module_id,
-            "user_id": user_id,
-            "chunk_count": len(chunks),
-            "updated_at": datetime.utcnow().isoformat()
-        })
+        session.run(
+            query,
+            {
+                "id": document_id,
+                "module_id": module_id,
+                "user_id": user_id,
+                "chunk_count": len(chunks),
+                "updated_at": datetime.utcnow().isoformat(),
+            },
+        )
 
     async def _create_chunk_node(self, session, chunk: Chunk, module_id: str):
         """Create Chunk node with embedding and module_id."""
@@ -1663,7 +2181,7 @@ class KnowledgeGraphProcessor:
             "token_count": chunk.token_count,
             "index": chunk.index,
             "module_id": module_id,
-            "embedding": chunk.embedding
+            "embedding": chunk.embedding,
         }
         session.run(query, params)
 
@@ -1700,16 +2218,12 @@ class KnowledgeGraphProcessor:
             "confidence": entity.properties.get("confidence", 0.7),
             "context_snippet": entity.properties.get("context_snippet", "")[:200],
             "chunk_id": entity.properties.get("chunk_id", ""),
-            "embedding": entity.embedding
+            "embedding": entity.embedding,
         }
         session.run(query, params)
 
     async def _create_chunk_entity_relationship(
-        self,
-        session,
-        chunk_id: str,
-        entity_id: str,
-        relevance_score: float = 1.0
+        self, session, chunk_id: str, entity_id: str, relevance_score: float = 1.0
     ):
         """Create CONTAINS_ENTITY relationship with relevance score."""
         query = """
@@ -1719,18 +2233,18 @@ class KnowledgeGraphProcessor:
         SET r.relevance_score = $relevance_score
         RETURN r
         """
-        session.run(query, {
-            "chunk_id": chunk_id,
-            "entity_id": entity_id,
-            "relevance_score": relevance_score
-        })
+        session.run(
+            query,
+            {
+                "chunk_id": chunk_id,
+                "entity_id": entity_id,
+                "relevance_score": relevance_score,
+            },
+        )
 
 
 async def process_document_simple(
-    document_id: str,
-    module_id: str,
-    user_id: str,
-    file_path: str = None
+    document_id: str, module_id: str, user_id: str, file_path: str = None
 ) -> Dict[str, Any]:
     """
     Simple document processing function for basic usage.
@@ -1747,4 +2261,6 @@ async def process_document_simple(
         Processing result dict
     """
     processor = KnowledgeGraphProcessor()
-    return await processor.process_document(document_id, module_id, user_id, file_path=file_path)
+    return await processor.process_document(
+        document_id, module_id, user_id, file_path=file_path
+    )
