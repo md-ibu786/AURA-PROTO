@@ -70,8 +70,12 @@ class Relationship(BaseModel):
     connecting concepts, topics, methodologies, and findings.
     """
 
-    source_entity: str = Field(..., min_length=1, description="Name of the source entity")
-    target_entity: str = Field(..., min_length=1, description="Name of the target entity")
+    source_entity: str = Field(
+        ..., min_length=1, description="Name of the source entity"
+    )
+    target_entity: str = Field(
+        ..., min_length=1, description="Name of the target entity"
+    )
     relationship_type: Literal[
         "DEFINES",
         "DEPENDS_ON",
@@ -83,7 +87,9 @@ class Relationship(BaseModel):
         "REFERENCES",
         "RELATED_TO",
     ] = Field(..., description="Type of semantic relationship")
-    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidence score 0-1")
+    confidence: float = Field(
+        default=0.5, ge=0.0, le=1.0, description="Confidence score 0-1"
+    )
     evidence: Optional[str] = Field(
         default=None, max_length=300, description="Text supporting the relationship"
     )
@@ -474,13 +480,13 @@ class LLMEntityExtractor:
         batches = []
         paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
 
-        current_tokens = []
+        current_token_count = 0
         current_text = []
 
         for paragraph in paragraphs:
             para_tokens = self._count_tokens(paragraph)
 
-            if len(current_tokens) + para_tokens > LLM_ENTITY_BATCH_SIZE:
+            if current_token_count + para_tokens > LLM_ENTITY_BATCH_SIZE:
                 if current_text:
                     batches.append(" ".join(current_text))
 
@@ -496,14 +502,10 @@ class LLMEntityExtractor:
                     overlap_token_count += prev_tokens
 
                 current_text = overlap_paragraphs
-                current_tokens = (
-                    [self._count_tokens(" ".join(overlap_paragraphs))]
-                    if overlap_paragraphs
-                    else []
-                )
+                current_token_count = overlap_token_count
 
             current_text.append(paragraph)
-            current_tokens.append(para_tokens)
+            current_token_count += para_tokens
 
         if current_text:
             batches.append(" ".join(current_text))
@@ -745,9 +747,7 @@ No markdown, no explanations. Return empty array if no relationships found.
 
 <response_format>JSON Only</response_format>"""
 
-    def _flatten_entities(
-        self, entities: Dict[str, List[Any]]
-    ) -> List[Dict[str, Any]]:
+    def _flatten_entities(self, entities: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
         """
         Flatten entity dict structure to list for relationship extraction.
 
@@ -868,7 +868,8 @@ No markdown, no explanations. Return empty array if no relationships found.
 
             # Apply confidence threshold
             filtered = [
-                r for r in deduplicated
+                r
+                for r in deduplicated
                 if r.confidence >= LLM_RELATIONSHIP_MIN_CONFIDENCE
             ]
 
@@ -916,7 +917,9 @@ No markdown, no explanations. Return empty array if no relationships found.
 
             response_text = response.text.strip() if response.text else ""
 
-            logger.debug(f"Relationship extraction response length: {len(response_text)} chars")
+            logger.debug(
+                f"Relationship extraction response length: {len(response_text)} chars"
+            )
 
             if not response_text:
                 logger.warning("Relationship extraction returned empty response")
@@ -931,7 +934,9 @@ No markdown, no explanations. Return empty array if no relationships found.
 
                 try:
                     result = json.loads(json_str)
-                    logger.info(f"Successfully parsed relationship JSON: {list(result.keys())}")
+                    logger.info(
+                        f"Successfully parsed relationship JSON: {list(result.keys())}"
+                    )
                 except json.JSONDecodeError as e:
                     logger.error(f"Relationship JSON decode error: {e}")
                     logger.error(f"JSON string that failed: {json_str[:500]}")
@@ -939,7 +944,9 @@ No markdown, no explanations. Return empty array if no relationships found.
 
                 if "relationships" in result:
                     relationships = result["relationships"]
-                    logger.info(f"Extracted {len(relationships)} raw relationships from LLM")
+                    logger.info(
+                        f"Extracted {len(relationships)} raw relationships from LLM"
+                    )
                     return relationships
 
             logger.warning("No valid relationships JSON found in LLM response")
@@ -953,7 +960,9 @@ No markdown, no explanations. Return empty array if no relationships found.
                     f"Retrying relationship extraction in {wait_time}s (attempt {retry_count + 2}/{MAX_RETRIES + 1})"
                 )
                 await asyncio.sleep(wait_time)
-                return await self._extract_relationships_via_llm(prompt, retry_count + 1)
+                return await self._extract_relationships_via_llm(
+                    prompt, retry_count + 1
+                )
             return []
 
         except Exception as e:
@@ -964,7 +973,9 @@ No markdown, no explanations. Return empty array if no relationships found.
                     f"Retrying relationship extraction in {wait_time}s after error (attempt {retry_count + 2}/{MAX_RETRIES + 1})"
                 )
                 await asyncio.sleep(wait_time)
-                return await self._extract_relationships_via_llm(prompt, retry_count + 1)
+                return await self._extract_relationships_via_llm(
+                    prompt, retry_count + 1
+                )
             return []
 
     def _validate_relationships(
@@ -995,7 +1006,9 @@ No markdown, no explanations. Return empty array if no relationships found.
                 target_name = rel.get("target", "").strip()
                 rel_type = rel.get("rel_type", "").upper()
                 confidence = float(rel.get("confidence", 0.5))
-                evidence = rel.get("evidence", "")[:300] if rel.get("evidence") else None
+                evidence = (
+                    rel.get("evidence", "")[:300] if rel.get("evidence") else None
+                )
 
                 # Skip if missing required fields
                 if not source_name or not target_name or not rel_type:
@@ -1040,7 +1053,9 @@ No markdown, no explanations. Return empty array if no relationships found.
                 logger.warning(f"Failed to validate relationship: {e}")
                 continue
 
-        logger.debug(f"Validated {len(validated)} relationships from {len(raw_relationships)} raw")
+        logger.debug(
+            f"Validated {len(validated)} relationships from {len(raw_relationships)} raw"
+        )
         return validated
 
     def _deduplicate_relationships(

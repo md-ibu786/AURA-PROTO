@@ -42,6 +42,21 @@ frontend/
 - **Vitest**: Unit testing with `@testing-library/react` and `@tanstack/react-query`
 - **No `any`**: Google TypeScript Style Guide enforced
 
+## Python Environment (for backend testing)
+
+- **ALWAYS use the root venv** (from project root) for all Python tasks
+- **NEVER install dependencies globally** or create local venvs
+- Run Python tests from project root:
+  ```bash
+  # Correct - use root venv
+  cd ../.. && .venv/Scripts/python -m pytest AURA-NOTES-MANAGER/api/tests/
+  cd ../.. && .venv/Scripts/python -m pip install <package>
+
+  # Wrong - do NOT use global Python
+  python -m pytest
+  pip install <package>
+  ```
+
 ## AGENT BEHAVIOUR
 
 ### Research-First Principle

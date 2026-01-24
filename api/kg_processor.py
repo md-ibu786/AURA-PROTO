@@ -507,22 +507,26 @@ class GeminiClient:
         np.random.seed(hash(text) % (2**32))
         return list(np.random.randn(768).astype(np.float64))
 
-    def _mock_entities(self, text: str, chunk_id: str) -> List[Entity]:
+    def _mock_entities(self, text: str, chunk_id: str) -> List[Dict[str, Any]]:
         """Generate mock entities for testing without API access."""
         # Extract potential entities from text (simple heuristic)
         entities = []
         words = text.split()[:50]  # Sample words from text
 
-        for i, word in enumerate(words):
+        for word in words:
             if len(word) > 5 and word.isalpha():
                 entity_id = self._generate_entity_id(word, chunk_id)
                 entities.append(
-                    Entity(
-                        id=entity_id,
-                        name=word,
-                        entity_type=EntityType.CONCEPT,
-                        definition=f"Extracted from chunk {chunk_id}",
-                    )
+                    {
+                        "id": entity_id,
+                        "name": word,
+                        "entity_type": EntityType.CONCEPT.value,
+                        "definition": f"Extracted from chunk {chunk_id}",
+                        "category": "CONCEPT",
+                        "confidence": 0.5,
+                        "context_snippet": text[:150],
+                        "chunk_id": chunk_id,
+                    }
                 )
 
         return entities[:5]  # Limit to 5 entities per chunk
@@ -709,10 +713,10 @@ class GeminiClient:
 
         except ImportError:
             logger.warning("google-generativeai not installed")
-            return []
+            return self._mock_entities(chunk_text, chunk_id)
         except Exception as e:
             logger.error(f"Entity extraction failed for chunk {chunk_id}: {e}")
-            return []
+            return self._mock_entities(chunk_text, chunk_id)
 
 
 class KnowledgeGraphProcessor:
@@ -1025,21 +1029,32 @@ class KnowledgeGraphProcessor:
                             similarity_threshold=ENTITY_DEDUP_SIMILARITY_THRESHOLD
                         )
                         # Convert all_entities to list of dicts if needed
-                        entities_as_dicts = [
-                            e
-                            if isinstance(e, dict)
-                            else {
-                                "name": e.name,
-                                "id": e.id,
-                                "entity_type": str(e.entity_type),
-                                "definition": e.definition,
-                                "confidence_score": e.properties.get("confidence", 0.7)
-                                if hasattr(e, "properties")
-                                else 0.7,
-                            }
-                            for e in all_entities
-                        ]
-                        deduplicated_entities, dedup_mapping = deduplicator.deduplicate(
+                        entities_as_dicts = []
+                        for e in all_entities:
+                            if isinstance(e, dict):
+                                entity_dict = dict(e)
+                                entity_dict["_entity_obj"] = e
+                                entities_as_dicts.append(entity_dict)
+                                continue
+
+                            entity_properties = dict(getattr(e, "properties", {}) or {})
+                            entities_as_dicts.append(
+                                {
+                                    "name": e.name,
+                                    "id": e.id,
+                                    "entity_type": e.entity_type.value,
+                                    "definition": e.definition,
+                                    "properties": entity_properties,
+                                    "confidence_score": entity_properties.get(
+                                        "confidence", 0.7
+                                    ),
+                                    "_entity_obj": e,
+                                }
+                            )
+                        (
+                            deduplicated_entities,
+                            dedup_mapping,
+                        ) = deduplicator.deduplicate(
                             entities_as_dicts, entity_embeddings
                         )
 
@@ -1056,22 +1071,105 @@ class KnowledgeGraphProcessor:
                         result["dedup_mappings"] = dedup_mapping
 
                         # Update all_entities with deduplicated list
-                        all_entities = deduplicated_entities
+                        rebuilt_entities = []
+                        for entity_dict in deduplicated_entities:
+                            entity_obj = entity_dict.get("_entity_obj")
+                            if isinstance(entity_obj, Entity):
+                                entity_obj.name = entity_dict.get(
+                                    "name", entity_obj.name
+                                )
+                                entity_obj.definition = entity_dict.get(
+                                    "definition", entity_obj.definition
+                                )
+                                entity_type_value = entity_dict.get("entity_type")
+                                if entity_type_value:
+                                    try:
+                                        entity_obj.entity_type = EntityType(
+                                            entity_type_value
+                                        )
+                                    except ValueError:
+                                        try:
+                                            entity_obj.entity_type = EntityType(
+                                                entity_type_value.title()
+                                            )
+                                        except ValueError:
+                                            entity_obj.entity_type = (
+                                                entity_obj.entity_type
+                                            )
+                                entity_properties = dict(entity_obj.properties or {})
+                                entity_properties.update(
+                                    entity_dict.get("properties", {}) or {}
+                                )
+                                for key in [
+                                    "category",
+                                    "confidence",
+                                    "context_snippet",
+                                ]:
+                                    if key in entity_dict:
+                                        entity_properties[key] = entity_dict[key]
+                                entity_obj.properties = entity_properties
+                                rebuilt_entities.append(entity_obj)
+                                continue
+
+                            entity_type_value = entity_dict.get(
+                                "entity_type", "Concept"
+                            )
+                            try:
+                                entity_type = EntityType(entity_type_value)
+                            except ValueError:
+                                try:
+                                    entity_type = EntityType(entity_type_value.title())
+                                except ValueError:
+                                    entity_type = EntityType.CONCEPT
+                            entity_properties = dict(
+                                entity_dict.get("properties", {}) or {}
+                            )
+                            for key in ["category", "confidence", "context_snippet"]:
+                                if key in entity_dict:
+                                    entity_properties[key] = entity_dict[key]
+                            rebuilt_entities.append(
+                                Entity(
+                                    id=entity_dict.get("id", ""),
+                                    name=entity_dict.get("name", ""),
+                                    entity_type=entity_type,
+                                    definition=entity_dict.get("definition", ""),
+                                    properties=entity_properties,
+                                )
+                            )
+
+                        all_entities = rebuilt_entities
 
                         # Update chunk.entities to point to canonical entities
                         if dedup_mapping:
+                            canonical_by_name = {
+                                entity.name: entity for entity in all_entities
+                            }
                             for chunk in chunks:
                                 if hasattr(chunk, "entities"):
-                                    chunk.entities = [
-                                        e
-                                        for e in chunk.entities
-                                        if (
-                                            e.get("name", "")
-                                            if isinstance(e, dict)
-                                            else getattr(e, "name", "")
+                                    updated_entities = []
+                                    seen_ids = set()
+                                    for entity in chunk.entities:
+                                        entity_name = (
+                                            entity.get("name", "")
+                                            if isinstance(entity, dict)
+                                            else getattr(entity, "name", "")
                                         )
-                                        not in dedup_mapping
-                                    ]
+                                        canonical_name = dedup_mapping.get(
+                                            entity_name, entity_name
+                                        )
+                                        canonical_entity = canonical_by_name.get(
+                                            canonical_name
+                                        )
+                                        if not canonical_entity:
+                                            if isinstance(entity, Entity):
+                                                canonical_entity = entity
+                                            else:
+                                                continue
+                                        if canonical_entity.id in seen_ids:
+                                            continue
+                                        seen_ids.add(canonical_entity.id)
+                                        updated_entities.append(canonical_entity)
+                                    chunk.entities = updated_entities
 
                         logger.info(
                             f"Semantic deduplication: {original_count} -> {deduped_count} entities "
@@ -1976,9 +2074,22 @@ class KnowledgeGraphProcessor:
         final_chunks = []
         chunk_count = 0
 
+        pending_content = ""
+        pending_description = ""
+
         for chunk_data in chunks_data:
             content = chunk_data.get("content", "")
             description = chunk_data.get("description", "")
+
+            if pending_content:
+                content = f"{pending_content} {content}".strip()
+                if pending_description and description:
+                    description = f"{pending_description}; {description}"
+                elif pending_description:
+                    description = pending_description
+                pending_content = ""
+                pending_description = ""
+
             token_count = self._count_tokens(content)
 
             # Validate chunk size
@@ -1987,7 +2098,8 @@ class KnowledgeGraphProcessor:
                     f"Chunk {chunk_count} too small ({token_count} tokens), "
                     "merging with next chunk"
                 )
-                # Merge with next chunk if possible
+                pending_content = content
+                pending_description = description
                 continue
 
             if token_count > self.max_chunk_tokens:
@@ -2014,6 +2126,32 @@ class KnowledgeGraphProcessor:
 
             final_chunks.append(chunk)
             chunk_count += 1
+
+        if pending_content and final_chunks:
+            last_chunk = final_chunks[-1]
+            merged_text = f"{last_chunk.text} {pending_content}".strip()
+            last_chunk.text = merged_text
+            last_chunk.token_count = self._count_tokens(merged_text)
+            if pending_description:
+                previous_description = last_chunk.properties.get("description", "")
+                if previous_description:
+                    last_chunk.properties["description"] = (
+                        f"{previous_description}; {pending_description}"
+                    )
+                else:
+                    last_chunk.properties["description"] = pending_description
+        elif pending_content:
+            token_count = self._count_tokens(pending_content)
+            chunk_id = f"chunk_{document_id}_{chunk_count}"
+            chunk = Chunk(
+                id=chunk_id,
+                text=pending_content,
+                index=chunk_count,
+                token_count=token_count,
+            )
+            if pending_description:
+                chunk.properties["description"] = pending_description
+            final_chunks.append(chunk)
 
         logger.info(f"Created {len(final_chunks)} validated chunks")
         return final_chunks
