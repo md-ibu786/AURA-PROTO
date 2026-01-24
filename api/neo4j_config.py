@@ -365,6 +365,113 @@ def verify_kg_enhancement_schema(driver: Driver = None) -> bool:
     return False
 
 
+def test_entity_vector_search(
+    entity_type: str,
+    query_embedding: List[float],
+    top_k: int = 5,
+    driver: Driver = None,
+) -> List[Dict[str, Any]]:
+    """
+    Test entity vector search using Neo4j vector indices.
+
+    Performs a vector similarity search on entity nodes to verify that
+    vector indices are working correctly for entity retrieval.
+
+    Args:
+        entity_type: Entity type to search (Topic, Concept, Methodology, Finding)
+        query_embedding: 768-dimensional query embedding vector
+        top_k: Number of results to return (default: 5)
+        driver: Optional Neo4j driver. If None, uses the global neo4j_driver.
+
+    Returns:
+        List of dicts with entity name, definition, and similarity score:
+        [
+            {"name": "Entity Name", "definition": "...", "score": 0.95},
+            ...
+        ]
+
+    Example:
+        >>> from neo4j_config import test_entity_vector_search
+        >>> from services.embeddings import EmbeddingService
+        >>> embedding_service = EmbeddingService()
+        >>> query_vec = embedding_service.embed_text("machine learning algorithms")
+        >>> results = test_entity_vector_search("Concept", query_vec)
+        >>> for r in results:
+        ...     print(f"{r['name']}: {r['score']:.3f}")
+
+    @see: KG_ENHANCEMENT_VECTOR_INDICES for available indices
+    @note: Requires vector indices to be ONLINE
+    """
+    target_driver = driver or _neo4j_driver
+
+    if target_driver is None:
+        print("✗ Neo4j driver not initialized")
+        return []
+
+    # Map entity types to index names
+    index_map = {
+        "Topic": "topic_vector_index",
+        "Concept": "concept_vector_index",
+        "Methodology": "methodology_vector_index",
+        "Finding": "finding_vector_index",
+    }
+
+    if entity_type not in index_map:
+        print(f"✗ Unknown entity type: {entity_type}")
+        print(f"  Valid types: {', '.join(index_map.keys())}")
+        return []
+
+    index_name = index_map[entity_type]
+
+    # Validate embedding dimensions
+    if not query_embedding or len(query_embedding) != 768:
+        print(f"✗ Invalid embedding: expected 768 dimensions, got {len(query_embedding) if query_embedding else 0}")
+        return []
+
+    try:
+        with target_driver.session() as session:
+            # Use vector similarity search
+            query = """
+            CALL db.index.vector.queryNodes($index_name, $top_k, $query_embedding)
+            YIELD node, score
+            RETURN node.name AS name, node.definition AS definition, score
+            ORDER BY score DESC
+            """
+
+            result = session.run(
+                query,
+                {
+                    "index_name": index_name,
+                    "top_k": top_k,
+                    "query_embedding": query_embedding,
+                },
+            )
+
+            results = []
+            for record in result:
+                results.append({
+                    "name": record["name"],
+                    "definition": record["definition"],
+                    "score": record["score"],
+                })
+
+            if results:
+                print(f"✓ Vector search returned {len(results)} results for {entity_type}")
+            else:
+                print(f"⚠ No results found for {entity_type} (index may be empty)")
+
+            return results
+
+    except Exception as e:
+        error_str = str(e)
+        if "no such index" in error_str.lower():
+            print(f"✗ Vector index '{index_name}' not found")
+            print("  Run migration 002_kg_enhancement_schema.py to create indices")
+        else:
+            print(f"✗ Vector search failed: {e}")
+        return []
+
+
 # Initialize driver on module import
 if os.getenv("AURA_TEST_MODE", "").lower() == "true":
     neo4j_driver = None

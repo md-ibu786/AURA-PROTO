@@ -101,6 +101,15 @@ except ImportError:
         Relationship as EntityRelationship,
     )
 
+# Import embedding service for entity embeddings
+try:
+    from services.embeddings import EmbeddingService
+except ImportError:
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.embeddings import EmbeddingService
+
 # ============================================================================
 # CHUNKING CONFIGURATION
 # ============================================================================
@@ -764,6 +773,7 @@ class KnowledgeGraphProcessor:
         document_data: Dict[str, Any] = None,
         use_hierarchical_chunking: bool = False,
         use_llm_extraction: bool = True,
+        generate_entity_embeddings: bool = True,
     ) -> Dict[str, Any]:
         """
         Process a single document into a knowledge graph.
@@ -780,6 +790,9 @@ class KnowledgeGraphProcessor:
             use_llm_extraction: If True, use LLMEntityExtractor for entity extraction.
                 This provides better extraction quality with confidence scoring.
                 Falls back to GeminiClient extraction if LLM extraction fails.
+            generate_entity_embeddings: If True, generate 768-dim embeddings for
+                all extracted entities and store them in Neo4j. This enables
+                semantic search over entities. Default: True.
 
         Returns:
             Dict containing processing summary:
@@ -788,6 +801,7 @@ class KnowledgeGraphProcessor:
             - entity_count: Number of entities extracted
             - parent_chunk_count: Number of parent chunks (if hierarchical)
             - extraction_method: 'llm' or 'basic' depending on method used
+            - entities_embedded: Number of entities with embeddings (if generated)
             - status: 'success' or 'error'
             - error: Error message if failed
         """
@@ -798,12 +812,14 @@ class KnowledgeGraphProcessor:
             "entity_count": 0,
             "parent_chunk_count": 0,
             "extraction_method": "basic",
+            "entities_embedded": 0,
             "status": "processing",
             "error": None,
         }
 
         # Store extraction mode for use in _extract_entities
         self._use_llm_extraction = use_llm_extraction
+        self._generate_entity_embeddings = generate_entity_embeddings
 
         # Initialize LLM extractor if using LLM extraction
         if use_llm_extraction:
@@ -973,6 +989,29 @@ class KnowledgeGraphProcessor:
                             await self._link_child_to_parent(
                                 session, child_id, parent_id
                             )
+
+            # Step 7: Generate and store entity embeddings
+            if (
+                getattr(self, "_generate_entity_embeddings", True)
+                and all_entities
+            ):
+                self._emit_progress(
+                    "entity_embeddings",
+                    0,
+                    1,
+                    f"Generating embeddings for {len(all_entities)} entities",
+                )
+                try:
+                    entities_embedded = await self._generate_and_store_entity_embeddings(
+                        all_entities, module_id
+                    )
+                    result["entities_embedded"] = entities_embedded
+                    logger.info(
+                        f"Generated embeddings for {entities_embedded} entities"
+                    )
+                except Exception as e:
+                    logger.warning(f"Entity embedding generation failed: {e}")
+                    result["entities_embedded"] = 0
 
             result["status"] = "success"
             self._emit_progress(
@@ -2509,6 +2548,107 @@ class KnowledgeGraphProcessor:
             "module_id": module_id,
             "confidence": confidence,
             "evidence": evidence[:300] if evidence else None,
+        }
+
+        session.run(query, params)
+
+    async def _generate_and_store_entity_embeddings(
+        self,
+        entities: List[Entity],
+        module_id: str,
+    ) -> int:
+        """
+        Generate embeddings for entities and store them in Neo4j.
+
+        Uses EmbeddingService to generate 768-dimensional embeddings for
+        each entity based on name + definition, then updates the entity
+        nodes in Neo4j with the embedding property.
+
+        Args:
+            entities: List of Entity objects to embed
+            module_id: Module ID for filtering
+
+        Returns:
+            Number of entities successfully embedded
+        """
+        if not entities:
+            return 0
+
+        if not self.driver:
+            logger.warning("Neo4j driver not available for entity embedding storage")
+            return 0
+
+        try:
+            # Initialize embedding service
+            embedding_service = EmbeddingService(api_key=self.gemini.api_key)
+
+            # Generate embeddings using the service
+            entity_embeddings = embedding_service.embed_entities(entities)
+
+            if not entity_embeddings:
+                logger.warning("No embeddings generated for entities")
+                return 0
+
+            # Store embeddings in Neo4j
+            embedded_count = 0
+            with self.driver.session() as session:
+                for entity in entities:
+                    embedding = entity_embeddings.get(entity.id)
+                    if not embedding:
+                        continue
+
+                    try:
+                        await self._update_entity_embedding(
+                            session,
+                            entity.id,
+                            entity.entity_type.value,
+                            embedding,
+                            module_id,
+                        )
+                        embedded_count += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to store embedding for entity {entity.id}: {e}"
+                        )
+
+            logger.info(
+                f"Stored embeddings for {embedded_count}/{len(entities)} entities"
+            )
+            return embedded_count
+
+        except Exception as e:
+            logger.error(f"Entity embedding generation failed: {e}")
+            return 0
+
+    async def _update_entity_embedding(
+        self,
+        session,
+        entity_id: str,
+        entity_type: str,
+        embedding: List[float],
+        module_id: str,
+    ):
+        """
+        Update a single entity node with its embedding.
+
+        Args:
+            session: Neo4j session
+            entity_id: Entity ID
+            entity_type: Entity type (Concept, Topic, etc.)
+            embedding: 768-dimensional embedding vector
+            module_id: Module ID for filtering
+        """
+        query = f"""
+        MATCH (e:{entity_type} {{id: $entity_id, module_id: $module_id}})
+        SET e.embedding = $embedding,
+            e.embedded_at = datetime()
+        RETURN e.id
+        """
+
+        params = {
+            "entity_id": entity_id,
+            "module_id": module_id,
+            "embedding": embedding,
         }
 
         session.run(query, params)
