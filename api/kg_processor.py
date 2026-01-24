@@ -85,13 +85,21 @@ except ImportError:
 
 # Import LLM entity extractor (ported from AURA-CHAT)
 try:
-    from services.llm_entity_extractor import LLMEntityExtractor, ExtractedEntity
+    from services.llm_entity_extractor import (
+        LLMEntityExtractor,
+        ExtractedEntity,
+        Relationship as EntityRelationship,
+    )
 except ImportError:
     # Fallback if services module not in path
     import sys
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from services.llm_entity_extractor import LLMEntityExtractor, ExtractedEntity
+    from services.llm_entity_extractor import (
+        LLMEntityExtractor,
+        ExtractedEntity,
+        Relationship as EntityRelationship,
+    )
 
 # ============================================================================
 # CHUNKING CONFIGURATION
@@ -893,12 +901,54 @@ class KnowledgeGraphProcessor:
                 )
 
             result["entity_count"] = len(all_entities)
+
+            # Step 4.5: Extract entity-entity relationships using LLM
+            entity_relationships: List[EntityRelationship] = []
+            if (
+                getattr(self, "_use_llm_extraction", False)
+                and getattr(self, "_llm_extractor", None)
+                and len(all_entities) >= 2
+            ):
+                self._emit_progress(
+                    "relationships",
+                    0,
+                    1,
+                    f"Extracting entity relationships from {len(all_entities)} entities",
+                )
+                try:
+                    # Prepare entities dict for relationship extraction
+                    entities_dict = self._prepare_entities_for_relationship_extraction(
+                        all_entities
+                    )
+                    entity_relationships = await self._llm_extractor.extract_relationships(
+                        text, entities_dict, document_id
+                    )
+                    result["relationship_count"] = len(entity_relationships)
+                    logger.info(
+                        f"Extracted {len(entity_relationships)} entity-entity relationships"
+                    )
+                except Exception as e:
+                    logger.warning(f"Entity relationship extraction failed: {e}")
+                    entity_relationships = []
+
             self._emit_progress("storing", 0, 1, "Storing in Neo4j")
 
             # Step 5: Store everything in Neo4j with module_id tagging
             await self._store_in_neo4j(
                 document_id, module_id, user_id, chunks, all_entities
             )
+
+            # Step 5.5: Store entity-entity relationships
+            if entity_relationships:
+                self._emit_progress(
+                    "storing_relationships",
+                    0,
+                    1,
+                    f"Storing {len(entity_relationships)} entity relationships",
+                )
+                await self._store_entity_relationships(
+                    entity_relationships, module_id, all_entities
+                )
 
             # Step 6: Store parent chunks and relationships (if hierarchical)
             if use_hierarchical_chunking and parent_chunks:
@@ -2229,6 +2279,239 @@ class KnowledgeGraphProcessor:
             )
 
         return merged_entities
+
+    def _prepare_entities_for_relationship_extraction(
+        self, entities: List[Entity]
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Prepare entities for relationship extraction by LLMEntityExtractor.
+
+        Converts Entity objects to the dict format expected by
+        extract_relationships().
+
+        Args:
+            entities: List of Entity objects
+
+        Returns:
+            Dict with keys: concepts, topics, methodologies, findings
+        """
+        result = {
+            "concepts": [],
+            "topics": [],
+            "methodologies": [],
+            "findings": [],
+        }
+
+        type_to_key = {
+            EntityType.CONCEPT: "concepts",
+            EntityType.TOPIC: "topics",
+            EntityType.METHODOLOGY: "methodologies",
+            EntityType.FINDING: "findings",
+            EntityType.DEFINITION: "concepts",  # Map Definition to concepts
+            EntityType.CITATION: "findings",  # Map Citation to findings
+        }
+
+        for entity in entities:
+            key = type_to_key.get(entity.entity_type, "concepts")
+            entity_dict = {
+                "id": entity.id,
+                "name": entity.name,
+                "type": entity.entity_type.value,
+                "definition": entity.definition,
+                "confidence": entity.properties.get("confidence", 0.7),
+                "context": entity.properties.get("context_snippet", ""),
+            }
+            result[key].append(entity_dict)
+
+        return result
+
+    def _build_entity_name_to_id_map(
+        self, entities: List[Entity]
+    ) -> Dict[str, str]:
+        """
+        Build a case-insensitive map from entity name to entity ID.
+
+        Args:
+            entities: List of Entity objects
+
+        Returns:
+            Dict mapping lowercased name to entity ID
+        """
+        name_to_id = {}
+        for entity in entities:
+            name_key = entity.name.lower().strip()
+            if name_key:
+                name_to_id[name_key] = entity.id
+        return name_to_id
+
+    def _get_entity_type_by_name(
+        self, name: str, entities: List[Entity]
+    ) -> Optional[EntityType]:
+        """
+        Get entity type by entity name.
+
+        Args:
+            name: Entity name to look up
+            entities: List of Entity objects
+
+        Returns:
+            EntityType if found, None otherwise
+        """
+        name_lower = name.lower().strip()
+        for entity in entities:
+            if entity.name.lower().strip() == name_lower:
+                return entity.entity_type
+        return None
+
+    async def _store_entity_relationships(
+        self,
+        relationships: List[EntityRelationship],
+        module_id: str,
+        entities: List[Entity],
+    ):
+        """
+        Store entity-entity relationships as edges in Neo4j.
+
+        Creates edges between entity nodes with relationship type,
+        confidence, and evidence properties.
+
+        Args:
+            relationships: List of Relationship objects from LLMEntityExtractor
+            module_id: Module ID for filtering
+            entities: List of Entity objects for name-to-ID lookup
+        """
+        if not self.driver:
+            logger.warning("Neo4j driver not available for relationship storage")
+            return
+
+        if not relationships:
+            return
+
+        # Build name-to-ID map for resolving entity references
+        name_to_id = self._build_entity_name_to_id_map(entities)
+
+        stored_count = 0
+        skipped_count = 0
+
+        with self.driver.session() as session:
+            for rel in relationships:
+                try:
+                    # Resolve entity names to IDs
+                    source_key = rel.source_entity.lower().strip()
+                    target_key = rel.target_entity.lower().strip()
+
+                    source_id = name_to_id.get(source_key)
+                    target_id = name_to_id.get(target_key)
+
+                    if not source_id or not target_id:
+                        logger.debug(
+                            f"Skipping relationship: source={rel.source_entity}, "
+                            f"target={rel.target_entity} (entity not found)"
+                        )
+                        skipped_count += 1
+                        continue
+
+                    # Get entity types for proper node matching
+                    source_type = self._get_entity_type_by_name(
+                        rel.source_entity, entities
+                    )
+                    target_type = self._get_entity_type_by_name(
+                        rel.target_entity, entities
+                    )
+
+                    if not source_type or not target_type:
+                        skipped_count += 1
+                        continue
+
+                    # Store relationship in Neo4j
+                    await self._create_entity_relationship(
+                        session,
+                        source_id,
+                        source_type.value,
+                        target_id,
+                        target_type.value,
+                        rel.relationship_type,
+                        rel.confidence,
+                        rel.evidence,
+                        module_id,
+                    )
+                    stored_count += 1
+
+                except Exception as e:
+                    logger.warning(f"Failed to store relationship: {e}")
+                    skipped_count += 1
+
+        logger.info(
+            f"Stored {stored_count} entity-entity relationships "
+            f"(skipped {skipped_count}) in Neo4j"
+        )
+
+    async def _create_entity_relationship(
+        self,
+        session,
+        source_id: str,
+        source_type: str,
+        target_id: str,
+        target_type: str,
+        rel_type: str,
+        confidence: float,
+        evidence: Optional[str],
+        module_id: str,
+    ):
+        """
+        Create a single entity-entity relationship in Neo4j.
+
+        Since Neo4j doesn't support parameterized relationship types,
+        we use conditional queries for each relationship type.
+
+        Args:
+            session: Neo4j session
+            source_id: Source entity ID
+            source_type: Source entity type (Concept, Topic, etc.)
+            target_id: Target entity ID
+            target_type: Target entity type
+            rel_type: Relationship type (DEFINES, USES, etc.)
+            confidence: Confidence score
+            evidence: Optional evidence text
+            module_id: Module ID for filtering
+        """
+        # Build relationship query based on relationship type
+        # Neo4j doesn't allow parameterized relationship types, so we use
+        # dynamic query construction (safe since rel_type is validated)
+        valid_rel_types = [
+            "DEFINES",
+            "DEPENDS_ON",
+            "USES",
+            "SUPPORTS",
+            "CONTRADICTS",
+            "EXTENDS",
+            "IMPLEMENTS",
+            "REFERENCES",
+            "RELATED_TO",
+        ]
+
+        if rel_type not in valid_rel_types:
+            rel_type = "RELATED_TO"
+
+        query = f"""
+        MATCH (source:{source_type} {{id: $source_id, module_id: $module_id}})
+        MATCH (target:{target_type} {{id: $target_id, module_id: $module_id}})
+        MERGE (source)-[r:{rel_type}]->(target)
+        SET r.confidence = $confidence,
+            r.evidence = $evidence,
+            r.created_at = datetime()
+        RETURN r
+        """
+
+        params = {
+            "source_id": source_id,
+            "target_id": target_id,
+            "module_id": module_id,
+            "confidence": confidence,
+            "evidence": evidence[:300] if evidence else None,
+        }
+
+        session.run(query, params)
 
     async def _store_in_neo4j(
         self,

@@ -16,7 +16,7 @@ import json
 import logging
 import os
 import time
-from typing import Dict, List, Literal, Optional, Any
+from typing import Dict, List, Literal, Optional, Any, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,22 @@ LLM_ENTITY_MAX_PARALLEL = 2  # Max concurrent requests
 MAX_RETRIES = 3  # Retry attempts
 RETRY_BACKOFF_BASE = 2.0  # Exponential backoff base
 LLM_ENTITY_TEMPERATURE = 0.2  # Generation temperature
+LLM_RELATIONSHIP_MIN_CONFIDENCE = 0.3  # Minimum confidence for relationships
+LLM_RELATIONSHIP_MAX_PER_DOCUMENT = 50  # Max relationships per document
+LLM_RELATIONSHIP_MAX_PER_ENTITY = 10  # Max relationships per source entity
+
+# Supported relationship types for entity-entity relationships
+RELATIONSHIP_TYPES = [
+    "DEFINES",
+    "DEPENDS_ON",
+    "USES",
+    "SUPPORTS",
+    "CONTRADICTS",
+    "EXTENDS",
+    "IMPLEMENTS",
+    "REFERENCES",
+    "RELATED_TO",
+]
 
 # ============================================================================
 # PYDANTIC MODELS
@@ -44,6 +60,33 @@ class ExtractedEntity(BaseModel):
     confidence_score: float = Field(default=0.7, ge=0.0, le=1.0)
     source_text: Optional[str] = Field(default=None, max_length=200)
     category: str = Field(default="General", max_length=100)
+
+
+class Relationship(BaseModel):
+    """
+    Represents a semantic relationship between two entities.
+
+    Entity-entity relationships enable multi-hop graph reasoning by
+    connecting concepts, topics, methodologies, and findings.
+    """
+
+    source_entity: str = Field(..., min_length=1, description="Name of the source entity")
+    target_entity: str = Field(..., min_length=1, description="Name of the target entity")
+    relationship_type: Literal[
+        "DEFINES",
+        "DEPENDS_ON",
+        "USES",
+        "SUPPORTS",
+        "CONTRADICTS",
+        "EXTENDS",
+        "IMPLEMENTS",
+        "REFERENCES",
+        "RELATED_TO",
+    ] = Field(..., description="Type of semantic relationship")
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="Confidence score 0-1")
+    evidence: Optional[str] = Field(
+        default=None, max_length=300, description="Text supporting the relationship"
+    )
 
 
 # ============================================================================
@@ -638,3 +681,500 @@ class LLMEntityExtractor:
             "methodologies": methodologies,
             "findings": findings,
         }
+
+    # ========================================================================
+    # RELATIONSHIP EXTRACTION METHODS
+    # ========================================================================
+
+    def _build_relationship_prompt(
+        self, text: str, entities: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Build prompt for relationship extraction between entities.
+
+        Args:
+            text: Source text to analyze
+            entities: List of entity dicts with name, type, definition
+
+        Returns:
+            Formatted prompt string for LLM
+        """
+        # Build entity list for prompt (limit to 50 for clarity)
+        entity_info = []
+        for e in entities[:50]:
+            name = e.get("name", "")
+            entity_type = e.get("type", "Concept")
+            definition = e.get("definition", "")[:100]
+            entity_info.append(f"- {name} ({entity_type}): {definition}")
+
+        entity_list_str = "\n".join(entity_info)
+
+        return f"""<role>You are an expert academic relationship extractor. Your goal is to identify meaningful relationships between entities in academic text.</role>
+
+<entities>
+{entity_list_str}
+</entities>
+
+<task>Analyze the text and identify relationships between the listed entities. Look for:
+- DEFINES: Entity A defines/explains entity B (e.g., "A concept that explains...")
+- DEPENDS_ON: Entity A requires/needs entity B (e.g., "A depends on B", "A requires B")
+- USES: Entity A uses/applies entity B (e.g., "A uses B", "A applies B")
+- SUPPORTS: Entity A provides evidence for entity B (e.g., "A supports B", "A validates B")
+- CONTRADICTS: Entity A conflicts with entity B (e.g., "A contradicts B", "A opposes B")
+- EXTENDS: Entity A builds upon entity B (e.g., "A extends B", "A enhances B")
+- IMPLEMENTS: Entity A is an implementation of entity B (e.g., "A implements B")
+- REFERENCES: Entity A cites/mentions entity B (e.g., "A references B", "A cites B")
+- RELATED_TO: Generic semantic relationship when more specific type is unclear
+</task>
+
+<output_format>
+For each relationship provide:
+- source: name of source entity (MUST exactly match one from the entity list)
+- target: name of target entity (MUST exactly match one from the entity list)
+- rel_type: one of the relationship types above
+- confidence: 0.0-1.0 based on textual evidence strength
+- evidence: brief text snippet (max 150 chars) showing the relationship
+
+Return ONLY valid JSON: {{"relationships": [...]}}
+No markdown, no explanations. Return empty array if no relationships found.
+</output_format>
+
+<input_text>
+{text[:8000]}
+</input_text>
+
+<response_format>JSON Only</response_format>"""
+
+    def _flatten_entities(
+        self, entities: Dict[str, List[Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        Flatten entity dict structure to list for relationship extraction.
+
+        Args:
+            entities: Dict with keys concepts, topics, methodologies, findings
+
+        Returns:
+            Flat list of entity dicts with type added
+        """
+        type_mapping = {
+            "concepts": "Concept",
+            "topics": "Topic",
+            "methodologies": "Methodology",
+            "findings": "Finding",
+        }
+
+        flat_list = []
+        for entity_type, entity_list in entities.items():
+            mapped_type = type_mapping.get(entity_type, "Concept")
+            for entity in entity_list:
+                # Handle both ExtractedEntity objects and dicts
+                if hasattr(entity, "model_dump"):
+                    entity_dict = entity.model_dump()
+                elif hasattr(entity, "__dict__"):
+                    entity_dict = {
+                        "name": getattr(entity, "name", ""),
+                        "type": getattr(entity, "type", mapped_type),
+                        "definition": getattr(entity, "definition", ""),
+                    }
+                else:
+                    entity_dict = dict(entity)
+
+                entity_dict["type"] = entity_dict.get("type", mapped_type)
+                flat_list.append(entity_dict)
+
+        return flat_list
+
+    def _build_entity_name_map(
+        self, entities: Dict[str, List[Any]]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Build a case-insensitive map of entity names to their data.
+
+        Args:
+            entities: Dict with keys concepts, topics, methodologies, findings
+
+        Returns:
+            Dict mapping lowercased name to entity dict
+        """
+        name_map = {}
+        flat_entities = self._flatten_entities(entities)
+
+        for entity in flat_entities:
+            name = entity.get("name", "").lower().strip()
+            if name:
+                name_map[name] = entity
+
+        return name_map
+
+    async def extract_relationships(
+        self,
+        text: str,
+        entities: Dict[str, List[Any]],
+        doc_id: str = "unknown",
+    ) -> List[Relationship]:
+        """
+        Extract relationships between previously extracted entities.
+
+        This is the second pass of the two-pass extraction approach:
+        1. First call: extract_entities() returns entities
+        2. Second call: extract_relationships() with entities as context
+
+        Args:
+            text: The source text to analyze for relationships
+            entities: Dict from extract_entities() with concepts, topics, etc.
+            doc_id: Document identifier for logging
+
+        Returns:
+            List of validated Relationship objects
+        """
+        # Validate inputs
+        flat_entities = self._flatten_entities(entities)
+        if len(flat_entities) < 2:
+            logger.debug(f"Not enough entities for relationship extraction: {doc_id}")
+            return []
+
+        if not text or len(text.strip()) < 50:
+            logger.debug(f"Text too short for relationship extraction: {doc_id}")
+            return []
+
+        # Test mode returns mock relationships
+        if self._test_mode:
+            return self._build_test_relationships(flat_entities)
+
+        if not self._model:
+            logger.warning("Gemini model not initialized for relationship extraction")
+            return []
+
+        try:
+            logger.info(
+                f"Extracting relationships for {len(flat_entities)} entities from {doc_id}"
+            )
+
+            # Build prompt with entity context
+            prompt = self._build_relationship_prompt(text, flat_entities)
+
+            # Call LLM for relationship extraction
+            raw_relationships = await self._extract_relationships_via_llm(prompt)
+
+            # Build name map for validation
+            name_map = self._build_entity_name_map(entities)
+
+            # Validate and filter relationships
+            validated = self._validate_relationships(raw_relationships, name_map)
+
+            # Deduplicate
+            deduplicated = self._deduplicate_relationships(validated)
+
+            # Apply confidence threshold
+            filtered = [
+                r for r in deduplicated
+                if r.confidence >= LLM_RELATIONSHIP_MIN_CONFIDENCE
+            ]
+
+            # Apply max limit
+            filtered = filtered[:LLM_RELATIONSHIP_MAX_PER_DOCUMENT]
+
+            logger.info(
+                f"Extracted {len(filtered)} entity-entity relationships from {doc_id}"
+            )
+
+            return filtered
+
+        except Exception as e:
+            logger.error(f"Error in extract_relationships for doc {doc_id}: {e}")
+            return []
+
+    async def _extract_relationships_via_llm(
+        self, prompt: str, retry_count: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Call LLM to extract relationships from the prompt.
+
+        Args:
+            prompt: Formatted relationship extraction prompt
+            retry_count: Current retry attempt
+
+        Returns:
+            List of raw relationship dicts from LLM
+        """
+        try:
+            import google.generativeai as genai
+
+            generation_config = genai.GenerationConfig(
+                temperature=LLM_ENTITY_TEMPERATURE,
+                max_output_tokens=4096,
+            )
+
+            logger.debug(
+                f"Calling LLM for relationship extraction, attempt {retry_count + 1}/{MAX_RETRIES + 1}"
+            )
+
+            response = self._model.generate_content(
+                prompt, generation_config=generation_config
+            )
+
+            response_text = response.text.strip() if response.text else ""
+
+            logger.debug(f"Relationship extraction response length: {len(response_text)} chars")
+
+            if not response_text:
+                logger.warning("Relationship extraction returned empty response")
+                return []
+
+            # Parse JSON from response
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+
+            if json_start >= 0 and json_end > json_start:
+                json_str = response_text[json_start:json_end]
+
+                try:
+                    result = json.loads(json_str)
+                    logger.info(f"Successfully parsed relationship JSON: {list(result.keys())}")
+                except json.JSONDecodeError as e:
+                    logger.error(f"Relationship JSON decode error: {e}")
+                    logger.error(f"JSON string that failed: {json_str[:500]}")
+                    raise
+
+                if "relationships" in result:
+                    relationships = result["relationships"]
+                    logger.info(f"Extracted {len(relationships)} raw relationships from LLM")
+                    return relationships
+
+            logger.warning("No valid relationships JSON found in LLM response")
+            return []
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parse error in relationship extraction: {e}")
+            if retry_count < MAX_RETRIES:
+                wait_time = RETRY_BACKOFF_BASE * (2**retry_count)
+                logger.info(
+                    f"Retrying relationship extraction in {wait_time}s (attempt {retry_count + 2}/{MAX_RETRIES + 1})"
+                )
+                await asyncio.sleep(wait_time)
+                return await self._extract_relationships_via_llm(prompt, retry_count + 1)
+            return []
+
+        except Exception as e:
+            logger.error(f"Error in _extract_relationships_via_llm: {e}", exc_info=True)
+            if retry_count < MAX_RETRIES:
+                wait_time = RETRY_BACKOFF_BASE * (2**retry_count)
+                logger.info(
+                    f"Retrying relationship extraction in {wait_time}s after error (attempt {retry_count + 2}/{MAX_RETRIES + 1})"
+                )
+                await asyncio.sleep(wait_time)
+                return await self._extract_relationships_via_llm(prompt, retry_count + 1)
+            return []
+
+    def _validate_relationships(
+        self,
+        raw_relationships: List[Dict[str, Any]],
+        name_map: Dict[str, Dict[str, Any]],
+    ) -> List[Relationship]:
+        """
+        Validate and convert raw relationship dicts to Relationship objects.
+
+        Filters out:
+        - Self-relationships (A -> A)
+        - Relationships with entities not in the extracted set
+        - Relationships with invalid types
+
+        Args:
+            raw_relationships: Raw dicts from LLM
+            name_map: Case-insensitive map of entity names to entity data
+
+        Returns:
+            List of validated Relationship objects
+        """
+        validated = []
+
+        for rel in raw_relationships:
+            try:
+                source_name = rel.get("source", "").strip()
+                target_name = rel.get("target", "").strip()
+                rel_type = rel.get("rel_type", "").upper()
+                confidence = float(rel.get("confidence", 0.5))
+                evidence = rel.get("evidence", "")[:300] if rel.get("evidence") else None
+
+                # Skip if missing required fields
+                if not source_name or not target_name or not rel_type:
+                    continue
+
+                # Skip self-relationships
+                if source_name.lower() == target_name.lower():
+                    logger.debug(f"Skipping self-relationship: {source_name}")
+                    continue
+
+                # Skip if relationship type is invalid
+                if rel_type not in RELATIONSHIP_TYPES:
+                    logger.debug(f"Skipping invalid relationship type: {rel_type}")
+                    continue
+
+                # Validate source entity exists
+                source_key = source_name.lower().strip()
+                if source_key not in name_map:
+                    logger.debug(f"Source entity not found: {source_name}")
+                    continue
+
+                # Validate target entity exists
+                target_key = target_name.lower().strip()
+                if target_key not in name_map:
+                    logger.debug(f"Target entity not found: {target_name}")
+                    continue
+
+                # Clamp confidence to valid range
+                confidence = max(0.0, min(1.0, confidence))
+
+                # Create validated Relationship
+                relationship = Relationship(
+                    source_entity=name_map[source_key].get("name", source_name),
+                    target_entity=name_map[target_key].get("name", target_name),
+                    relationship_type=rel_type,
+                    confidence=confidence,
+                    evidence=evidence,
+                )
+                validated.append(relationship)
+
+            except Exception as e:
+                logger.warning(f"Failed to validate relationship: {e}")
+                continue
+
+        logger.debug(f"Validated {len(validated)} relationships from {len(raw_relationships)} raw")
+        return validated
+
+    def _deduplicate_relationships(
+        self, relationships: List[Relationship]
+    ) -> List[Relationship]:
+        """
+        Deduplicate relationships, keeping highest confidence for duplicates.
+
+        Also limits relationships per source entity.
+
+        Args:
+            relationships: List of validated relationships
+
+        Returns:
+            Deduplicated list of relationships
+        """
+        if not relationships:
+            return []
+
+        # Dedupe by (source, target, type) keeping highest confidence
+        seen: Dict[Tuple[str, str, str], Relationship] = {}
+
+        for rel in relationships:
+            key = (
+                rel.source_entity.lower(),
+                rel.target_entity.lower(),
+                rel.relationship_type,
+            )
+
+            if key not in seen:
+                seen[key] = rel
+            elif rel.confidence > seen[key].confidence:
+                seen[key] = rel
+
+        # Apply per-entity limit
+        per_entity_count: Dict[str, int] = {}
+        deduplicated = []
+
+        # Sort by confidence descending to keep best relationships
+        sorted_rels = sorted(seen.values(), key=lambda r: r.confidence, reverse=True)
+
+        for rel in sorted_rels:
+            source_key = rel.source_entity.lower()
+            current_count = per_entity_count.get(source_key, 0)
+
+            if current_count < LLM_RELATIONSHIP_MAX_PER_ENTITY:
+                deduplicated.append(rel)
+                per_entity_count[source_key] = current_count + 1
+
+        if len(deduplicated) < len(seen):
+            logger.debug(
+                f"Relationship deduplication: {len(relationships)} -> {len(deduplicated)}"
+            )
+
+        return deduplicated
+
+    async def extract_entities_and_relationships(
+        self,
+        text: str,
+        doc_id: str = "unknown",
+        entity_types: List[str] = None,
+    ) -> Tuple[Dict[str, List[ExtractedEntity]], List[Relationship]]:
+        """
+        Combined extraction: entities first, then relationships.
+
+        This is the recommended entry point for full extraction.
+        Uses the two-pass approach:
+        1. Extract entities from text
+        2. Extract relationships between those entities
+
+        Args:
+            text: The text to extract from
+            doc_id: Document identifier for logging
+            entity_types: Optional list of entity types to extract (default: all)
+
+        Returns:
+            Tuple of (entities dict, relationships list)
+        """
+        # Step 1: Extract entities
+        entities = await self.extract_entities(text, doc_id, entity_types)
+
+        # Step 2: Extract relationships using the entities
+        relationships = await self.extract_relationships(text, entities, doc_id)
+
+        total_entities = sum(len(v) for v in entities.values())
+        logger.info(
+            f"Combined extraction for {doc_id}: "
+            f"{total_entities} entities, {len(relationships)} relationships"
+        )
+
+        return entities, relationships
+
+    def _build_test_relationships(
+        self, entities: List[Dict[str, Any]]
+    ) -> List[Relationship]:
+        """
+        Build mock relationships for test mode.
+
+        Creates plausible relationships between extracted entities.
+
+        Args:
+            entities: List of entity dicts
+
+        Returns:
+            List of mock Relationship objects
+        """
+        relationships = []
+
+        if len(entities) < 2:
+            return relationships
+
+        # Create some test relationships between the first few entities
+        entity_names = [e.get("name", "") for e in entities if e.get("name")]
+
+        if len(entity_names) >= 2:
+            relationships.append(
+                Relationship(
+                    source_entity=entity_names[0],
+                    target_entity=entity_names[1],
+                    relationship_type="RELATED_TO",
+                    confidence=0.75,
+                    evidence="Test relationship for testing purposes.",
+                )
+            )
+
+        if len(entity_names) >= 3:
+            relationships.append(
+                Relationship(
+                    source_entity=entity_names[1],
+                    target_entity=entity_names[2],
+                    relationship_type="USES",
+                    confidence=0.65,
+                    evidence="Test relationship showing usage pattern.",
+                )
+            )
+
+        return relationships
