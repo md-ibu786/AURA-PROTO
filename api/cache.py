@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +207,26 @@ class RedisClient:
         except Exception as e:
             logger.debug(f"Cache delete pattern failed for {pattern}: {e}")
             return 0
+
+    def keys(self, pattern: str) -> List[str]:
+        """
+        List keys matching a Redis pattern.
+
+        Args:
+            pattern: Redis pattern (e.g., "summary:doc:*")
+
+        Returns:
+            List of keys matching the pattern
+        """
+        client = self._get_client()
+        if client is None:
+            return []
+
+        try:
+            return list(client.keys(pattern))
+        except Exception as e:
+            logger.debug(f"Cache keys lookup failed for {pattern}: {e}")
+            return []
 
     def exists(self, key: str) -> bool:
         """

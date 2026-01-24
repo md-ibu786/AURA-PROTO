@@ -177,16 +177,12 @@ async def get_document_summary(
     logger.info(f"GET /document/{document_id}: length={length.value}")
 
     try:
-        # Try to get from cache without regenerating
-        summary = await summary_service.summarize_document(
+        summary = await summary_service.get_cached_document_summary(
             document_id=document_id,
             length=length,
-            force_regenerate=False,
         )
 
-        # Check if this was a cache hit or generated fresh
-        # If summary starts with fallback prefix or is empty, likely no cache
-        if not summary.summary or summary.summary.startswith("No content"):
+        if summary is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"No cached summary found for document {document_id}",
@@ -418,14 +414,13 @@ async def get_module_summary(
     )
 
     try:
-        summary = await summary_service.summarize_module(
+        summary = await summary_service.get_cached_module_summary(
             module_id=module_id,
             length=length,
             include_document_summaries=include_document_summaries,
-            force_regenerate=False,
         )
 
-        if not summary.summary or summary.summary.startswith("No documents"):
+        if summary is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"No cached summary found for module {module_id}",

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -362,9 +362,8 @@ async def get_concept_evolution(
         None,
         description="End of time range (defaults to now)",
     ),
-    granularity: str = Query(
+    granularity: Literal["day", "week", "month", "semester"] = Query(
         "month",
-        regex="^(day|week|month|semester)$",
         description="Time granularity for aggregation",
     ),
     trend_analyzer: TrendAnalyzer = Depends(get_trend_analyzer),
@@ -403,7 +402,7 @@ async def get_concept_evolution(
             time_range = TimeRange(
                 start=start_date or (now - timedelta(days=365)),
                 end=end_date or now,
-                granularity=granularity,  # type: ignore
+                granularity=granularity,
             )
 
         result = await trend_analyzer.get_concept_evolution(

@@ -919,22 +919,28 @@ class KnowledgeGraphProcessor:
         if template_id:
             try:
                 registry = get_template_registry()
-                
+
                 if template_id == "auto":
                     # Auto-detect template will be done after loading content
-                    self._template_extractor = get_template_extractor(self._llm_extractor)
+                    self._template_extractor = get_template_extractor(
+                        self._llm_extractor
+                    )
                     result["extraction_method"] = "template"
                     logger.info("Template auto-detection enabled")
                 else:
                     # Use specific template
                     self._template = registry.get(template_id)
                     if self._template:
-                        self._template_extractor = get_template_extractor(self._llm_extractor)
+                        self._template_extractor = get_template_extractor(
+                            self._llm_extractor
+                        )
                         result["extraction_method"] = "template"
                         result["template_id"] = template_id
                         logger.info(f"Using extraction template: {template_id}")
                     else:
-                        logger.warning(f"Template not found: {template_id}, using legacy extraction")
+                        logger.warning(
+                            f"Template not found: {template_id}, using legacy extraction"
+                        )
             except Exception as e:
                 logger.warning(f"Failed to initialize template extractor: {e}")
 
@@ -956,7 +962,9 @@ class KnowledgeGraphProcessor:
                     self._template = template
                     result["template_id"] = template.id
                     result["template_confidence"] = float(confidence)
-                    logger.info(f"Auto-detected template: {template.id} (confidence: {confidence:.2f})")
+                    logger.info(
+                        f"Auto-detected template: {template.id} (confidence: {confidence:.2f})"
+                    )
                 except Exception as e:
                     logger.warning(f"Template auto-detection failed: {e}")
 
@@ -1020,24 +1028,23 @@ class KnowledgeGraphProcessor:
 
             # Step 4: Extract entities
             all_entities = []
-            
+
             # Use template-based extraction if available (11-03-PLAN)
             if self._template_extractor and self._template:
                 self._emit_progress(
-                    "entities", 
-                    0, 
-                    1, 
-                    f"Extracting entities using template: {self._template.name}"
+                    "entities",
+                    0,
+                    1,
+                    f"Extracting entities using template: {self._template.name}",
                 )
                 try:
                     # Import EntityType for mapping
                     # (Assuming it's available in scope, otherwise standard string fallback works)
-                    
+
                     extraction_result = self._template_extractor.extract_with_template(
-                        text, 
-                        template_id=self._template.id
+                        text, template_id=self._template.id
                     )
-                    
+
                     # Convert dicts to Entity objects
                     for item in extraction_result.entities:
                         try:
@@ -1048,41 +1055,45 @@ class KnowledgeGraphProcessor:
                             except ValueError:
                                 # Try title case fallback or default
                                 try:
-                                    entity_type = EntityType(item.get("type", "Concept").title())
+                                    entity_type = EntityType(
+                                        item.get("type", "Concept").title()
+                                    )
                                 except ValueError:
                                     entity_type = EntityType.CONCEPT
-                            
+
                             # Generate ID (use module_id as scope + name hash)
                             entity_id = self._generate_entity_id(
                                 item.get("name", "unknown"), module_id
                             )
-                            
+
                             entities_props = {
                                 "confidence": item.get("confidence", 0.7),
                                 "category": item.get("type", "Concept"),
                                 "context_snippet": item.get("source_section", "")[:150],
-                                "template_section": item.get("source_section", "")
+                                "template_section": item.get("source_section", ""),
                             }
-                            
+
                             all_entities.append(
                                 Entity(
                                     id=entity_id,
                                     name=item.get("name", "Unknown"),
                                     entity_type=entity_type,
                                     definition=item.get("definition", ""),
-                                    properties=entities_props
+                                    properties=entities_props,
                                 )
                             )
                         except Exception as e:
                             logger.warning(f"Failed to convert template entity: {e}")
-                            
+
                     result["quality_score"] = extraction_result.quality_score
-                    logger.info(f"Template extraction found {len(all_entities)} entities")
-                    
+                    logger.info(
+                        f"Template extraction found {len(all_entities)} entities"
+                    )
+
                     # Handle relationships from template if any
                     # (We'll store them in entity_relationships later if format matches)
                     # For now just use the entities
-                    
+
                 except Exception as e:
                     logger.error(f"Template extraction failed: {e}")
                     # Fallback to standard extraction is complex here as we moved past it
@@ -1091,8 +1102,10 @@ class KnowledgeGraphProcessor:
             # Fallback to chunk-based extraction if no template or empty results
             if not all_entities:
                 if self._template:
-                    logger.warning("Template extraction yielded no entities, falling back to chunk-based")
-                
+                    logger.warning(
+                        "Template extraction yielded no entities, falling back to chunk-based"
+                    )
+
                 for i, chunk in enumerate(chunks):
                     entities = await self._extract_entities(chunk)
                     chunk.entities = entities
@@ -3229,6 +3242,7 @@ class KnowledgeGraphProcessor:
         """Create entity node (Topic, Concept, etc.) with module_id and properties."""
         query = f"""
         MERGE (e:{entity.entity_type.value} {{id: $id}})
+        ON CREATE SET e.created_at = $created_at
         SET e.name = $name,
             e.definition = $definition,
             e.module_id = $module_id,
@@ -3238,9 +3252,11 @@ class KnowledgeGraphProcessor:
             e.extraction_method = $extraction_method,
             e.context_snippet = $context_snippet,
             e.chunk_id = $chunk_id,
-            e.embedding = $embedding
+            e.embedding = $embedding,
+            e.updated_at = $updated_at
         RETURN e.id
         """
+        now_iso = datetime.utcnow().isoformat()
         params = {
             "id": entity.id,
             "name": entity.name,
@@ -3255,6 +3271,8 @@ class KnowledgeGraphProcessor:
             "context_snippet": entity.properties.get("context_snippet", "")[:200],
             "chunk_id": entity.properties.get("chunk_id", ""),
             "embedding": entity.embedding,
+            "created_at": now_iso,
+            "updated_at": now_iso,
         }
         session.run(query, params)
 

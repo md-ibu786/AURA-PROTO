@@ -57,6 +57,7 @@ from api.schemas.search import (
     SearchRequest,
     SearchResponse,
     SearchResult,
+    ExpansionInfo,
 )
 from services.embeddings import EmbeddingService
 from pydantic import BaseModel, Field
@@ -221,17 +222,45 @@ async def hybrid_search_with_graph_expansion(
     start_time = time.time()
 
     try:
+        expand_entities = True
+        hop_depth = 2
+        max_expanded_entities = 20
+        if request.graph_expansion:
+            expand_entities = request.graph_expansion.enabled
+            hop_depth = request.graph_expansion.max_hops
+            max_expanded_entities = request.graph_expansion.max_expanded_entities
+
+        query_text = request.query
+        expansion_info = None
+        if request.query_expansion and request.query_expansion.enabled:
+            expanded = await rag_engine.expand_query(
+                query=request.query,
+                module_ids=request.module_ids,
+                max_expansions=request.query_expansion.max_expansion_terms,
+                min_weight=request.query_expansion.min_term_weight,
+            )
+            query_text = expanded.expanded_query
+            if expanded.expansion_terms:
+                expansion_info = ExpansionInfo(
+                    original_query=expanded.original_query,
+                    expanded_query=expanded.expanded_query,
+                    expansion_terms=expanded.expansion_terms,
+                    entities_identified=expanded.entities_found,
+                    expansion_time_ms=expanded.expansion_time_ms,
+                )
+
         # Perform search with graph expansion
         enriched_results = await rag_engine.search_with_graph_expansion(
-            query=request.query,
+            query=query_text,
             module_ids=request.module_ids,
             top_k=request.top_k,
             vector_weight=request.vector_weight,
             fulltext_weight=request.fulltext_weight,
             min_score=request.min_score,
             include_parent_context=request.include_parent_context,
-            expand_entities=True,
-            hop_depth=2,
+            expand_entities=expand_entities,
+            hop_depth=hop_depth,
+            max_expanded=max_expanded_entities,
         )
 
         # Convert enriched results to response format
@@ -266,6 +295,7 @@ async def hybrid_search_with_graph_expansion(
                 "vector": request.vector_weight,
                 "fulltext": request.fulltext_weight,
             },
+            expansion_info=expansion_info,
         )
 
     except ServiceUnavailable as e:
@@ -425,7 +455,14 @@ async def get_graph_schema(
         node_types = []
         entity_labels = ["Topic", "Concept", "Methodology", "Finding"]
 
-        with neo4j_driver.session() as session:
+        driver = graph_manager.driver
+        if driver is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Database connection unavailable. Please try again later.",
+            )
+
+        with driver.session() as session:
             # Get counts and properties for each entity type
             for label in entity_labels:
                 count_result = session.run(
@@ -608,7 +645,14 @@ async def get_graph_data(
         type_labels = ":".join(type_filter)
 
         # Query for nodes
-        with neo4j_driver.session() as session:
+        driver = graph_manager.driver
+        if driver is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Database connection unavailable. Please try again later.",
+            )
+
+        with driver.session() as session:
             # Build module filter
             module_clause = ""
             params = {"limit": limit}
@@ -1093,10 +1137,10 @@ async def get_module_graph(
 ) -> VisualizationGraph:
     """
     Get visualization-ready graph for a module.
-    
+
     Returns nodes and edges with positions, colors, and metadata
     suitable for direct rendering in graph visualization components.
-    
+
     Args:
         module_id: Module identifier
         include_entity_types: Filter to only these entity types
@@ -1107,12 +1151,12 @@ async def get_module_graph(
         include_chunks: Include chunk nodes (can be verbose)
         include_documents: Include document nodes
         layout: Layout algorithm (force_directed, hierarchical, radial, circular)
-    
+
     Returns:
         VisualizationGraph with nodes, edges, and metadata
     """
     logger.info(f"Getting module graph: {module_id}")
-    
+
     try:
         options = GraphOptions(
             include_entity_types=include_entity_types,
@@ -1124,16 +1168,16 @@ async def get_module_graph(
             include_documents=include_documents,
             layout=layout,
         )
-        
+
         graph = await visualizer.get_module_graph(module_id, options)
-        
+
         logger.info(
             f"Module graph generated: {graph.metadata.node_count} nodes, "
             f"{graph.metadata.edge_count} edges"
         )
-        
+
         return graph
-        
+
     except ServiceUnavailable as e:
         logger.error(f"Neo4j connection error: {e}")
         raise HTTPException(
@@ -1171,32 +1215,32 @@ async def get_document_graph(
 ) -> VisualizationGraph:
     """
     Get visualization-ready graph for a document.
-    
+
     Shows document structure with chunks and extracted entities.
     Hierarchical layout is recommended for document graphs.
-    
+
     Args:
         document_id: Document identifier
         include_chunks: Include chunk nodes (recommended True)
         layout: Layout algorithm
         max_nodes: Maximum nodes in result
-    
+
     Returns:
         VisualizationGraph for the document
     """
     logger.info(f"Getting document graph: {document_id}")
-    
+
     try:
         options = GraphOptions(
             include_chunks=include_chunks,
             layout=layout,
             max_nodes=max_nodes,
         )
-        
+
         graph = await visualizer.get_document_graph(document_id, options)
-        
+
         return graph
-        
+
     except ServiceUnavailable as e:
         logger.error(f"Neo4j connection error: {e}")
         raise HTTPException(
@@ -1228,29 +1272,29 @@ async def get_cross_module_graph(
 ) -> VisualizationGraph:
     """
     Get visualization comparing multiple modules.
-    
+
     Shows entities from each module with relationships between them,
     highlighting shared concepts and cross-module connections.
-    
+
     Args:
         module_ids: List of module IDs to compare (minimum 2)
         options: Graph generation options
-    
+
     Returns:
         VisualizationGraph showing cross-module relationships
     """
     logger.info(f"Getting cross-module graph: {module_ids}")
-    
+
     try:
         graph = await visualizer.get_cross_module_graph(module_ids, options)
-        
+
         logger.info(
             f"Cross-module graph generated: {len(module_ids)} modules, "
             f"{graph.metadata.node_count} nodes"
         )
-        
+
         return graph
-        
+
     except ServiceUnavailable as e:
         logger.error(f"Neo4j connection error: {e}")
         raise HTTPException(
@@ -1280,24 +1324,24 @@ async def get_entity_neighborhood(
 ) -> VisualizationGraph:
     """
     Get neighborhood graph around an entity.
-    
+
     Shows the entity and all entities connected within the specified
     number of hops. Uses radial layout with the target entity at center.
-    
+
     Args:
         entity_id: Entity identifier
         depth: Number of relationship hops to expand
-    
+
     Returns:
         VisualizationGraph of entity neighborhood
     """
     logger.info(f"Getting entity neighborhood: {entity_id}, depth={depth}")
-    
+
     try:
         graph = await visualizer.get_entity_neighborhood(entity_id, depth)
-        
+
         return graph
-        
+
     except ServiceUnavailable as e:
         logger.error(f"Neo4j connection error: {e}")
         raise HTTPException(
@@ -1327,25 +1371,25 @@ async def export_graph(
 ) -> Response:
     """
     Export graph in specified format.
-    
+
     Supported formats:
     - JSON: Full graph data with metadata
     - GraphML: Standard graph exchange format
     - GEXF: Gephi format for network analysis
     - CSV: Simple node/edge tables
-    
+
     Args:
         graph: VisualizationGraph to export
         format: Export format
-    
+
     Returns:
         File download response
     """
     logger.info(f"Exporting graph: {format.value}, {graph.metadata.node_count} nodes")
-    
+
     try:
         content = visualizer.export_graph(graph, format)
-        
+
         # Determine content type and filename
         content_types = {
             ExportFormat.JSON: "application/json",
@@ -1359,7 +1403,7 @@ async def export_graph(
             ExportFormat.GEXF: "gexf",
             ExportFormat.CSV: "csv",
         }
-        
+
         return Response(
             content=content,
             media_type=content_types[format],
@@ -1367,7 +1411,7 @@ async def export_graph(
                 "Content-Disposition": f"attachment; filename=graph.{extensions[format]}"
             },
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to export graph: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to export graph")

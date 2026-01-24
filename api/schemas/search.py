@@ -21,11 +21,38 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 # ============================================================================
 
 
+class QueryExpansionConfig(BaseModel):
+    """
+    Configuration for query expansion.
+
+    Controls how queries are expanded using entity relationships
+    from the knowledge graph.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description="Whether to expand query using knowledge graph",
+    )
+    max_expansion_terms: int = Field(
+        default=10,
+        ge=0,
+        le=20,
+        description="Maximum number of expansion terms to add (0-20)",
+    )
+    min_term_weight: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+        description="Minimum weight threshold for expansion terms (0.0-1.0)",
+    )
+
+
 class SearchRequest(BaseModel):
     """
     Request schema for hybrid search API.
 
     Validates search parameters and normalizes weights.
+    Supports optional query and graph expansion configuration.
 
     Example:
         {
@@ -74,6 +101,14 @@ class SearchRequest(BaseModel):
         ge=0.0,
         le=1.0,
         description="Minimum combined score threshold (0.0-1.0)",
+    )
+    query_expansion: Optional[QueryExpansionConfig] = Field(
+        default=None,
+        description="Optional query expansion configuration",
+    )
+    graph_expansion: Optional["GraphExpansionConfig"] = Field(
+        default=None,
+        description="Optional graph expansion configuration",
     )
 
     @model_validator(mode="after")
@@ -219,7 +254,12 @@ class SearchResponse(BaseModel):
                     "original_query": "machine learning",
                     "expanded_query": "machine learning neural networks deep learning",
                     "expansion_terms": [
-                        {"term": "neural networks", "source_entity": "ML", "relationship": "USES", "weight": 0.8}
+                        {
+                            "term": "neural networks",
+                            "source_entity": "ML",
+                            "relationship": "USES",
+                            "weight": 0.8,
+                        }
                     ],
                     "entities_identified": ["Machine Learning"],
                 },
@@ -259,44 +299,6 @@ class FeedbackRequest(BaseModel):
 # ============================================================================
 # QUERY EXPANSION SCHEMAS
 # ============================================================================
-
-
-class QueryExpansionConfig(BaseModel):
-    """
-    Configuration for query expansion.
-
-    Controls how queries are expanded using entity relationships
-    from the knowledge graph.
-    """
-
-    enabled: bool = Field(
-        default=True,
-        description="Whether to expand query using knowledge graph",
-    )
-    max_expansion_terms: int = Field(
-        default=10,
-        ge=0,
-        le=20,
-        description="Maximum number of expansion terms to add (0-20)",
-    )
-    min_term_weight: float = Field(
-        default=0.3,
-        ge=0.0,
-        le=1.0,
-        description="Minimum weight threshold for expansion terms (0.0-1.0)",
-    )
-    use_entity_lookup: bool = Field(
-        default=True,
-        description="Use entity name/definition matching for expansion",
-    )
-    use_vector_similarity: bool = Field(
-        default=True,
-        description="Use vector similarity for entity matching",
-    )
-    use_relationship_expansion: bool = Field(
-        default=True,
-        description="Expand via related entities through relationships",
-    )
 
 
 class ExpansionTerm(BaseModel):
@@ -362,6 +364,10 @@ class ExpandedQuery(BaseModel):
         default_factory=list,
         description="Entity IDs found in query",
     )
+    expansion_time_ms: float = Field(
+        default=0.0,
+        description="Time taken for query expansion in milliseconds",
+    )
 
 
 # ============================================================================
@@ -400,9 +406,7 @@ class GraphExpansionConfig(BaseModel):
 
     @field_validator("relationship_types")
     @classmethod
-    def validate_relationship_types(
-        cls, v: Optional[List[str]]
-    ) -> Optional[List[str]]:
+    def validate_relationship_types(cls, v: Optional[List[str]]) -> Optional[List[str]]:
         """Validate relationship types against allowed values."""
         if v is None:
             return None
@@ -622,4 +626,5 @@ class EnrichedSearchResponse(SearchResponse):
 # ============================================================================
 
 # Rebuild models to resolve forward references
+SearchRequest.model_rebuild()
 SearchResponse.model_rebuild()
