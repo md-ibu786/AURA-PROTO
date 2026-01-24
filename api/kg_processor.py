@@ -15,14 +15,20 @@ ROLE IN PROJECT:
 
 KEY COMPONENTS:
     - KnowledgeGraphProcessor: Main processor class
-    - Document ingestion pipeline
+    - Document ingestion pipeline (PDF, DOCX, TXT)
     - Module_id propagation through all nodes
     - Gemini integration for embeddings and entity extraction
     - Progress tracking for long-running operations
 
+SUPPORTED FILE FORMATS:
+    - PDF: PyMuPDF (fitz) for text extraction
+    - DOCX: python-docx via DocxParser (09-07-PLAN)
+    - TXT: Direct file reading with encoding fallback
+
 DEPENDENCIES:
-    - External: neo4j, PyMuPDF (fitz), python-dotenv
+    - External: neo4j, PyMuPDF (fitz), python-docx, python-dotenv
     - Internal: neo4j_config for driver, config for settings
+    - services/document_parsers/docx_parser.py - DOCX parsing
 
 USAGE:
     from api.kg_processor import KnowledgeGraphProcessor
@@ -118,6 +124,29 @@ except ImportError:
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.entity_deduplicator import EntityDeduplicator
+
+# Import DOCX parser (09-07-PLAN)
+try:
+    from services.document_parsers.docx_parser import (
+        DocxParser,
+        ParsedDocument as DocxParsedDocument,
+        DocxParseError,
+        CorruptedDocxError,
+        PasswordProtectedDocxError,
+        EmptyDocxError,
+    )
+except ImportError:
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.document_parsers.docx_parser import (
+        DocxParser,
+        ParsedDocument as DocxParsedDocument,
+        DocxParseError,
+        CorruptedDocxError,
+        PasswordProtectedDocxError,
+        EmptyDocxError,
+    )
 
 # ============================================================================
 # CHUNKING CONFIGURATION
@@ -951,8 +980,10 @@ class KnowledgeGraphProcessor:
                     entities_dict = self._prepare_entities_for_relationship_extraction(
                         all_entities
                     )
-                    entity_relationships = await self._llm_extractor.extract_relationships(
-                        text, entities_dict, document_id
+                    entity_relationships = (
+                        await self._llm_extractor.extract_relationships(
+                            text, entities_dict, document_id
+                        )
                     )
                     result["relationship_count"] = len(entity_relationships)
                     logger.info(
@@ -977,12 +1008,17 @@ class KnowledgeGraphProcessor:
                     # Generate embeddings for deduplication
                     embedding_service = EmbeddingService(api_key=self.gemini.api_key)
                     entity_embeddings = {}
-                    entity_names = [e.get("name", "") if isinstance(e, dict) else getattr(e, "name", "") for e in all_entities]
+                    entity_names = [
+                        e.get("name", "")
+                        if isinstance(e, dict)
+                        else getattr(e, "name", "")
+                        for e in all_entities
+                    ]
                     embeddings_list = embedding_service.embed_batch(entity_names)
                     for name, emb in zip(entity_names, embeddings_list):
                         if emb:  # Only add if embedding was generated
                             entity_embeddings[name] = emb
-                    
+
                     # Run deduplication
                     if entity_embeddings:
                         deduplicator = EntityDeduplicator(
@@ -990,45 +1026,61 @@ class KnowledgeGraphProcessor:
                         )
                         # Convert all_entities to list of dicts if needed
                         entities_as_dicts = [
-                            e if isinstance(e, dict) else {
+                            e
+                            if isinstance(e, dict)
+                            else {
                                 "name": e.name,
                                 "id": e.id,
                                 "entity_type": str(e.entity_type),
                                 "definition": e.definition,
-                                "confidence_score": e.properties.get("confidence", 0.7) if hasattr(e, "properties") else 0.7,
+                                "confidence_score": e.properties.get("confidence", 0.7)
+                                if hasattr(e, "properties")
+                                else 0.7,
                             }
                             for e in all_entities
                         ]
                         deduplicated_entities, dedup_mapping = deduplicator.deduplicate(
                             entities_as_dicts, entity_embeddings
                         )
-                        
+
                         original_count = len(all_entities)
                         deduped_count = len(deduplicated_entities)
-                        reduction_pct = ((original_count - deduped_count) / original_count * 100) if original_count > 0 else 0
-                        
+                        reduction_pct = (
+                            ((original_count - deduped_count) / original_count * 100)
+                            if original_count > 0
+                            else 0
+                        )
+
                         result["entities_deduplicated"] = deduped_count
                         result["dedup_reduction_percent"] = round(reduction_pct, 1)
                         result["dedup_mappings"] = dedup_mapping
-                        
+
                         # Update all_entities with deduplicated list
                         all_entities = deduplicated_entities
-                        
+
                         # Update chunk.entities to point to canonical entities
                         if dedup_mapping:
                             for chunk in chunks:
                                 if hasattr(chunk, "entities"):
                                     chunk.entities = [
-                                        e for e in chunk.entities
-                                        if (e.get("name", "") if isinstance(e, dict) else getattr(e, "name", "")) not in dedup_mapping
+                                        e
+                                        for e in chunk.entities
+                                        if (
+                                            e.get("name", "")
+                                            if isinstance(e, dict)
+                                            else getattr(e, "name", "")
+                                        )
+                                        not in dedup_mapping
                                     ]
-                        
+
                         logger.info(
                             f"Semantic deduplication: {original_count} -> {deduped_count} entities "
                             f"({reduction_pct:.1f}% reduction)"
                         )
                     else:
-                        logger.warning("No embeddings generated for deduplication, skipping")
+                        logger.warning(
+                            "No embeddings generated for deduplication, skipping"
+                        )
                         result["entities_deduplicated"] = len(all_entities)
                 except Exception as e:
                     logger.warning(f"Semantic deduplication failed: {e}")
@@ -1078,10 +1130,7 @@ class KnowledgeGraphProcessor:
                             )
 
             # Step 7: Generate and store entity embeddings
-            if (
-                getattr(self, "_generate_entity_embeddings", True)
-                and all_entities
-            ):
+            if getattr(self, "_generate_entity_embeddings", True) and all_entities:
                 self._emit_progress(
                     "entity_embeddings",
                     0,
@@ -1089,8 +1138,10 @@ class KnowledgeGraphProcessor:
                     f"Generating embeddings for {len(all_entities)} entities",
                 )
                 try:
-                    entities_embedded = await self._generate_and_store_entity_embeddings(
-                        all_entities, module_id
+                    entities_embedded = (
+                        await self._generate_and_store_entity_embeddings(
+                            all_entities, module_id
+                        )
                     )
                     result["entities_embedded"] = entities_embedded
                     logger.info(
@@ -1193,8 +1244,10 @@ class KnowledgeGraphProcessor:
         # Check common locations
         possible_paths = [
             f"uploads/{document_id}.pdf",
+            f"uploads/{document_id}.docx",
             f"uploads/{document_id}.txt",
             f"documents/{document_id}.pdf",
+            f"documents/{document_id}.docx",
             f"documents/{document_id}.txt",
         ]
 
@@ -1225,7 +1278,7 @@ class KnowledgeGraphProcessor:
 
     async def _parse_file(self, file_path: str) -> str:
         """
-        Parse text from a file (PDF or TXT).
+        Parse text from a file (PDF, DOCX, or TXT).
 
         Args:
             file_path: Path to the file
@@ -1240,6 +1293,8 @@ class KnowledgeGraphProcessor:
 
         if file_ext == ".pdf":
             return await self._parse_pdf(file_path)
+        elif file_ext == ".docx":
+            return await self._parse_docx(file_path)
         elif file_ext == ".txt":
             return await self._parse_text(file_path)
         else:
@@ -1271,6 +1326,53 @@ class KnowledgeGraphProcessor:
         except Exception as e:
             logger.error(f"PDF parsing failed for {file_path}: {e}")
             raise
+
+    async def _parse_docx(self, file_path: str) -> str:
+        """
+        Extract text from DOCX using DocxParser.
+
+        Args:
+            file_path: Path to DOCX file
+
+        Returns:
+            Extracted text content including tables
+
+        Raises:
+            CorruptedDocxError: If file is corrupted
+            PasswordProtectedDocxError: If file is password-protected
+            EmptyDocxError: If file has no text content
+        """
+        try:
+            parser = DocxParser()
+            result = parser.parse(file_path)
+
+            # Log metadata and structure info
+            logger.info(
+                f"DOCX parsed: {result.word_count} words, "
+                f"{len(result.sections)} sections, "
+                f"{len(result.tables)} tables"
+            )
+
+            if result.metadata:
+                logger.debug(f"DOCX metadata: {result.metadata}")
+
+            return result.text
+
+        except CorruptedDocxError as e:
+            logger.error(f"DOCX is corrupted: {file_path} - {e}")
+            raise
+        except PasswordProtectedDocxError as e:
+            logger.error(f"DOCX is password-protected: {file_path} - {e}")
+            raise
+        except EmptyDocxError as e:
+            logger.warning(f"DOCX is empty: {file_path} - {e}")
+            raise
+        except DocxParseError as e:
+            logger.error(f"DOCX parsing failed for {file_path}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error parsing DOCX {file_path}: {e}")
+            raise DocxParseError(f"Failed to parse DOCX: {e}") from e
 
     async def _parse_text(self, file_path: str) -> str:
         """
@@ -2451,9 +2553,7 @@ class KnowledgeGraphProcessor:
 
         return result
 
-    def _build_entity_name_to_id_map(
-        self, entities: List[Entity]
-    ) -> Dict[str, str]:
+    def _build_entity_name_to_id_map(self, entities: List[Entity]) -> Dict[str, str]:
         """
         Build a case-insensitive map from entity name to entity ID.
 
