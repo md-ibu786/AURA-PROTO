@@ -6,9 +6,11 @@
 
 # @see: api/routers/query.py - Knowledge graph query endpoints
 # @see: api/routers/summaries.py - Auto-summarization endpoints
+# @see: api/routers/templates.py - Extraction template endpoints
 # @see: api/main.py - Router registration
 
 from api.routers.query import router as query_router
 from api.routers.summaries import router as summaries_router
+from api.routers.templates import router as templates_router
 
-__all__ = ["query_router", "summaries_router"]
+__all__ = ["query_router", "summaries_router", "templates_router"]

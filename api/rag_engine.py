@@ -389,7 +389,9 @@ class RAGEngine:
                     parent_context = await self._get_parent_context(chunk_ids)
                     for result in filtered_results:
                         if result.id in parent_context:
-                            result.metadata["parent_text"] = parent_context[result.id]
+                            result.metadata["parent_context"] = parent_context[
+                                result.id
+                            ]
 
             elapsed_ms = (time.time() - start_time) * 1000
 
@@ -1015,6 +1017,10 @@ class RAGEngine:
         query: str,
         module_ids: Optional[List[str]] = None,
         top_k: int = TOP_K_RETRIEVAL,
+        vector_weight: Optional[float] = None,
+        fulltext_weight: Optional[float] = None,
+        min_score: float = MIN_SCORE_THRESHOLD,
+        include_parent_context: bool = True,
         expand_entities: bool = True,
         hop_depth: int = GRAPH_HOP_DEPTH,
         max_expanded: int = MAX_EXPANDED_ENTITIES,
@@ -1036,6 +1042,10 @@ class RAGEngine:
             query: Search query text
             module_ids: Optional list of module IDs to filter by
             top_k: Number of results to return
+            vector_weight: Optional override for vector score weight
+            fulltext_weight: Optional override for fulltext score weight
+            min_score: Minimum combined score threshold
+            include_parent_context: Whether to include parent chunk text
             expand_entities: Whether to expand via graph (default: True)
             hop_depth: Maximum traversal depth (default: 2)
             max_expanded: Maximum expanded entities per result (default: 20)
@@ -1051,7 +1061,10 @@ class RAGEngine:
                 query=query,
                 module_ids=module_ids,
                 top_k=top_k,
-                include_parent_context=True,
+                vector_weight=vector_weight,
+                fulltext_weight=fulltext_weight,
+                min_score=min_score,
+                include_parent_context=include_parent_context,
             )
 
             if not base_results.results or not expand_entities:
@@ -1809,14 +1822,41 @@ class RAGEngine:
                 f"confidence={synthesized.confidence:.2f}, {elapsed_ms:.1f}ms"
             )
 
+            citations = []
+            for index, citation in enumerate(synthesized.citations, start=1):
+                try:
+                    citation_index = int(citation.reference_id.strip("[]"))
+                except (ValueError, AttributeError):
+                    citation_index = index
+
+                citations.append(
+                    {
+                        "index": citation_index,
+                        "document_id": citation.document_id,
+                        "document_title": citation.document_title,
+                        "chunk_id": citation.chunk_id,
+                        "text": citation.chunk_text,
+                    }
+                )
+            contradictions = [
+                {
+                    "claim1": contradiction.statement_a,
+                    "claim2": contradiction.statement_b,
+                    "source1": contradiction.source_a,
+                    "source2": contradiction.source_b,
+                    "explanation": contradiction.resolution_hint or "",
+                }
+                for contradiction in synthesized.contradictions
+            ]
+
             return MultiDocResponse(
                 query=query,
                 answer=synthesized.answer,
                 confidence=synthesized.confidence,
                 sources_used=synthesized.sources_used,
                 key_points=synthesized.key_points,
-                citations=[c.model_dump() for c in synthesized.citations],
-                contradictions=[c.model_dump() for c in synthesized.contradictions],
+                citations=citations,
+                contradictions=contradictions,
                 documents_searched=len(contexts),
                 documents_used=synthesized.sources_used,
                 processing_time_ms=elapsed_ms,

@@ -226,6 +226,10 @@ async def hybrid_search_with_graph_expansion(
             query=request.query,
             module_ids=request.module_ids,
             top_k=request.top_k,
+            vector_weight=request.vector_weight,
+            fulltext_weight=request.fulltext_weight,
+            min_score=request.min_score,
+            include_parent_context=request.include_parent_context,
             expand_entities=True,
             hop_depth=2,
         )

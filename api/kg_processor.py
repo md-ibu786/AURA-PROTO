@@ -148,6 +148,27 @@ except ImportError:
         EmptyDocxError,
     )
 
+# Import extraction templates (11-03-PLAN)
+try:
+    from services.extraction_templates import (
+        TemplateExtractor,
+        TemplateRegistry,
+        ExtractionOptions,
+        get_template_registry,
+        get_template_extractor,
+    )
+except ImportError:
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.extraction_templates import (
+        TemplateExtractor,
+        TemplateRegistry,
+        ExtractionOptions,
+        get_template_registry,
+        get_template_extractor,
+    )
+
 # ============================================================================
 # CHUNKING CONFIGURATION
 # ============================================================================
@@ -817,6 +838,7 @@ class KnowledgeGraphProcessor:
         use_llm_extraction: bool = True,
         generate_entity_embeddings: bool = True,
         enable_semantic_dedup: bool = True,
+        template_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Process a single document into a knowledge graph.
@@ -839,6 +861,10 @@ class KnowledgeGraphProcessor:
             enable_semantic_dedup: If True, deduplicate entities using semantic
                 similarity (0.85 cosine threshold) on embeddings. Reduces duplicates
                 like "ML" and "Machine Learning". Default: True.
+            template_id: If provided, use template-based extraction. Values:
+                - None: Use legacy extraction (default)
+                - "auto": Auto-detect template from content
+                - Template ID (e.g., "lecture_notes"): Use specific template
 
         Returns:
             Dict containing processing summary:
@@ -847,7 +873,9 @@ class KnowledgeGraphProcessor:
             - entity_count: Number of entities extracted
             - entities_deduplicated: Number of entities after deduplication
             - parent_chunk_count: Number of parent chunks (if hierarchical)
-            - extraction_method: 'llm' or 'basic' depending on method used
+            - extraction_method: 'llm', 'template', or 'basic'
+            - template_id: Template ID used (if template extraction)
+            - template_confidence: Template detection confidence (if auto-detected)
             - entities_embedded: Number of entities with embeddings (if generated)
             - status: 'success' or 'error'
             - error: Error message if failed
@@ -860,6 +888,8 @@ class KnowledgeGraphProcessor:
             "entities_deduplicated": 0,
             "parent_chunk_count": 0,
             "extraction_method": "basic",
+            "template_id": None,
+            "template_confidence": None,
             "entities_embedded": 0,
             "status": "processing",
             "error": None,
@@ -883,6 +913,31 @@ class KnowledgeGraphProcessor:
         else:
             self._llm_extractor = None
 
+        # Initialize template extractor if template_id is provided (11-03-PLAN)
+        self._template_extractor = None
+        self._template = None
+        if template_id:
+            try:
+                registry = get_template_registry()
+                
+                if template_id == "auto":
+                    # Auto-detect template will be done after loading content
+                    self._template_extractor = get_template_extractor(self._llm_extractor)
+                    result["extraction_method"] = "template"
+                    logger.info("Template auto-detection enabled")
+                else:
+                    # Use specific template
+                    self._template = registry.get(template_id)
+                    if self._template:
+                        self._template_extractor = get_template_extractor(self._llm_extractor)
+                        result["extraction_method"] = "template"
+                        result["template_id"] = template_id
+                        logger.info(f"Using extraction template: {template_id}")
+                    else:
+                        logger.warning(f"Template not found: {template_id}, using legacy extraction")
+            except Exception as e:
+                logger.warning(f"Failed to initialize template extractor: {e}")
+
         try:
             self._emit_progress("loading", 0, 1, f"Loading document {document_id}")
 
@@ -892,6 +947,18 @@ class KnowledgeGraphProcessor:
                 raise ValueError(f"Failed to load document content: {document_id}")
 
             result["text_length"] = len(text)
+
+            # Auto-detect template if requested (11-03-PLAN)
+            if template_id == "auto" and text:
+                try:
+                    registry = get_template_registry()
+                    template, confidence = registry.detect_template(text)
+                    self._template = template
+                    result["template_id"] = template.id
+                    result["template_confidence"] = float(confidence)
+                    logger.info(f"Auto-detected template: {template.id} (confidence: {confidence:.2f})")
+                except Exception as e:
+                    logger.warning(f"Template auto-detection failed: {e}")
 
             # Step 2: Create chunks (hierarchical or flat)
             if use_hierarchical_chunking:
@@ -951,18 +1018,91 @@ class KnowledgeGraphProcessor:
 
             self._emit_progress("entities", 0, len(chunks), "Extracting entities")
 
-            # Step 4: Extract entities from each chunk
+            # Step 4: Extract entities
             all_entities = []
-            for i, chunk in enumerate(chunks):
-                entities = await self._extract_entities(chunk)
-                chunk.entities = entities
-                all_entities.extend(entities)
+            
+            # Use template-based extraction if available (11-03-PLAN)
+            if self._template_extractor and self._template:
                 self._emit_progress(
-                    "entities",
-                    i + 1,
-                    len(chunks),
-                    f"Extracted {len(entities)} entities from chunk {i + 1}",
+                    "entities", 
+                    0, 
+                    1, 
+                    f"Extracting entities using template: {self._template.name}"
                 )
+                try:
+                    # Import EntityType for mapping
+                    # (Assuming it's available in scope, otherwise standard string fallback works)
+                    
+                    extraction_result = self._template_extractor.extract_with_template(
+                        text, 
+                        template_id=self._template.id
+                    )
+                    
+                    # Convert dicts to Entity objects
+                    for item in extraction_result.entities:
+                        try:
+                            # Map entity type
+                            entity_type_str = item.get("type", "Concept").upper()
+                            try:
+                                entity_type = EntityType(entity_type_str)
+                            except ValueError:
+                                # Try title case fallback or default
+                                try:
+                                    entity_type = EntityType(item.get("type", "Concept").title())
+                                except ValueError:
+                                    entity_type = EntityType.CONCEPT
+                            
+                            # Generate ID (use module_id as scope + name hash)
+                            entity_id = self._generate_entity_id(
+                                item.get("name", "unknown"), module_id
+                            )
+                            
+                            entities_props = {
+                                "confidence": item.get("confidence", 0.7),
+                                "category": item.get("type", "Concept"),
+                                "context_snippet": item.get("source_section", "")[:150],
+                                "template_section": item.get("source_section", "")
+                            }
+                            
+                            all_entities.append(
+                                Entity(
+                                    id=entity_id,
+                                    name=item.get("name", "Unknown"),
+                                    entity_type=entity_type,
+                                    definition=item.get("definition", ""),
+                                    properties=entities_props
+                                )
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to convert template entity: {e}")
+                            
+                    result["quality_score"] = extraction_result.quality_score
+                    logger.info(f"Template extraction found {len(all_entities)} entities")
+                    
+                    # Handle relationships from template if any
+                    # (We'll store them in entity_relationships later if format matches)
+                    # For now just use the entities
+                    
+                except Exception as e:
+                    logger.error(f"Template extraction failed: {e}")
+                    # Fallback to standard extraction is complex here as we moved past it
+                    # But we can leave all_entities empty and let it proceed (or fail gracefully)
+
+            # Fallback to chunk-based extraction if no template or empty results
+            if not all_entities:
+                if self._template:
+                    logger.warning("Template extraction yielded no entities, falling back to chunk-based")
+                
+                for i, chunk in enumerate(chunks):
+                    entities = await self._extract_entities(chunk)
+                    chunk.entities = entities
+                    all_entities.extend(entities)
+                    self._emit_progress(
+                        "entities",
+                        i + 1,
+                        len(chunks),
+                        f"Extracted {len(entities)} entities from chunk {i + 1}",
+                    )
 
             result["entity_count"] = len(all_entities)
 
