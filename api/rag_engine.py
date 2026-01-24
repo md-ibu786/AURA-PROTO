@@ -180,6 +180,58 @@ class Entity(BaseModel):
     score: Optional[float] = None  # Similarity score if from vector search
 
 
+class DocumentContext(BaseModel):
+    """
+    Context from a single document for multi-document reasoning.
+
+    Contains chunks and entities extracted from a single document,
+    along with relevance scoring for ranking during synthesis.
+    """
+
+    document_id: str
+    document_title: str
+    module_id: str
+    chunks: List[Dict[str, Any]] = Field(default_factory=list)
+    entities: List[str] = Field(default_factory=list)
+    relevance_score: float = 0.0
+
+
+class MultiDocOptions(BaseModel):
+    """
+    Options for multi-document queries.
+
+    Controls the scope and behavior of cross-document reasoning,
+    including citation formatting and contradiction detection.
+    """
+
+    max_documents: int = Field(default=10, ge=1, le=50)
+    max_chunks_per_document: int = Field(default=5, ge=1, le=20)
+    include_entity_context: bool = True
+    detect_contradictions: bool = True
+    citation_style: Literal["inline", "footnote", "reference"] = "inline"
+
+
+class MultiDocResponse(BaseModel):
+    """
+    Response from multi-document query.
+
+    Contains the synthesized answer along with citations, key points,
+    and any detected contradictions across documents.
+    """
+
+    query: str
+    answer: str
+    confidence: float
+    sources_used: int
+    key_points: List[str] = Field(default_factory=list)
+    citations: List[Dict[str, Any]] = Field(default_factory=list)
+    contradictions: List[Dict[str, Any]] = Field(default_factory=list)
+    documents_searched: int
+    documents_used: int
+    processing_time_ms: float
+    module_ids: List[str] = Field(default_factory=list)
+
+
 # ============================================================================
 # RAG ENGINE CLASS
 # ============================================================================
@@ -696,9 +748,7 @@ class RAGEngine:
             }
 
             if module_ids:
-                module_filter = (
-                    "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
-                )
+                module_filter = "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
                 params["module_ids"] = module_ids
 
             # Multi-hop traversal query - handles 1-hop and 2-hop
@@ -864,9 +914,7 @@ class RAGEngine:
             params: Dict[str, Any] = {"entity_ids": start_ids, "depth": depth}
 
             if module_ids:
-                module_filter = (
-                    "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
-                )
+                module_filter = "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
                 params["module_ids"] = module_ids
 
             cypher = f"""
@@ -953,7 +1001,9 @@ class RAGEngine:
                 for record in result:
                     entity_ids.append(record["entity_id"])
 
-            logger.debug(f"Extracted {len(entity_ids)} entities from {len(chunk_ids)} chunks")
+            logger.debug(
+                f"Extracted {len(entity_ids)} entities from {len(chunk_ids)} chunks"
+            )
             return entity_ids
 
         except Exception as e:
@@ -1109,7 +1159,10 @@ class RAGEngine:
                 results=[],
                 total_count=0,
                 search_time_ms=elapsed_ms,
-                weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
+                weights={
+                    "vector": self.vector_weight,
+                    "fulltext": self.fulltext_weight,
+                },
                 graph_context=None,
             )
 
@@ -1181,7 +1234,9 @@ class RAGEngine:
             # Step 3: Build expanded query
             # Add expansion terms to original query for fulltext search
             expansion_text = " ".join(t.term for t in expansion_terms)
-            expanded_query = f"{query} {expansion_text}".strip() if expansion_text else query
+            expanded_query = (
+                f"{query} {expansion_text}".strip() if expansion_text else query
+            )
 
             elapsed_ms = (time.time() - start_time) * 1000
 
@@ -1276,9 +1331,7 @@ class RAGEngine:
         try:
             # Extract key terms from query for matching
             query_terms = [
-                t.strip().lower()
-                for t in query.split()
-                if len(t.strip()) > 2
+                t.strip().lower() for t in query.split() if len(t.strip()) > 2
             ]
 
             if not query_terms:
@@ -1289,7 +1342,9 @@ class RAGEngine:
             params: Dict[str, Any] = {"query_lower": query.lower()}
 
             if module_ids:
-                module_filter = "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                module_filter = (
+                    "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                )
                 params["module_ids"] = module_ids
 
             # Search entity names and definitions
@@ -1354,7 +1409,9 @@ class RAGEngine:
             }
 
             if module_ids:
-                module_filter = "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                module_filter = (
+                    "AND (e.module_id IN $module_ids OR e.module_id IS NULL)"
+                )
                 params["module_ids"] = module_ids
 
             # Search across entity vector indices
@@ -1564,7 +1621,10 @@ class RAGEngine:
                 results=[],
                 total_count=0,
                 search_time_ms=elapsed_ms,
-                weights={"vector": self.vector_weight, "fulltext": self.fulltext_weight},
+                weights={
+                    "vector": self.vector_weight,
+                    "fulltext": self.fulltext_weight,
+                },
             )
 
     async def _search_with_split_query(
@@ -1671,6 +1731,252 @@ class RAGEngine:
             escaped = escaped.replace(char, f"\\{char}")
 
         return escaped
+
+    # ========================================================================
+    # MULTI-DOCUMENT REASONING METHODS
+    # ========================================================================
+
+    async def multi_document_query(
+        self,
+        query: str,
+        module_ids: List[str],
+        options: Optional[MultiDocOptions] = None,
+    ) -> MultiDocResponse:
+        """
+        Query across multiple documents within modules.
+
+        Gathers context from multiple documents and synthesizes
+        a coherent answer with citations.
+
+        Args:
+            query: The user's question.
+            module_ids: List of module IDs to search within.
+            options: Query options (max_documents, citation_style, etc.).
+
+        Returns:
+            MultiDocResponse with synthesized answer and citations.
+        """
+        start_time = time.time()
+
+        if options is None:
+            options = MultiDocOptions()
+
+        try:
+            # Step 1: Gather cross-document context
+            contexts = await self._gather_cross_document_context(
+                query=query,
+                module_ids=module_ids,
+                max_documents=options.max_documents,
+                max_chunks_per_doc=options.max_chunks_per_document,
+            )
+
+            if not contexts:
+                # No relevant documents found
+                elapsed_ms = (time.time() - start_time) * 1000
+                return MultiDocResponse(
+                    query=query,
+                    answer="No relevant documents found for this query.",
+                    confidence=0.0,
+                    sources_used=0,
+                    key_points=[],
+                    citations=[],
+                    contradictions=[],
+                    documents_searched=0,
+                    documents_used=0,
+                    processing_time_ms=elapsed_ms,
+                    module_ids=module_ids,
+                )
+
+            # Step 2: Synthesize answer using AnswerSynthesizer
+            from services.answer_synthesizer import AnswerSynthesizer, SynthesisOptions
+
+            synthesizer = AnswerSynthesizer()
+            synthesis_options = SynthesisOptions(
+                citation_style=options.citation_style,
+                detect_contradictions=options.detect_contradictions,
+            )
+
+            synthesized = await synthesizer.synthesize(
+                query=query,
+                contexts=contexts,
+                options=synthesis_options,
+            )
+
+            elapsed_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                f"Multi-doc query: {len(contexts)} documents, "
+                f"confidence={synthesized.confidence:.2f}, {elapsed_ms:.1f}ms"
+            )
+
+            return MultiDocResponse(
+                query=query,
+                answer=synthesized.answer,
+                confidence=synthesized.confidence,
+                sources_used=synthesized.sources_used,
+                key_points=synthesized.key_points,
+                citations=[c.model_dump() for c in synthesized.citations],
+                contradictions=[c.model_dump() for c in synthesized.contradictions],
+                documents_searched=len(contexts),
+                documents_used=synthesized.sources_used,
+                processing_time_ms=elapsed_ms,
+                module_ids=module_ids,
+            )
+
+        except Exception as e:
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.error(f"Multi-document query failed: {e}")
+            return MultiDocResponse(
+                query=query,
+                answer=f"Error processing query: {str(e)}",
+                confidence=0.0,
+                sources_used=0,
+                key_points=[],
+                citations=[],
+                contradictions=[],
+                documents_searched=0,
+                documents_used=0,
+                processing_time_ms=elapsed_ms,
+                module_ids=module_ids,
+            )
+
+    async def _gather_cross_document_context(
+        self,
+        query: str,
+        module_ids: List[str],
+        max_documents: int = 10,
+        max_chunks_per_doc: int = 5,
+    ) -> List[DocumentContext]:
+        """
+        Gather context from multiple documents relevant to the query.
+
+        Algorithm:
+            1. Run hybrid search across all documents in module_ids
+            2. Group results by document_id
+            3. For each document, get top N most relevant chunks
+            4. Include entity context from graph for each document
+
+        Args:
+            query: The user's question.
+            module_ids: List of module IDs to search within.
+            max_documents: Maximum number of documents to include.
+            max_chunks_per_doc: Maximum chunks per document.
+
+        Returns:
+            List of DocumentContext objects, one per document.
+        """
+        try:
+            # Run broad search to find relevant chunks
+            search_results = await self.search(
+                query=query,
+                module_ids=module_ids,
+                top_k=max_documents * max_chunks_per_doc,  # Get plenty of chunks
+                min_score=0.2,  # Lower threshold for broader recall
+            )
+
+            if not search_results.results:
+                return []
+
+            # Group by document
+            doc_chunks: Dict[str, List[SearchResult]] = {}
+            for result in search_results.results:
+                doc_id = result.document_id
+                if doc_id not in doc_chunks:
+                    doc_chunks[doc_id] = []
+                if len(doc_chunks[doc_id]) < max_chunks_per_doc:
+                    doc_chunks[doc_id].append(result)
+
+            # Limit to max_documents
+            doc_ids = list(doc_chunks.keys())[:max_documents]
+
+            # Build DocumentContext for each document
+            contexts = []
+            for doc_id in doc_ids:
+                chunks = doc_chunks[doc_id]
+
+                # Get document title from first chunk metadata or query
+                doc_title = (
+                    chunks[0].metadata.get("document_title", doc_id)
+                    if chunks
+                    else doc_id
+                )
+                module_id = (
+                    chunks[0].module_id
+                    if chunks
+                    else (module_ids[0] if module_ids else "")
+                )
+
+                # Calculate document relevance as average chunk score
+                avg_score = (
+                    sum(c.score for c in chunks) / len(chunks) if chunks else 0.0
+                )
+
+                # Get entities mentioned in these chunks
+                chunk_ids = [c.id for c in chunks]
+                entities = await self._get_entities_for_chunks(chunk_ids)
+
+                contexts.append(
+                    DocumentContext(
+                        document_id=doc_id,
+                        document_title=doc_title,
+                        module_id=module_id or "",
+                        chunks=[
+                            {
+                                "id": c.id,
+                                "text": c.text,
+                                "score": c.score,
+                            }
+                            for c in chunks
+                        ],
+                        entities=entities,
+                        relevance_score=avg_score,
+                    )
+                )
+
+            # Sort by relevance
+            contexts.sort(key=lambda x: x.relevance_score, reverse=True)
+
+            logger.debug(f"Gathered context from {len(contexts)} documents")
+            return contexts
+
+        except Exception as e:
+            logger.warning(f"Cross-document context gathering failed: {e}")
+            return []
+
+    async def _get_entities_for_chunks(self, chunk_ids: List[str]) -> List[str]:
+        """
+        Get entity names mentioned in the given chunks.
+
+        Args:
+            chunk_ids: List of chunk IDs to look up entities for.
+
+        Returns:
+            List of entity names found in the chunks.
+        """
+        if not chunk_ids:
+            return []
+
+        try:
+            cypher = """
+            MATCH (c:Chunk)-[:CONTAINS_ENTITY]->(e)
+            WHERE c.id IN $chunk_ids
+            AND (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+            RETURN DISTINCT e.name as name
+            LIMIT 20
+            """
+
+            entities = []
+            with self.driver.session() as session:
+                result = session.run(cypher, {"chunk_ids": chunk_ids})
+                for record in result:
+                    if record["name"]:
+                        entities.append(record["name"])
+
+            return entities
+
+        except Exception as e:
+            logger.warning(f"Entity extraction for chunks failed: {e}")
+            return []
 
 
 # ============================================================================

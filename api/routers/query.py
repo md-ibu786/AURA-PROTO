@@ -24,7 +24,7 @@ from neo4j.exceptions import ServiceUnavailable
 
 from api.graph_manager import GraphManager
 from api.neo4j_config import neo4j_driver
-from api.rag_engine import RAGEngine
+from api.rag_engine import RAGEngine, MultiDocOptions, MultiDocResponse
 from api.schemas.analysis import (
     AnalysisOperation,
     AnalysisRequest,
@@ -48,6 +48,53 @@ from api.schemas.search import (
     SearchResult,
 )
 from services.embeddings import EmbeddingService
+from pydantic import BaseModel, Field
+
+
+# ============================================================================
+# MULTI-DOCUMENT QUERY SCHEMAS
+# ============================================================================
+
+
+class MultiDocQueryRequest(BaseModel):
+    """Request schema for multi-document queries."""
+
+    query: str = Field(
+        ...,
+        min_length=1,
+        max_length=1000,
+        description="The question to answer using multiple documents",
+    )
+    module_ids: List[str] = Field(
+        ...,
+        min_length=1,
+        description="List of module IDs to search within",
+    )
+    max_documents: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        description="Maximum number of documents to include",
+    )
+    max_chunks_per_document: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        description="Maximum chunks per document",
+    )
+    include_entity_context: bool = Field(
+        default=True,
+        description="Include entity context from knowledge graph",
+    )
+    detect_contradictions: bool = Field(
+        default=True,
+        description="Detect and report contradictory information",
+    )
+    citation_style: str = Field(
+        default="inline",
+        description="Citation style: inline, footnote, or reference",
+    )
+
 
 # ============================================================================
 # LOGGING
@@ -610,4 +657,73 @@ async def get_graph_data(
         )
     except Exception as e:
         logger.error(f"Error fetching graph data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ============================================================================
+# MULTI-DOCUMENT QUERY ENDPOINTS
+# ============================================================================
+
+
+@router.post("/query/multi-doc", response_model=MultiDocResponse)
+async def multi_document_query(
+    request: MultiDocQueryRequest,
+    rag_engine: RAGEngine = Depends(get_rag_engine),
+) -> MultiDocResponse:
+    """
+    Query across multiple documents within a module.
+
+    Synthesizes information from multiple sources with proper citations.
+    Detects and reports contradictory information when found.
+
+    Args:
+        request: Multi-document query request with query and module IDs.
+        rag_engine: Injected RAGEngine instance.
+
+    Returns:
+        MultiDocResponse: Synthesized answer with citations and metadata.
+
+    Raises:
+        HTTPException: 400 for invalid parameters, 503 for Neo4j errors.
+    """
+    logger.info(
+        f"Multi-doc query: query='{request.query[:50]}...', "
+        f"modules={request.module_ids}"
+    )
+
+    try:
+        # Build options from request
+        options = MultiDocOptions(
+            max_documents=request.max_documents,
+            max_chunks_per_document=request.max_chunks_per_document,
+            include_entity_context=request.include_entity_context,
+            detect_contradictions=request.detect_contradictions,
+            citation_style=request.citation_style,
+        )
+
+        # Execute multi-document query
+        result = await rag_engine.multi_document_query(
+            query=request.query,
+            module_ids=request.module_ids,
+            options=options,
+        )
+
+        logger.info(
+            f"Multi-doc query completed: {result.sources_used} sources, "
+            f"confidence={result.confidence:.2f}, {result.processing_time_ms:.1f}ms"
+        )
+
+        return result
+
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except ValueError as e:
+        logger.warning(f"Invalid multi-doc query parameters: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Multi-doc query error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
