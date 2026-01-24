@@ -100,6 +100,9 @@ from api.routers.query import router as query_router
 # Import Summaries API router (Phase 11-01)
 from api.routers.summaries import router as summaries_router
 
+# Import Trends API router (Phase 11-02)
+from api.routers.trends import router as trends_router
+
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
 # Rate limiting configuration
@@ -139,6 +142,9 @@ app.include_router(
 app.include_router(
     summaries_router
 )  # Summaries API (Phase 11-01) - prefix already set in router
+app.include_router(
+    trends_router
+)  # Trends API (Phase 11-02) - prefix already set in router
 
 
 from fastapi.staticfiles import StaticFiles
