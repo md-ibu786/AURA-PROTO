@@ -38,21 +38,22 @@ USAGE:
     Access API docs at: http://localhost:8000/docs
 ============================================================================
 """
+
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv
 import os
 
 # Load .env from project root (one level up from api/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-env_path = os.path.join(project_root, '.env')
+env_path = os.path.join(project_root, ".env")
 load_dotenv(env_path)
 
 # Fix relative GOOGLE_APPLICATION_CREDENTIALS path to absolute
-gac = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS', '')
+gac = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
 if gac and not os.path.isabs(gac):
     # Resolve relative to project root
     abs_gac = os.path.normpath(os.path.join(project_root, gac))
-    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = abs_gac
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = abs_gac
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -70,8 +71,7 @@ import importlib.util
 # Import hierarchy data access functions from api/hierarchy.py file
 # (not from api/hierarchy/ package which would cause circular imports)
 hierarchy_file = importlib.util.spec_from_file_location(
-    "hierarchy_functions",
-    os.path.join(os.path.dirname(__file__), "hierarchy.py")
+    "hierarchy_functions", os.path.join(os.path.dirname(__file__), "hierarchy.py")
 )
 hierarchy_module = importlib.util.module_from_spec(hierarchy_file)
 hierarchy_file.loader.exec_module(hierarchy_module)
@@ -93,6 +93,9 @@ from kg import kg_router
 
 # Import hierarchy navigation router (for AURA-CHAT proxy)
 from hierarchy import hierarchy_router
+
+# Import KG Query API router (Phase 10-04)
+from api.routers.query import router as query_router
 
 app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
@@ -125,54 +128,67 @@ app.include_router(crud_router)
 app.include_router(explorer_router)
 app.include_router(audio_router)
 app.include_router(modules_router, prefix="/api/v1")  # M2KG Module endpoints
-app.include_router(kg_router, prefix="/api/v1")       # KG processing endpoints
+app.include_router(kg_router, prefix="/api/v1")  # KG processing endpoints
 app.include_router(hierarchy_router, prefix="/api/v1")  # Hierarchy navigation endpoints
+app.include_router(
+    query_router
+)  # KG Query API (Phase 10-04) - prefix already set in router
 
 
 from fastapi.staticfiles import StaticFiles
+
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-pdfs_dir = os.path.join(base_dir, 'pdfs')
+pdfs_dir = os.path.join(base_dir, "pdfs")
 os.makedirs(pdfs_dir, exist_ok=True)
-app.mount('/pdfs', StaticFiles(directory=pdfs_dir), name='pdfs')
+app.mount("/pdfs", StaticFiles(directory=pdfs_dir), name="pdfs")
+
 
 @app.get("/departments")
 def list_departments():
     return {"departments": get_all_departments()}
 
+
 @app.get("/departments/{department_id}/semesters")
 def list_semesters(department_id: str):
     return {"semesters": get_semesters_by_department(department_id)}
+
 
 @app.get("/semesters/{semester_id}/subjects")
 def list_subjects(semester_id: str):
     return {"subjects": get_subjects_by_semester(semester_id)}
 
+
 @app.get("/subjects/{subject_id}/modules")
 def list_modules(subject_id: str):
     return {"modules": get_modules_by_subject(subject_id)}
 
+
 @app.get("/")
 def root():
     return {"message": "AURA-PROTO API - Hierarchy & Notes Explorer"}
+
 
 @app.get("/health")
 def health_check():
     """Liveness probe - confirms app is running."""
     return {"status": "healthy", "version": "1.0.0"}
 
+
 @app.get("/ready")
 async def readiness_check():
     """Readiness probe - confirms Firestore is accessible."""
     try:
         from config import db
-        db.collection('departments').limit(1).get()
+
+        db.collection("departments").limit(1).get()
         return {"status": "ready", "database": "connected"}
     except Exception:
         return Response(
             content='{"status": "not_ready", "database": "disconnected"}',
             status_code=503,
-            media_type="application/json"
+            media_type="application/json",
         )
+
 
 @app.get("/health/redis")
 def redis_health_check():
@@ -184,15 +200,17 @@ def redis_health_check():
             from api.cache import redis_client
         except ImportError:
             return {"status": "unavailable", "redis": "package_not_found"}
-    
+
     connected = redis_client.ping()
     return {
         "status": "healthy" if connected else "unhealthy",
-        "redis": "connected" if connected else "disconnected"
+        "redis": "connected" if connected else "disconnected",
     }
+
 
 from pydantic import BaseModel
 from fastapi import HTTPException
+
 
 class CreateNoteRequest(BaseModel):
     department_id: str
@@ -202,18 +220,24 @@ class CreateNoteRequest(BaseModel):
     title: str
     pdf_url: str
 
-@app.post('/notes', status_code=201)
+
+@app.post("/notes", status_code=201)
 def create_note_endpoint(payload: CreateNoteRequest):
     # Validate hierarchy using path check (use loaded hierarchy_module)
-    if not hierarchy_module.validate_hierarchy(payload.module_id, payload.subject_id, payload.semester_id, payload.department_id):
-        raise HTTPException(status_code=400, detail='Invalid hierarchy for note')
+    if not hierarchy_module.validate_hierarchy(
+        payload.module_id,
+        payload.subject_id,
+        payload.semester_id,
+        payload.department_id,
+    ):
+        raise HTTPException(status_code=400, detail="Invalid hierarchy for note")
 
     try:
         from notes import create_note_record
     except Exception:
         from api.notes import create_note_record
-        
+
     note = create_note_record(payload.module_id, payload.title, payload.pdf_url)
     if not note:
-        raise HTTPException(status_code=500, detail='Failed to create note')
+        raise HTTPException(status_code=500, detail="Failed to create note")
     return note
