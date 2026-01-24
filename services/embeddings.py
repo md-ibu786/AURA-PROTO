@@ -6,6 +6,7 @@
 # embeddings to avoid external dependencies during pytest runs.
 
 # @see: api/kg_processor.py - Uses EmbeddingService for chunk and entity embeddings
+# @see: api/rag_engine.py - Uses embed_query for search queries
 # @see: AURA-CHAT/backend/utils/embeddings.py - Reference implementation
 # @note: Test mode is enabled via AURA_TEST_MODE=true
 
@@ -13,8 +14,11 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 import random
+import unicodedata
+from functools import lru_cache
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -112,9 +116,7 @@ class EmbeddingService:
         else:
             if not self.api_key:
                 logger.warning("No API key configured for Gemini embeddings")
-            logger.info(
-                f"EmbeddingService initialized with model: {self.model_name}"
-            )
+            logger.info(f"EmbeddingService initialized with model: {self.model_name}")
 
     def enable_cache(self, max_size: int = 1000) -> None:
         """
@@ -230,7 +232,9 @@ class EmbeddingService:
 
                 for text in texts:
                     # Truncate text if too long
-                    truncated = text[:MAX_TEXT_LENGTH] if len(text) > MAX_TEXT_LENGTH else text
+                    truncated = (
+                        text[:MAX_TEXT_LENGTH] if len(text) > MAX_TEXT_LENGTH else text
+                    )
 
                     result = genai.embed_content(
                         model=self.model_name,
@@ -267,7 +271,9 @@ class EmbeddingService:
                     attempt += 1
                     continue
 
-                logger.error(f"Embedding request failed after {attempt + 1} attempts: {e}")
+                logger.error(
+                    f"Embedding request failed after {attempt + 1} attempts: {e}"
+                )
                 raise
 
     def embed_text(self, text: str) -> List[float]:
@@ -302,6 +308,126 @@ class EmbeddingService:
         embedding = embeddings[0] if embeddings else []
         self._set_cached(text, embedding)
         return embedding
+
+    def embed_query(self, query: str) -> List[float]:
+        """
+        Generate embedding for a search query with query-specific optimization.
+
+        This method is optimized for search queries:
+        1. Cleans and normalizes the query text
+        2. Uses LRU caching for recent queries (100 entries)
+        3. Returns 768-dimensional vector
+
+        Args:
+            query: Search query text
+
+        Returns:
+            768-dimensional embedding vector, or empty list if input is empty
+
+        Example:
+            service = EmbeddingService()
+            query_embedding = service.embed_query("machine learning algorithms")
+            # Use embedding for vector similarity search
+        """
+        if not query or query.strip() == "":
+            return []
+
+        # Normalize query for better search results
+        normalized_query = self._normalize_query(query)
+
+        # Use cached query embedding if available
+        cached_embedding = self._get_cached_query_embedding(normalized_query)
+        if cached_embedding is not None:
+            return cached_embedding
+
+        # Generate embedding
+        embedding = self.embed_text(normalized_query)
+
+        # Cache the query embedding
+        if embedding:
+            self._cache_query_embedding(normalized_query, embedding)
+
+        return embedding
+
+    def _normalize_query(self, query: str) -> str:
+        """
+        Normalize query text for consistent embeddings.
+
+        Applies:
+        - Unicode normalization (NFKC)
+        - Lowercase conversion
+        - Whitespace normalization
+        - Remove excessive punctuation
+
+        Args:
+            query: Raw query text
+
+        Returns:
+            Normalized query string
+        """
+        # Unicode normalize
+        normalized = unicodedata.normalize("NFKC", query)
+
+        # Lowercase
+        normalized = normalized.lower()
+
+        # Normalize whitespace
+        normalized = " ".join(normalized.split())
+
+        # Remove excessive punctuation but keep essential ones
+        normalized = re.sub(r"[^\w\s\-\'\"\.\?\!]", " ", normalized)
+
+        # Clean up whitespace again
+        normalized = " ".join(normalized.split())
+
+        return normalized.strip()
+
+    def _get_cached_query_embedding(self, query: str) -> Optional[List[float]]:
+        """Get cached query embedding using LRU cache."""
+        return self._query_embedding_cache(query)
+
+    def _cache_query_embedding(self, query: str, embedding: List[float]) -> None:
+        """Cache query embedding (handled by LRU decorator)."""
+        # The caching is done via the lru_cache on _query_embedding_cache_impl
+        pass
+
+    @staticmethod
+    @lru_cache(maxsize=100)
+    def _query_embedding_cache_impl(query: str) -> Optional[List[float]]:
+        """
+        LRU cache implementation for query embeddings.
+
+        Note: This is a static placeholder. Actual caching happens at instance level
+        via the _query_cache dict to work with instance-specific API keys.
+        """
+        return None
+
+    def _query_embedding_cache(self, query: str) -> Optional[List[float]]:
+        """Instance-level query cache lookup."""
+        if not hasattr(self, "_query_cache"):
+            self._query_cache: Dict[str, List[float]] = {}
+            self._query_cache_order: List[str] = []
+            self._query_cache_max = 100
+
+        return self._query_cache.get(query)
+
+    def _cache_query_embedding(self, query: str, embedding: List[float]) -> None:
+        """Instance-level query cache storage with LRU eviction."""
+        if not hasattr(self, "_query_cache"):
+            self._query_cache = {}
+            self._query_cache_order = []
+            self._query_cache_max = 100
+
+        # Evict oldest if cache is full
+        if len(self._query_cache) >= self._query_cache_max:
+            if self._query_cache_order:
+                oldest = self._query_cache_order.pop(0)
+                self._query_cache.pop(oldest, None)
+
+        # Add to cache
+        if query not in self._query_cache:
+            self._query_cache_order.append(query)
+        self._query_cache[query] = embedding
 
     def embed_batch(
         self,
@@ -366,7 +492,9 @@ class EmbeddingService:
                     embeddings = self._call_embedding_api(batch_texts)
                     self._requests_made += 1
 
-                    for idx, text, embedding in zip(batch_indices, batch_texts, embeddings):
+                    for idx, text, embedding in zip(
+                        batch_indices, batch_texts, embeddings
+                    ):
                         results[idx] = embedding
                         self._set_cached(text, embedding)
 
