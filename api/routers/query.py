@@ -1030,3 +1030,344 @@ async def get_low_quality_results(
     except Exception as e:
         logger.error(f"Failed to find low-quality results: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ============================================================================
+# GRAPH VISUALIZATION ENDPOINTS (Phase 11-05)
+# ============================================================================
+
+from fastapi import Body, Response
+from api.graph_visualizer import (
+    GraphVisualizer,
+    GraphOptions,
+    LayoutType,
+    ExportFormat,
+    VisualizationGraph,
+    get_graph_visualizer,
+)
+
+
+@router.get(
+    "/graph/module/{module_id}",
+    response_model=VisualizationGraph,
+    summary="Get module graph visualization",
+    description="Get visualization-ready graph for a module with filtering and layout options.",
+)
+async def get_module_graph(
+    module_id: str,
+    include_entity_types: Optional[List[str]] = Query(
+        None,
+        description="Entity types to include (e.g., Topic, Concept)",
+    ),
+    exclude_entity_types: Optional[List[str]] = Query(
+        None,
+        description="Entity types to exclude",
+    ),
+    include_relationships: Optional[List[str]] = Query(
+        None,
+        description="Relationship types to include",
+    ),
+    exclude_relationships: Optional[List[str]] = Query(
+        None,
+        description="Relationship types to exclude",
+    ),
+    max_nodes: int = Query(
+        500,
+        ge=1,
+        le=2000,
+        description="Maximum nodes to return",
+    ),
+    include_chunks: bool = Query(
+        False,
+        description="Include chunk nodes",
+    ),
+    include_documents: bool = Query(
+        True,
+        description="Include document nodes",
+    ),
+    layout: LayoutType = Query(
+        LayoutType.FORCE_DIRECTED,
+        description="Layout algorithm to apply",
+    ),
+    visualizer: GraphVisualizer = Depends(get_graph_visualizer),
+) -> VisualizationGraph:
+    """
+    Get visualization-ready graph for a module.
+    
+    Returns nodes and edges with positions, colors, and metadata
+    suitable for direct rendering in graph visualization components.
+    
+    Args:
+        module_id: Module identifier
+        include_entity_types: Filter to only these entity types
+        exclude_entity_types: Exclude these entity types
+        include_relationships: Filter to only these relationship types
+        exclude_relationships: Exclude these relationship types
+        max_nodes: Maximum nodes in result
+        include_chunks: Include chunk nodes (can be verbose)
+        include_documents: Include document nodes
+        layout: Layout algorithm (force_directed, hierarchical, radial, circular)
+    
+    Returns:
+        VisualizationGraph with nodes, edges, and metadata
+    """
+    logger.info(f"Getting module graph: {module_id}")
+    
+    try:
+        options = GraphOptions(
+            include_entity_types=include_entity_types,
+            exclude_entity_types=exclude_entity_types,
+            include_relationship_types=include_relationships,
+            exclude_relationship_types=exclude_relationships,
+            max_nodes=max_nodes,
+            include_chunks=include_chunks,
+            include_documents=include_documents,
+            layout=layout,
+        )
+        
+        graph = await visualizer.get_module_graph(module_id, options)
+        
+        logger.info(
+            f"Module graph generated: {graph.metadata.node_count} nodes, "
+            f"{graph.metadata.edge_count} edges"
+        )
+        
+        return graph
+        
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get module graph: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/graph/document/{document_id}",
+    response_model=VisualizationGraph,
+    summary="Get document graph visualization",
+    description="Get visualization-ready graph for a document showing chunks and entities.",
+)
+async def get_document_graph(
+    document_id: str,
+    include_chunks: bool = Query(
+        True,
+        description="Include chunk nodes in the graph",
+    ),
+    layout: LayoutType = Query(
+        LayoutType.HIERARCHICAL,
+        description="Layout algorithm (hierarchical recommended for documents)",
+    ),
+    max_nodes: int = Query(
+        500,
+        ge=1,
+        le=2000,
+        description="Maximum nodes to return",
+    ),
+    visualizer: GraphVisualizer = Depends(get_graph_visualizer),
+) -> VisualizationGraph:
+    """
+    Get visualization-ready graph for a document.
+    
+    Shows document structure with chunks and extracted entities.
+    Hierarchical layout is recommended for document graphs.
+    
+    Args:
+        document_id: Document identifier
+        include_chunks: Include chunk nodes (recommended True)
+        layout: Layout algorithm
+        max_nodes: Maximum nodes in result
+    
+    Returns:
+        VisualizationGraph for the document
+    """
+    logger.info(f"Getting document graph: {document_id}")
+    
+    try:
+        options = GraphOptions(
+            include_chunks=include_chunks,
+            layout=layout,
+            max_nodes=max_nodes,
+        )
+        
+        graph = await visualizer.get_document_graph(document_id, options)
+        
+        return graph
+        
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get document graph: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post(
+    "/graph/cross-module",
+    response_model=VisualizationGraph,
+    summary="Get cross-module comparison graph",
+    description="Get visualization comparing entities across multiple modules.",
+)
+async def get_cross_module_graph(
+    module_ids: List[str] = Body(
+        ...,
+        min_length=2,
+        description="List of module IDs to compare (minimum 2)",
+    ),
+    options: GraphOptions = Body(
+        default_factory=GraphOptions,
+        description="Graph generation options",
+    ),
+    visualizer: GraphVisualizer = Depends(get_graph_visualizer),
+) -> VisualizationGraph:
+    """
+    Get visualization comparing multiple modules.
+    
+    Shows entities from each module with relationships between them,
+    highlighting shared concepts and cross-module connections.
+    
+    Args:
+        module_ids: List of module IDs to compare (minimum 2)
+        options: Graph generation options
+    
+    Returns:
+        VisualizationGraph showing cross-module relationships
+    """
+    logger.info(f"Getting cross-module graph: {module_ids}")
+    
+    try:
+        graph = await visualizer.get_cross_module_graph(module_ids, options)
+        
+        logger.info(
+            f"Cross-module graph generated: {len(module_ids)} modules, "
+            f"{graph.metadata.node_count} nodes"
+        )
+        
+        return graph
+        
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get cross-module graph: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get(
+    "/graph/entity/{entity_id}/neighborhood",
+    response_model=VisualizationGraph,
+    summary="Get entity neighborhood graph",
+    description="Get graph showing entities connected to a specific entity.",
+)
+async def get_entity_neighborhood(
+    entity_id: str,
+    depth: int = Query(
+        2,
+        ge=1,
+        le=4,
+        description="Number of hops to expand (1-4)",
+    ),
+    visualizer: GraphVisualizer = Depends(get_graph_visualizer),
+) -> VisualizationGraph:
+    """
+    Get neighborhood graph around an entity.
+    
+    Shows the entity and all entities connected within the specified
+    number of hops. Uses radial layout with the target entity at center.
+    
+    Args:
+        entity_id: Entity identifier
+        depth: Number of relationship hops to expand
+    
+    Returns:
+        VisualizationGraph of entity neighborhood
+    """
+    logger.info(f"Getting entity neighborhood: {entity_id}, depth={depth}")
+    
+    try:
+        graph = await visualizer.get_entity_neighborhood(entity_id, depth)
+        
+        return graph
+        
+    except ServiceUnavailable as e:
+        logger.error(f"Neo4j connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="Database connection unavailable. Please try again later.",
+        )
+    except Exception as e:
+        logger.error(f"Failed to get entity neighborhood: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.post(
+    "/graph/export",
+    summary="Export graph in various formats",
+    description="Export a visualization graph in JSON, GraphML, GEXF, or CSV format.",
+)
+async def export_graph(
+    graph: VisualizationGraph = Body(
+        ...,
+        description="Graph to export",
+    ),
+    format: ExportFormat = Query(
+        ExportFormat.JSON,
+        description="Export format",
+    ),
+    visualizer: GraphVisualizer = Depends(get_graph_visualizer),
+) -> Response:
+    """
+    Export graph in specified format.
+    
+    Supported formats:
+    - JSON: Full graph data with metadata
+    - GraphML: Standard graph exchange format
+    - GEXF: Gephi format for network analysis
+    - CSV: Simple node/edge tables
+    
+    Args:
+        graph: VisualizationGraph to export
+        format: Export format
+    
+    Returns:
+        File download response
+    """
+    logger.info(f"Exporting graph: {format.value}, {graph.metadata.node_count} nodes")
+    
+    try:
+        content = visualizer.export_graph(graph, format)
+        
+        # Determine content type and filename
+        content_types = {
+            ExportFormat.JSON: "application/json",
+            ExportFormat.GRAPHML: "application/xml",
+            ExportFormat.GEXF: "application/xml",
+            ExportFormat.CSV: "text/csv",
+        }
+        extensions = {
+            ExportFormat.JSON: "json",
+            ExportFormat.GRAPHML: "graphml",
+            ExportFormat.GEXF: "gexf",
+            ExportFormat.CSV: "csv",
+        }
+        
+        return Response(
+            content=content,
+            media_type=content_types[format],
+            headers={
+                "Content-Disposition": f"attachment; filename=graph.{extensions[format]}"
+            },
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to export graph: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to export graph")

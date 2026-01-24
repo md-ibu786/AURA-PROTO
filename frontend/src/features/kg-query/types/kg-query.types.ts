@@ -273,3 +273,74 @@ export interface Module {
     name: string;
     documentCount?: number;
 }
+
+// ============================================================================
+// UNIFIED GRAPH VISUALIZATION TYPES (Phase 11-05)
+// ============================================================================
+
+export type LayoutType = 'force_directed' | 'hierarchical' | 'radial' | 'circular';
+
+export type ExportFormat = 'json' | 'graphml' | 'gexf' | 'csv';
+
+export interface GraphOptions {
+    includeEntityTypes?: string[];
+    excludeEntityTypes?: string[];
+    includeRelationshipTypes?: string[];
+    excludeRelationshipTypes?: string[];
+    maxNodes?: number;
+    includeChunks?: boolean;
+    includeDocuments?: boolean;
+    layout?: LayoutType;
+    groupBy?: 'type' | 'module' | 'document';
+}
+
+export interface VisualizationNode {
+    id: string;
+    label: string;
+    type: string;
+    group?: string;
+    size: number;
+    color?: string;
+    x?: number;
+    y?: number;
+    properties: Record<string, unknown>;
+}
+
+export interface VisualizationEdge {
+    id: string;
+    source: string;
+    target: string;
+    type: string;
+    weight: number;
+    color?: string;
+    properties: Record<string, unknown>;
+}
+
+export interface GraphMetadata {
+    moduleIds: string[];
+    documentIds: string[];
+    nodeCount: number;
+    edgeCount: number;
+    entityTypeCounts: Record<string, number>;
+    relationshipTypeCounts: Record<string, number>;
+    generatedAt: string;
+    optionsUsed?: GraphOptions;
+}
+
+export interface VisualizationGraph {
+    nodes: VisualizationNode[];
+    edges: VisualizationEdge[];
+    metadata: GraphMetadata;
+    layoutApplied: boolean;
+}
+
+export interface GraphViewOptions {
+    showLabels: boolean;
+    labelSize: number;
+    nodeSize: 'fixed' | 'by_connections' | 'by_property';
+    nodeSizeProperty?: string;
+    edgeWidth: 'fixed' | 'by_weight';
+    enableZoom: boolean;
+    enablePan: boolean;
+    highlightOnHover: boolean;
+}
