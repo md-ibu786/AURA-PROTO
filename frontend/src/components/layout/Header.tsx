@@ -76,7 +76,10 @@ export function Header() {
         setSelectionMode,
         selectedIds,
         clearSelection,
-        openProcessDialog
+        openProcessDialog,
+        deleteMode,
+        setDeleteMode,
+        openKGDeleteDialog
     } = useExplorerStore();
 
     const goHome = () => {
@@ -101,8 +104,9 @@ export function Header() {
     useEffect(() => {
         if (!isInsideModule && selectionMode) {
             setSelectionMode(false);
+            setDeleteMode(false);
         }
-    }, [isInsideModule, selectionMode, setSelectionMode]);
+    }, [isInsideModule, selectionMode, setSelectionMode, setDeleteMode]);
 
 
     return (
@@ -210,32 +214,98 @@ export function Header() {
                 </button>
             </div>
 
-            {/* Selection Mode Actions - Shows count and process button */}
+            {/* Selection Mode Actions - Shows count and process/delete button */}
             {selectionMode && (
                 <>
                     <div className="h-6 w-px bg-border mx-2" style={{ marginLeft: 'auto' }} />
                     <div className="flex items-center gap-md">
+                        {/* Mode Toggle: Process vs Delete */}
+                        <div 
+                            className="flex items-center rounded-md overflow-hidden"
+                            style={{ 
+                                border: '1px solid var(--color-border)',
+                                background: 'var(--color-bg-secondary)'
+                            }}
+                        >
+                            <button
+                                className="px-3 py-1 text-xs font-medium transition-colors"
+                                style={{
+                                    background: !deleteMode ? 'var(--color-primary)' : 'transparent',
+                                    color: !deleteMode ? 'var(--color-bg)' : 'var(--color-text-secondary)'
+                                }}
+                                onClick={() => {
+                                    clearSelection();
+                                    setDeleteMode(false);
+                                }}
+                                title="Select notes to add to Knowledge Graph"
+                            >
+                                <Zap size={12} className="inline mr-1" />
+                                Process
+                            </button>
+                            <button
+                                className="px-3 py-1 text-xs font-medium transition-colors"
+                                style={{
+                                    background: deleteMode ? '#ef4444' : 'transparent',
+                                    color: deleteMode ? 'white' : 'var(--color-text-secondary)'
+                                }}
+                                onClick={() => {
+                                    clearSelection();
+                                    setDeleteMode(true);
+                                }}
+                                title="Select notes to remove from Knowledge Graph"
+                            >
+                                <Trash2 size={12} className="inline mr-1" />
+                                Delete
+                            </button>
+                        </div>
+
                         <span
                             className="text-accent font-medium whitespace-nowrap"
                             style={{ fontSize: '14px' }}
                         >
                             {selectedIds.size} Selected
                         </span>
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => {
-                                if (selectedIds.size > 0) {
-                                    const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
-                                    openProcessDialog(Array.from(selectedIds), currentModuleId);
-                                }
-                            }}
-                            disabled={selectedIds.size === 0}
-                            title="Process selected documents for Knowledge Graph"
-                            style={{ padding: '6px 16px' }}
-                        >
-                            <Zap size={16} />
-                            Process
-                        </button>
+                        
+                        {/* Action button - Process or Delete based on mode */}
+                        {deleteMode ? (
+                            <button
+                                className="btn"
+                                style={{
+                                    padding: '6px 16px',
+                                    background: '#ef4444',
+                                    color: 'white',
+                                    border: 'none'
+                                }}
+                                onClick={() => {
+                                    if (selectedIds.size > 0) {
+                                        const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
+                                        openKGDeleteDialog(Array.from(selectedIds), currentModuleId);
+                                    }
+                                }}
+                                disabled={selectedIds.size === 0}
+                                title="Delete selected documents from Knowledge Graph"
+                            >
+                                <Trash2 size={16} />
+                                Delete from KG
+                            </button>
+                        ) : (
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                    if (selectedIds.size > 0) {
+                                        const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
+                                        openProcessDialog(Array.from(selectedIds), currentModuleId);
+                                    }
+                                }}
+                                disabled={selectedIds.size === 0}
+                                title="Process selected documents for Knowledge Graph"
+                                style={{ padding: '6px 16px' }}
+                            >
+                                <Zap size={16} />
+                                Process
+                            </button>
+                        )}
+                        
                         <div className="flex items-center gap-xs">
                             <button
                                 className="nav-btn"
@@ -249,6 +319,7 @@ export function Header() {
                                 onClick={() => {
                                     clearSelection();
                                     setSelectionMode(false);
+                                    setDeleteMode(false);
                                 }}
                                 title="Exit selection mode"
                             >

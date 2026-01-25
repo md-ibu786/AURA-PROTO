@@ -194,7 +194,9 @@ import type {
     ProcessingRequest,
     BatchProcessingResponse,
     ProcessingQueueItem,
-    TaskStatusResponse
+    TaskStatusResponse,
+    DeleteBatchRequest,
+    DeleteBatchResponse
 } from '../features/kg/types/kg.types';
 
 export async function getKGDocumentStatus(documentId: string): Promise<KGStatusResponse> {
@@ -217,4 +219,14 @@ export async function getKGProcessingQueue(): Promise<ProcessingQueueItem[]> {
 
 export async function getKGTaskStatus(taskId: string): Promise<TaskStatusResponse> {
     return fetchApi<TaskStatusResponse>(`/v1/kg/tasks/${taskId}/status`);
+}
+
+export async function deleteKGBatch(request: DeleteBatchRequest): Promise<DeleteBatchResponse> {
+    return fetchApi<DeleteBatchResponse>('/v1/kg/delete-batch', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+    });
 }

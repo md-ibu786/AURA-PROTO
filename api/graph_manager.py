@@ -78,7 +78,9 @@ class EntityPath(BaseModel):
 
     source_entity: str = Field(description="Name of the source entity")
     target_entity: str = Field(description="Name of the target entity")
-    relationship_type: str = Field(description="Type of relationship (DEFINES, USES, etc.)")
+    relationship_type: str = Field(
+        description="Type of relationship (DEFINES, USES, etc.)"
+    )
     confidence: float = Field(default=1.0, description="Relationship confidence score")
     hops: int = Field(default=1, description="Number of hops from original seed entity")
 
@@ -330,9 +332,7 @@ class GraphManager:
 
             neighbors = []
             with self.driver.session() as session:
-                result = session.run(
-                    cypher, {"entity_id": entity_id, "limit": limit}
-                )
+                result = session.run(cypher, {"entity_id": entity_id, "limit": limit})
                 for record in result:
                     rel_type = record["relationship_type"]
                     neighbors.append(
@@ -343,8 +343,12 @@ class GraphManager:
                             "definition": record.get("definition"),
                             "module_id": record.get("module_id"),
                             "relationship_type": rel_type,
-                            "relationship_confidence": record.get("rel_confidence", 1.0),
-                            "relationship_weight": RELATIONSHIP_WEIGHTS.get(rel_type, 0.4),
+                            "relationship_confidence": record.get(
+                                "rel_confidence", 1.0
+                            ),
+                            "relationship_weight": RELATIONSHIP_WEIGHTS.get(
+                                rel_type, 0.4
+                            ),
                             "is_outgoing": record.get("is_outgoing", True),
                         }
                     )
@@ -393,7 +397,11 @@ class GraphManager:
             with self.driver.session() as session:
                 result = session.run(
                     cypher,
-                    {"source_id": source_id, "target_id": target_id, "max_hops": max_hops},
+                    {
+                        "source_id": source_id,
+                        "target_id": target_id,
+                        "max_hops": max_hops,
+                    },
                 )
                 for record in result:
                     paths.append(
@@ -406,11 +414,15 @@ class GraphManager:
                         )
                     )
 
-            logger.debug(f"Found {len(paths)} paths between {source_id} and {target_id}")
+            logger.debug(
+                f"Found {len(paths)} paths between {source_id} and {target_id}"
+            )
             return paths
 
         except Exception as e:
-            logger.warning(f"Failed to find paths between {source_id} and {target_id}: {e}")
+            logger.warning(
+                f"Failed to find paths between {source_id} and {target_id}: {e}"
+            )
             return []
 
     async def get_subgraph(
@@ -499,6 +511,86 @@ class GraphManager:
             logger.warning(f"Failed to extract subgraph: {e}")
             return Subgraph(nodes=[], edges=[], node_count=0, edge_count=0)
 
+    async def delete_document(self, doc_id: str) -> bool:
+        """
+        Delete a document and ALL associated data from Neo4j.
+
+        This performs comprehensive cleanup:
+        1. Delete parent chunks (ParentChunk nodes) with DETACH DELETE
+        2. Delete child/regular chunks (Chunk nodes) with DETACH DELETE
+        3. Delete the Document node explicitly
+        4. Delete ALL orphaned entities (not connected to any remaining Document or Chunk)
+
+        Args:
+            doc_id: The unique ID of the document to delete
+
+        Returns:
+            True if deletion was successful, False otherwise
+        """
+        try:
+            # Step 1: Check document exists
+            check_query = """
+            MATCH (d:Document {id: $doc_id})
+            RETURN d.id as id
+            """
+            with self.driver.session() as session:
+                result = session.run(check_query, {"doc_id": doc_id})
+                record = result.single()
+
+                if not record:
+                    logger.warning(f"Document {doc_id} not found in Neo4j")
+                    return True  # Consider it a success if already not present
+
+            logger.info(f"Starting deletion of document {doc_id}")
+
+            # Step 2: Delete all parent chunks linked to this document
+            delete_parent_chunks_query = """
+            MATCH (d:Document {id: $doc_id})-[:HAS_PARENT_CHUNK]->(p:ParentChunk)
+            DETACH DELETE p
+            """
+            with self.driver.session() as session:
+                session.run(delete_parent_chunks_query, {"doc_id": doc_id})
+            logger.debug(f"Deleted parent chunks for document {doc_id}")
+
+            # Step 3: Delete all child/regular chunks linked to this document
+            delete_chunks_query = """
+            MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK]->(c:Chunk)
+            DETACH DELETE c
+            """
+            with self.driver.session() as session:
+                session.run(delete_chunks_query, {"doc_id": doc_id})
+            logger.debug(f"Deleted chunks for document {doc_id}")
+
+            # Step 4: Delete the document node itself (MUST be separate query!)
+            delete_doc_query = """
+            MATCH (d:Document {id: $doc_id})
+            DETACH DELETE d
+            """
+            with self.driver.session() as session:
+                session.run(delete_doc_query, {"doc_id": doc_id})
+            logger.debug(f"Deleted Document node {doc_id}")
+
+            # Step 5: GLOBAL ORPHAN CLEANUP
+            # Delete ALL entities that are not connected to ANY Document or Chunk
+            # This catches all orphaned nodes regardless of how they were linked
+            cleanup_orphans_query = """
+            MATCH (e)
+            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+            AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
+            AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
+            DETACH DELETE e
+            """
+            with self.driver.session() as session:
+                session.run(cleanup_orphans_query, {})
+            logger.debug("Cleaned up all orphaned entities globally")
+
+            logger.info(f"Successfully completed deletion of document {doc_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete document {doc_id}: {e}")
+            return False
+
     async def expand_graph_context(
         self,
         entity_ids: List[str],
@@ -573,7 +665,7 @@ class GraphManager:
                 WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)
                 AND start.id IN $entity_ids
                 AND (hop1:Topic OR hop1:Concept OR hop1:Methodology OR hop1:Finding)
-                {module_filter.replace('related', 'hop1')}
+                {module_filter.replace("related", "hop1")}
                 WITH start, hop1, r1, 1 as hops
                 RETURN start.name as source, hop1.name as target,
                        hop1.id as target_id, hop1.definition as definition,
@@ -590,7 +682,7 @@ class GraphManager:
                 AND (hop1:Topic OR hop1:Concept OR hop1:Methodology OR hop1:Finding)
                 AND (hop2:Topic OR hop2:Concept OR hop2:Methodology OR hop2:Finding)
                 AND NOT hop2.id IN $entity_ids
-                {module_filter.replace('related', 'hop2')}
+                {module_filter.replace("related", "hop2")}
                 WITH start, hop2, r2, 2 as hops
                 RETURN start.name as source, hop2.name as target,
                        hop2.id as target_id, hop2.definition as definition,
@@ -719,6 +811,7 @@ def create_graph_manager(neo4j_driver=None) -> GraphManager:
     """
     if neo4j_driver is None:
         from api.neo4j_config import neo4j_driver as default_driver
+
         neo4j_driver = default_driver
 
     return GraphManager(neo4j_driver)

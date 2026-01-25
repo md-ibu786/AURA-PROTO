@@ -66,6 +66,8 @@ try:
 except ImportError:
     from api.config import db
 
+from google.cloud.firestore import FieldFilter
+
 
 # ============================================================================
 # FIRESTORE STATUS UPDATE HELPER
@@ -87,8 +89,8 @@ def _find_note_by_id(document_id: str):
         # Use collection_group to find note in any modules subcollection
         notes = list(
             db.collection_group("notes")
-            .where("__name__", ">=", document_id)
-            .where("__name__", "<=", document_id + "\uf8ff")
+            .filter(FieldFilter("__name__", ">=", document_id))
+            .filter(FieldFilter("__name__", "<=", document_id + "\uf8ff"))
             .limit(1)
             .stream()
         )

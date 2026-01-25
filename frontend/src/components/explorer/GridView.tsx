@@ -93,7 +93,8 @@ export function GridView({ items }: GridViewProps) {
         creatingParentId,
         cancelCreating,
         openWarningDialog,
-        selectionMode
+        selectionMode,
+        deleteMode
     } = useExplorerStore();
 
     // Renaming state
@@ -252,8 +253,22 @@ export function GridView({ items }: GridViewProps) {
         e.stopPropagation();
 
         const itemIds = filteredItems.map(i => i.id);
+        
+        // Check if note is already KG-processed
+        const isKGReady = item.type === 'note' && item.meta?.kg_status === 'ready';
 
         if (selectionMode) {
+            if (deleteMode) {
+                // In delete mode, only allow selecting KG-ready notes
+                if (!isKGReady) {
+                    return; // Do nothing - item is disabled in delete mode
+                }
+            } else {
+                // In process mode, prevent selecting already-processed notes
+                if (isKGReady) {
+                    return; // Do nothing - item is disabled
+                }
+            }
             toggleSelect(item.id);
             return;
         }
@@ -321,19 +336,48 @@ export function GridView({ items }: GridViewProps) {
                 const Icon = config.icon;
                 const isSelected = selectedIds.has(item.id);
                 const isRenaming = item.id === renamingNodeId;
+                // Check if note is already KG-processed
+                const isKGReady = item.type === 'note' && item.meta?.kg_status === 'ready';
+                
+                // Determine disabled state based on mode:
+                // - Process mode (deleteMode=false): KG-ready notes are disabled (can't reprocess)
+                // - Delete mode (deleteMode=true): non-KG-ready notes are disabled (can't delete)
+                const isDisabledInSelection = selectionMode && (
+                    deleteMode ? !isKGReady : isKGReady
+                );
+                
+                // Tooltip for disabled items
+                const disabledTooltip = deleteMode 
+                    ? 'Not processed - cannot delete from KG'
+                    : 'Already processed - will be skipped';
 
                 return (
                     <div
                         key={item.id}
-                        className={`grid-item ${isSelected ? 'selected' : ''}`}
+                        className={`grid-item ${isSelected ? 'selected' : ''} ${isDisabledInSelection ? 'kg-disabled' : ''}`}
                         onClick={(e) => handleClick(e, item)}
                         onDoubleClick={() => handleDoubleClick(item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}
+                        title={isDisabledInSelection ? disabledTooltip : undefined}
                     >
+                        {/* Green LED indicator for KG-ready notes */}
+                        {isKGReady && !selectionMode && (
+                            <div 
+                                className="kg-ready-led" 
+                                title="Already processed"
+                            />
+                        )}
+                        
                         {/* Selection Checkbox */}
                         {selectionMode && (
                             <div className="absolute top-2 right-2 text-primary z-10">
-                                {isSelected ? (
+                                {isDisabledInSelection ? (
+                                    // Show indicator for disabled items in selection mode
+                                    <div 
+                                        className="kg-ready-led-inline" 
+                                        title={disabledTooltip}
+                                    />
+                                ) : isSelected ? (
                                     <CheckSquare className="h-5 w-5 fill-background" />
                                 ) : (
                                     <Square className="h-5 w-5 text-zinc-300 dark:text-zinc-600" />

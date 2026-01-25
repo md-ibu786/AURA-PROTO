@@ -62,6 +62,13 @@ interface ProcessDialogState {
     open: boolean;
     fileIds: string[];
     moduleId: string;
+    skippedCount: number;  // Count of already-processed docs that were filtered out
+}
+
+interface DeleteDialogState {
+    open: boolean;
+    fileIds: string[];
+    moduleId: string;
 }
 
 interface ExplorerState {
@@ -107,8 +114,15 @@ interface ExplorerState {
     setKGPolling: (moduleId: string | null, isPolling: boolean) => void;
 
     processDialog: ProcessDialogState;
-    openProcessDialog: (fileIds: string[], moduleId: string) => void;
+    openProcessDialog: (fileIds: string[], moduleId: string, skippedCount?: number) => void;
     closeProcessDialog: () => void;
+
+    // KG Delete State
+    deleteMode: boolean;
+    setDeleteMode: (enabled: boolean) => void;
+    kgDeleteDialog: DeleteDialogState;
+    openKGDeleteDialog: (fileIds: string[], moduleId: string) => void;
+    closeKGDeleteDialog: () => void;
 
     // Selection actions
     select: (id: string) => void;
@@ -184,20 +198,34 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
 
     // KG State
     kgPolling: { moduleId: null, isPolling: false },
-    processDialog: { open: false, fileIds: [], moduleId: '' },
+    processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 },
+
+    // KG Delete State
+    deleteMode: false,
+    kgDeleteDialog: { open: false, fileIds: [], moduleId: '' },
 
     setSelectionMode: (enabled) => set({ selectionMode: enabled }),
+
+    setDeleteMode: (enabled) => set({ deleteMode: enabled }),
 
     setKGPolling: (moduleId, isPolling) => set({
         kgPolling: { moduleId, isPolling }
     }),
 
-    openProcessDialog: (fileIds, moduleId) => set({
-        processDialog: { open: true, fileIds, moduleId }
+    openProcessDialog: (fileIds, moduleId, skippedCount = 0) => set({
+        processDialog: { open: true, fileIds, moduleId, skippedCount }
     }),
 
     closeProcessDialog: () => set({
-        processDialog: { open: false, fileIds: [], moduleId: '' }
+        processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 }
+    }),
+
+    openKGDeleteDialog: (fileIds, moduleId) => set({
+        kgDeleteDialog: { open: true, fileIds, moduleId }
+    }),
+
+    closeKGDeleteDialog: () => set({
+        kgDeleteDialog: { open: false, fileIds: [], moduleId: '' }
     }),
 
     // Navigation

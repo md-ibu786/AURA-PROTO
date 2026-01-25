@@ -37,9 +37,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getKGDocumentStatus,
     processKGBatch,
-    getKGProcessingQueue
+    getKGProcessingQueue,
+    deleteKGBatch
 } from '../../../api/explorerApi';
-import type { ProcessingRequest } from '../types/kg.types';
+import type { ProcessingRequest, DeleteBatchRequest } from '../types/kg.types';
 import { useExplorerStore } from '../../../stores';
 
 export function useKGProcessing() {
@@ -79,9 +80,20 @@ export function useKGProcessing() {
         },
     });
 
+    // Batch delete mutation
+    const deleteFiles = useMutation({
+        mutationFn: (request: DeleteBatchRequest) => deleteKGBatch(request),
+        onSuccess: () => {
+            // Invalidate explorer tree to refresh KG status indicators
+            queryClient.invalidateQueries({ queryKey: ['explorer', 'tree'] });
+            queryClient.invalidateQueries({ queryKey: ['kg', 'queue'] });
+        },
+    });
+
     return {
         useFileKGStatus,
         useProcessingQueue,
         processFiles,
+        deleteFiles,
     };
 }

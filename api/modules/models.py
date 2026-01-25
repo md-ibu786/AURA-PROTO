@@ -39,15 +39,21 @@ from enum import Enum
 
 class ModuleStatus(str, Enum):
     """Module lifecycle status for KG publishing workflow."""
-    DRAFT = "draft"           # Initial state, not visible to students
-    PUBLISHED = "published"   # Published to students, KG processed
-    ARCHIVED = "archived"     # Soft-deleted, hidden from all views
+
+    DRAFT = "draft"  # Initial state, not visible to students
+    PUBLISHED = "published"  # Published to students, KG processed
+    ARCHIVED = "archived"  # Soft-deleted, hidden from all views
 
 
 class ModuleCreate(BaseModel):
     """Request model for creating a module."""
-    name: str = Field(..., min_length=1, max_length=200, description="Module display name")
-    code: str = Field(..., min_length=1, max_length=50, description="Module code (e.g., CS201)")
+
+    name: str = Field(
+        ..., min_length=1, max_length=200, description="Module display name"
+    )
+    code: str = Field(
+        ..., min_length=1, max_length=50, description="Module code (e.g., CS201)"
+    )
     description: Optional[str] = Field(None, description="Module description")
     year: int = Field(..., ge=2000, le=2100, description="Academic year")
     semester: int = Field(..., ge=1, le=4, description="Semester number (1-4)")
@@ -55,6 +61,7 @@ class ModuleCreate(BaseModel):
 
 class ModuleUpdate(BaseModel):
     """Request model for updating a module."""
+
     name: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = None
     status: Optional[ModuleStatus] = None
@@ -62,6 +69,7 @@ class ModuleUpdate(BaseModel):
 
 class ModuleResponse(BaseModel):
     """Response model for module data."""
+
     id: str
     name: str
     code: str
@@ -79,6 +87,7 @@ class ModuleResponse(BaseModel):
 
 class ModuleListResponse(BaseModel):
     """Response for listing modules with pagination."""
+
     modules: List[ModuleResponse]
     total: int
     page: int
@@ -89,16 +98,19 @@ class ModuleListResponse(BaseModel):
 # PER-DOCUMENT KG STATUS MODELS
 # ============================================================================
 
+
 class KGStatus(str, Enum):
     """Per-document KG processing status for incremental processing."""
-    PENDING = "pending"       # Not yet processed
-    PROCESSING = "processing" # Currently being processed
-    READY = "ready"           # Successfully processed
-    FAILED = "failed"         # Processing failed
+
+    PENDING = "pending"  # Not yet processed
+    PROCESSING = "processing"  # Currently being processed
+    READY = "ready"  # Successfully processed
+    FAILED = "failed"  # Processing failed
 
 
 class DocumentKGStatus(BaseModel):
     """Per-document KG status response."""
+
     document_id: str
     module_id: str
     file_name: str
@@ -111,13 +123,17 @@ class DocumentKGStatus(BaseModel):
 
 class BatchProcessingRequest(BaseModel):
     """Request for batch document processing."""
+
     file_ids: List[str] = Field(..., description="List of document IDs to process")
     module_id: str = Field(..., description="Module ID for tagging all created nodes")
-    options: Optional[Dict[str, Any]] = Field(None, description="Optional processing options")
+    options: Optional[Dict[str, Any]] = Field(
+        None, description="Optional processing options"
+    )
 
 
 class BatchProcessingResponse(BaseModel):
     """Response for batch processing request."""
+
     task_id: str
     status_url: str
     documents_queued: int
@@ -127,10 +143,39 @@ class BatchProcessingResponse(BaseModel):
 
 class ProcessingQueueItem(BaseModel):
     """Document currently in processing queue."""
+
     document_id: str
     module_id: str
     file_name: str
     status: KGStatus
     progress: int = Field(..., ge=0, le=100, description="Progress percentage (0-100)")
-    step: str = Field(..., description="Current processing step (parsing, chunking, etc.)")
+    step: str = Field(
+        ..., description="Current processing step (parsing, chunking, etc.)"
+    )
     started_at: datetime
+
+
+# ============================================================================
+# KG DELETION MODELS
+# ============================================================================
+
+
+class BatchDeleteRequest(BaseModel):
+    """Request for batch deletion of documents from KG."""
+
+    file_ids: List[str] = Field(
+        ..., description="List of document IDs to delete from KG"
+    )
+    module_id: str = Field(..., description="Module ID for verification")
+
+
+class BatchDeleteResponse(BaseModel):
+    """Response for batch deletion request."""
+
+    deleted_count: int = Field(
+        ..., description="Number of documents successfully deleted from KG"
+    )
+    failed: List[str] = Field(
+        default_factory=list, description="Document IDs that failed to delete"
+    )
+    message: str = Field(..., description="Summary message")

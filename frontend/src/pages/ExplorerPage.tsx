@@ -53,6 +53,7 @@ import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
 import { FileSelectionBar } from '../features/kg/components/FileSelectionBar';
 import { ProcessDialog } from '../features/kg/components/ProcessDialog';
+import { DeleteFromKGDialog } from '../features/kg/components/DeleteFromKGDialog';
 import { ProcessingQueue } from '../features/kg/components/ProcessingQueue';
 
 export default function ExplorerPage() {
@@ -203,6 +204,7 @@ export default function ExplorerPage() {
             {/* KG Features */}
             <FileSelectionBar />
             <ProcessDialog />
+            <DeleteFromKGDialog />
             <ProcessingQueue />
         </div>
     );

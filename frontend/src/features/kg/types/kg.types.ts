@@ -81,3 +81,19 @@ export interface TaskStatusResponse {
     result?: unknown;
     error?: string;
 }
+
+
+// ============================================================================
+// KG DELETION TYPES
+// ============================================================================
+
+export interface DeleteBatchRequest {
+    file_ids: string[];
+    module_id: string;
+}
+
+export interface DeleteBatchResponse {
+    deleted_count: number;
+    failed: string[];
+    message: string;
+}

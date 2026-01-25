@@ -38,21 +38,39 @@ except ImportError:
 
 try:
     from modules.models import (
-        DocumentKGStatus, KGStatus,
-        BatchProcessingRequest, BatchProcessingResponse,
-        ProcessingQueueItem
+        DocumentKGStatus,
+        KGStatus,
+        BatchProcessingRequest,
+        BatchProcessingResponse,
+        ProcessingQueueItem,
+        BatchDeleteRequest,
+        BatchDeleteResponse,
     )
 except ImportError:
     from api.modules.models import (
-        DocumentKGStatus, KGStatus,
-        BatchProcessingRequest, BatchProcessingResponse,
-        ProcessingQueueItem
+        DocumentKGStatus,
+        KGStatus,
+        BatchProcessingRequest,
+        BatchProcessingResponse,
+        ProcessingQueueItem,
+        BatchDeleteRequest,
+        BatchDeleteResponse,
     )
 
 try:
     from tasks.document_processing_tasks import process_batch_task, get_task_progress
 except ImportError:
-    from api.tasks.document_processing_tasks import process_batch_task, get_task_progress
+    from api.tasks.document_processing_tasks import (
+        process_batch_task,
+        get_task_progress,
+    )
+
+try:
+    from graph_manager import GraphManager
+    from neo4j_config import neo4j_driver
+except ImportError:
+    from api.graph_manager import GraphManager
+    from api.neo4j_config import neo4j_driver
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +80,7 @@ router = APIRouter(prefix="/kg", tags=["KG Processing"])
 # ============================================================================
 # GET /kg/documents/{document_id}/status
 # ============================================================================
+
 
 @router.get("/documents/{document_id}/status", response_model=DocumentKGStatus)
 async def get_document_kg_status(document_id: str):
@@ -75,32 +94,38 @@ async def get_document_kg_status(document_id: str):
     - failed: Document processing failed
     """
     logger.debug(f"Getting KG status for document: {document_id}")
-    
+
     # Use collection_group to find the note in nested subcollections
-    notes = list(db.collection_group("notes").where("__name__", ">=", document_id).where("__name__", "<=", document_id + "\uf8ff").limit(1).stream())
-    
+    notes = list(
+        db.collection_group("notes")
+        .where("__name__", ">=", document_id)
+        .where("__name__", "<=", document_id + "\uf8ff")
+        .limit(1)
+        .stream()
+    )
+
     # Also try direct lookup if collection_group doesn't work
     if not notes:
         # Try to find by iterating (fallback)
         notes = list(db.collection_group("notes").stream())
         notes = [n for n in notes if n.id == document_id]
-    
+
     if not notes:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Document {document_id} not found"
+            detail=f"Document {document_id} not found",
         )
 
     doc = notes[0]
     doc_data = doc.to_dict()
-    
+
     # Default to PENDING if kg_status not set
     raw_status = doc_data.get("kg_status", "pending")
     try:
         kg_status = KGStatus(raw_status)
     except ValueError:
         kg_status = KGStatus.PENDING
-    
+
     return DocumentKGStatus(
         document_id=document_id,
         module_id=doc_data.get("module_id", ""),
@@ -109,13 +134,14 @@ async def get_document_kg_status(document_id: str):
         kg_processed_at=doc_data.get("kg_processed_at"),
         kg_error=doc_data.get("kg_error"),
         chunk_count=doc_data.get("kg_chunk_count"),
-        entity_count=doc_data.get("kg_entity_count")
+        entity_count=doc_data.get("kg_entity_count"),
     )
 
 
 # ============================================================================
 # POST /kg/process-batch
 # ============================================================================
+
 
 def _find_note_by_id(note_id: str):
     """Find a note document by ID using collection_group query."""
@@ -126,6 +152,7 @@ def _find_note_by_id(note_id: str):
             return note
     return None
 
+
 @router.post("/process-batch", response_model=BatchProcessingResponse)
 async def process_batch(request: BatchProcessingRequest):
     """
@@ -135,8 +162,10 @@ async def process_batch(request: BatchProcessingRequest):
     - Already processed documents are skipped (idempotent)
     - Returns task info for progress tracking
     """
-    logger.info(f"Batch processing request: {len(request.file_ids)} documents for module {request.module_id}")
-    
+    logger.info(
+        f"Batch processing request: {len(request.file_ids)} documents for module {request.module_id}"
+    )
+
     # Validate all documents exist and belong to module
     skipped_ids = []
     queued_ids = []
@@ -152,18 +181,20 @@ async def process_batch(request: BatchProcessingRequest):
 
         doc_data = note.to_dict()
         note_path = note.reference.path
-        
+
         # Extract module_id from the note path (e.g., departments/.../modules/{module_id}/notes/{note_id})
-        path_parts = note_path.split('/')
+        path_parts = note_path.split("/")
         note_module_id = None
         for i, part in enumerate(path_parts):
-            if part == 'modules' and i + 1 < len(path_parts):
+            if part == "modules" and i + 1 < len(path_parts):
                 note_module_id = path_parts[i + 1]
                 break
-        
+
         # Verify document belongs to the specified module
         if note_module_id != request.module_id:
-            logger.warning(f"Note {doc_id} belongs to module {note_module_id}, not {request.module_id}, skipping")
+            logger.warning(
+                f"Note {doc_id} belongs to module {note_module_id}, not {request.module_id}, skipping"
+            )
             continue
 
         # Check if already processed (idempotency)
@@ -181,27 +212,30 @@ async def process_batch(request: BatchProcessingRequest):
             status_url="",
             documents_queued=0,
             documents_skipped=len(skipped_ids),
-            message="All documents already processed"
+            message="All documents already processed",
         )
 
     # Trigger Celery batch task
     # Note: user_id should come from auth context, using "staff_user" as placeholder
     task = process_batch_task.delay(queued_ids, request.module_id, "staff_user")
 
-    logger.info(f"Batch task {task.id} dispatched: {len(queued_ids)} documents queued, {len(skipped_ids)} skipped")
+    logger.info(
+        f"Batch task {task.id} dispatched: {len(queued_ids)} documents queued, {len(skipped_ids)} skipped"
+    )
 
     return BatchProcessingResponse(
         task_id=task.id,
         status_url=f"/api/v1/kg/tasks/{task.id}/status",
         documents_queued=len(queued_ids),
         documents_skipped=len(skipped_ids),
-        message=f"Queued {len(queued_ids)} documents, skipped {len(skipped_ids)} already processed"
+        message=f"Queued {len(queued_ids)} documents, skipped {len(skipped_ids)} already processed",
     )
 
 
 # ============================================================================
 # GET /kg/processing-queue
 # ============================================================================
+
 
 @router.get("/processing-queue", response_model=List[ProcessingQueueItem])
 async def get_processing_queue():
@@ -234,10 +268,10 @@ async def get_processing_queue():
 def _doc_to_queue_item(doc, doc_data: dict):
     """Helper to convert Firestore doc to ProcessingQueueItem."""
     # Extract module_id from path
-    path_parts = doc.reference.path.split('/')
+    path_parts = doc.reference.path.split("/")
     module_id = ""
     for i, part in enumerate(path_parts):
-        if part == 'modules' and i + 1 < len(path_parts):
+        if part == "modules" and i + 1 < len(path_parts):
             module_id = path_parts[i + 1]
             break
 
@@ -253,13 +287,14 @@ def _doc_to_queue_item(doc, doc_data: dict):
         status=KGStatus.PROCESSING,
         progress=doc_data.get("kg_progress", 0),
         step=doc_data.get("kg_step", "processing"),
-        started_at=started_at
+        started_at=started_at,
     )
 
 
 # ============================================================================
 # GET /kg/tasks/{task_id}/status
 # ============================================================================
+
 
 @router.get("/tasks/{task_id}/status")
 async def get_task_status(task_id: str):
@@ -270,19 +305,121 @@ async def get_task_status(task_id: str):
     """
     if not task_id:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="task_id is required"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="task_id is required"
         )
-    
+
     logger.debug(f"Getting status for task: {task_id}")
-    
+
     progress = get_task_progress(task_id)
-    
+
     return {
         "task_id": task_id,
         "status": progress.get("state", "UNKNOWN"),
         "progress": progress.get("progress", 0),
         "stage": progress.get("stage", "unknown"),
         "result": progress.get("result"),
-        "error": progress.get("error")
+        "error": progress.get("error"),
     }
+
+
+# ============================================================================
+# POST /kg/delete-batch
+# ============================================================================
+
+
+@router.post("/delete-batch", response_model=BatchDeleteResponse)
+async def delete_batch(request: BatchDeleteRequest):
+    """
+    Delete multiple documents from the Knowledge Graph.
+
+    This completely removes documents from Neo4j:
+    - Document nodes
+    - All associated Chunk and ParentChunk nodes
+    - Orphaned entities (Topic, Concept, Methodology, Finding)
+
+    After deletion, Firestore kg_status is reset to 'pending'.
+    """
+    logger.info(
+        f"Delete batch request: {len(request.file_ids)} documents for module {request.module_id}"
+    )
+
+    deleted_count = 0
+    failed_ids = []
+
+    # Initialize graph manager
+    graph_manager = GraphManager(neo4j_driver)
+
+    for doc_id in request.file_ids:
+        # Find note using collection_group
+        note = _find_note_by_id(doc_id)
+
+        if not note:
+            logger.warning(f"Note {doc_id} not found, skipping")
+            failed_ids.append(doc_id)
+            continue
+
+        doc_data = note.to_dict()
+        note_path = note.reference.path
+
+        # Extract module_id from the note path
+        path_parts = note_path.split("/")
+        note_module_id = None
+        for i, part in enumerate(path_parts):
+            if part == "modules" and i + 1 < len(path_parts):
+                note_module_id = path_parts[i + 1]
+                break
+
+        # Verify document belongs to the specified module
+        if note_module_id != request.module_id:
+            logger.warning(
+                f"Note {doc_id} belongs to module {note_module_id}, not {request.module_id}, skipping"
+            )
+            failed_ids.append(doc_id)
+            continue
+
+        # Only delete documents that are actually processed
+        if doc_data.get("kg_status") != "ready":
+            logger.warning(f"Note {doc_id} is not KG-ready, skipping")
+            failed_ids.append(doc_id)
+            continue
+
+        # Delete from Neo4j
+        try:
+            success = await graph_manager.delete_document(doc_id)
+            if not success:
+                logger.error(f"Failed to delete {doc_id} from Neo4j")
+                failed_ids.append(doc_id)
+                continue
+        except Exception as e:
+            logger.error(f"Exception deleting {doc_id} from Neo4j: {e}")
+            failed_ids.append(doc_id)
+            continue
+
+        # Reset Firestore status
+        try:
+            note.reference.update(
+                {
+                    "kg_status": "pending",
+                    "kg_processed_at": None,
+                    "kg_chunk_count": None,
+                    "kg_entity_count": None,
+                    "kg_error": None,
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+            logger.debug(f"Reset Firestore status for {doc_id}")
+            deleted_count += 1
+        except Exception as e:
+            logger.error(f"Failed to reset Firestore status for {doc_id}: {e}")
+            failed_ids.append(doc_id)
+
+    logger.info(
+        f"Delete batch complete: {deleted_count} deleted, {len(failed_ids)} failed"
+    )
+
+    return BatchDeleteResponse(
+        deleted_count=deleted_count,
+        failed=failed_ids,
+        message=f"Deleted {deleted_count} documents from KG"
+        + (f", {len(failed_ids)} failed" if failed_ids else ""),
+    )

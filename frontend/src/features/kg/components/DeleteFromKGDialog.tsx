@@ -1,74 +1,78 @@
 /**
  * ============================================================================
- * FILE: ProcessDialog.tsx
- * LOCATION: frontend/src/features/kg/components/ProcessDialog.tsx
+ * FILE: DeleteFromKGDialog.tsx
+ * LOCATION: frontend/src/features/kg/components/DeleteFromKGDialog.tsx
  * ============================================================================
  *
  * PURPOSE:
- *    Modal confirmation dialog for starting Knowledge Graph batch processing.
- *    Displays information about what will happen during processing and
- *    provides confirm/cancel actions.
+ *    Modal confirmation dialog for deleting documents from the Knowledge Graph.
+ *    Displays warning about data loss and requires explicit confirmation.
  *
  * ROLE IN PROJECT:
- *    Shown when users select multiple notes and click "Process" in selection
- *    mode. Confirms the action and shows a summary of processing actions:
- *    - Extract entities (concepts, topics)
- *    - Generate relationships
- *    - Create vector embeddings
- *    - Update the module's Knowledge Graph
+ *    Shown when users select KG-processed notes in delete mode and click
+ *    "Delete from KG". Confirms the destructive action and shows what will
+ *    be removed:
+ *    - Document nodes and all relationships
+ *    - All chunk nodes (parent and child)
+ *    - Orphaned entities (Topic, Concept, Methodology, Finding)
  *
  * KEY FEATURES:
- *    - Lists processing actions that will be performed
- *    - Shows document count to be processed
+ *    - Lists what will be deleted from the KG
+ *    - Shows document count to be deleted
  *    - Handles success/error states
  *    - Cleans up selection mode on close
  *
  * STATE:
- *    - isProcessing: Loading state during API call
- *    - isComplete: Success state after queueing
- *    - error: Error message if processing fails
+ *    - isDeleting: Loading state during API call
+ *    - isComplete: Success state after deletion
+ *    - error: Error message if deletion fails
  *
  * DEPENDENCIES:
  *    - External: lucide-react (icons)
  *    - Internal: stores/useExplorerStore, hooks/useKGProcessing
  *
- * @see: hooks/useKGProcessing.ts - processFiles mutation
- * @see: stores/useExplorerStore.ts - processDialog state
- * @note: Matches UploadDialog styling for consistency
+ * @see: hooks/useKGProcessing.ts - deleteFiles mutation
+ * @see: stores/useExplorerStore.ts - kgDeleteDialog state
+ * @note: Matches ProcessDialog styling for consistency
  */
 import React from 'react';
 import { useExplorerStore } from '../../../stores';
 import { useKGProcessing } from '../hooks/useKGProcessing';
-import { Loader2, Zap, X, AlertCircle, CheckCircle, Info } from 'lucide-react';
+import { Loader2, Trash2, X, AlertCircle, CheckCircle, AlertTriangle } from 'lucide-react';
 
-export function ProcessDialog() {
+export function DeleteFromKGDialog() {
     const {
-        processDialog,
-        closeProcessDialog,
+        kgDeleteDialog,
+        closeKGDeleteDialog,
         clearSelection,
-        setSelectionMode
+        setSelectionMode,
+        setDeleteMode
     } = useExplorerStore();
 
-    const { processFiles } = useKGProcessing();
-    const [isProcessing, setIsProcessing] = React.useState(false);
+    const { deleteFiles } = useKGProcessing();
+    const [isDeleting, setIsDeleting] = React.useState(false);
     const [isComplete, setIsComplete] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
+    const [deletedCount, setDeletedCount] = React.useState(0);
+    const [failedCount, setFailedCount] = React.useState(0);
 
     const handleSubmit = () => {
-        setIsProcessing(true);
+        setIsDeleting(true);
         setError(null);
 
-        processFiles.mutate({
-            file_ids: processDialog.fileIds,
-            module_id: processDialog.moduleId
+        deleteFiles.mutate({
+            file_ids: kgDeleteDialog.fileIds,
+            module_id: kgDeleteDialog.moduleId
         }, {
-            onSuccess: () => {
-                setIsProcessing(false);
+            onSuccess: (data) => {
+                setIsDeleting(false);
                 setIsComplete(true);
+                setDeletedCount(data.deleted_count);
+                setFailedCount(data.failed.length);
             },
             onError: (err: Error) => {
-                setIsProcessing(false);
-                setError(err.message || 'Processing failed');
+                setIsDeleting(false);
+                setError(err.message || 'Deletion failed');
             }
         });
     };
@@ -77,21 +81,24 @@ export function ProcessDialog() {
         if (isComplete) {
             clearSelection();
             setSelectionMode(false);
+            setDeleteMode(false);
         }
-        setIsProcessing(false);
+        setIsDeleting(false);
         setIsComplete(false);
         setError(null);
-        closeProcessDialog();
+        setDeletedCount(0);
+        setFailedCount(0);
+        closeKGDeleteDialog();
     };
 
-    if (!processDialog.open) return null;
+    if (!kgDeleteDialog.open) return null;
 
     return (
         <div className="dialog-overlay" onClick={handleClose}>
             <div className="dialog upload-dialog" onClick={(e) => e.stopPropagation()}>
                 <div className="dialog-header">
                     <h2 className="dialog-title">
-                        {isComplete ? 'Processing Started' : 'Process Documents'}
+                        {isComplete ? 'Deletion Complete' : 'Delete from Knowledge Graph'}
                     </h2>
                     <button className="dialog-close" onClick={handleClose}>
                         <X size={20} />
@@ -112,14 +119,14 @@ export function ProcessDialog() {
                                 <CheckCircle size={48} className="text-success" />
                             </div>
                             <div className="processing-label">
-                                Documents Queued!
+                                Deletion Complete
                             </div>
                             <div className="processing-message">
-                                {processDialog.fileIds.length} document(s) have been queued for Knowledge Graph processing.
-                                {processDialog.skippedCount > 0 && (
-                                    <><br />{processDialog.skippedCount} already-processed document(s) were skipped.</>
+                                {deletedCount} document(s) have been removed from the Knowledge Graph.
+                                {failedCount > 0 && (
+                                    <><br />{failedCount} document(s) failed to delete.</>
                                 )}
-                                <br />Processing will continue in the background.
+                                <br />Their status has been reset to "pending".
                             </div>
                             <div className="processing-actions">
                                 <button className="btn btn-primary" onClick={handleClose}>
@@ -129,27 +136,25 @@ export function ProcessDialog() {
                         </div>
                     ) : (
                         <>
-                            <p className="text-secondary" style={{ marginBottom: 'var(--spacing-md)' }}>
-                                Queue <span className="text-accent">{processDialog.fileIds.length}</span> document(s) for Knowledge Graph processing?
-                            </p>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 'var(--spacing-sm)',
+                                padding: 'var(--spacing-sm) var(--spacing-md)',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                borderRadius: 'var(--radius-sm)',
+                                marginBottom: 'var(--spacing-md)',
+                                fontSize: '13px',
+                                color: '#ef4444'
+                            }}>
+                                <AlertTriangle size={16} />
+                                This action cannot be undone
+                            </div>
 
-                            {processDialog.skippedCount > 0 && (
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 'var(--spacing-sm)',
-                                    padding: 'var(--spacing-sm) var(--spacing-md)',
-                                    background: 'rgba(34, 197, 94, 0.1)',
-                                    border: '1px solid rgba(34, 197, 94, 0.3)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    marginBottom: 'var(--spacing-md)',
-                                    fontSize: '13px',
-                                    color: '#22c55e'
-                                }}>
-                                    <Info size={16} />
-                                    {processDialog.skippedCount} document(s) already processed — will be skipped
-                                </div>
-                            )}
+                            <p className="text-secondary" style={{ marginBottom: 'var(--spacing-md)' }}>
+                                Remove <span className="text-accent">{kgDeleteDialog.fileIds.length}</span> document(s) from the Knowledge Graph?
+                            </p>
 
                             <div style={{
                                 background: 'var(--color-bg-tertiary)',
@@ -158,7 +163,7 @@ export function ProcessDialog() {
                                 marginBottom: 'var(--spacing-lg)'
                             }}>
                                 <p className="text-muted" style={{ marginBottom: 'var(--spacing-sm)', fontSize: '13px' }}>
-                                    This action will:
+                                    This will permanently delete:
                                 </p>
                                 <ul style={{
                                     listStyle: 'none',
@@ -169,42 +174,51 @@ export function ProcessDialog() {
                                     gap: 'var(--spacing-xs)'
                                 }}>
                                     <li className="flex items-center gap-sm" style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                                        <span style={{ color: 'var(--color-primary)' }}>•</span>
-                                        Extract entities (concepts, topics)
+                                        <span style={{ color: '#ef4444' }}>•</span>
+                                        Document nodes and all relationships
                                     </li>
                                     <li className="flex items-center gap-sm" style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                                        <span style={{ color: 'var(--color-primary)' }}>•</span>
-                                        Generate relationships
+                                        <span style={{ color: '#ef4444' }}>•</span>
+                                        All chunk nodes (text segments)
                                     </li>
                                     <li className="flex items-center gap-sm" style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                                        <span style={{ color: 'var(--color-primary)' }}>•</span>
-                                        Create vector embeddings
+                                        <span style={{ color: '#ef4444' }}>•</span>
+                                        Orphaned entities (topics, concepts)
                                     </li>
                                     <li className="flex items-center gap-sm" style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-                                        <span style={{ color: 'var(--color-primary)' }}>•</span>
-                                        Update the module's Knowledge Graph
+                                        <span style={{ color: '#ef4444' }}>•</span>
+                                        Vector embeddings
                                     </li>
                                 </ul>
                             </div>
+
+                            <p className="text-muted" style={{ fontSize: '12px', marginBottom: 'var(--spacing-md)' }}>
+                                Note: The original PDF files will not be deleted. Documents can be re-processed later.
+                            </p>
 
                             <div className="upload-actions">
                                 <button className="btn btn-secondary" onClick={handleClose}>
                                     Cancel
                                 </button>
                                 <button
-                                    className="btn btn-primary"
+                                    className="btn"
+                                    style={{
+                                        background: '#ef4444',
+                                        color: 'white',
+                                        border: 'none'
+                                    }}
                                     onClick={handleSubmit}
-                                    disabled={isProcessing}
+                                    disabled={isDeleting}
                                 >
-                                    {isProcessing ? (
+                                    {isDeleting ? (
                                         <>
                                             <Loader2 size={16} className="spinning" />
-                                            Processing...
+                                            Deleting...
                                         </>
                                     ) : (
                                         <>
-                                            <Zap size={16} />
-                                            Start Processing
+                                            <Trash2 size={16} />
+                                            Delete from KG
                                         </>
                                     )}
                                 </button>
