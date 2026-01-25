@@ -38,14 +38,15 @@ DEPENDENCIES:
 USAGE:
     # Basic text test
     python tools/test_vertex_models.py
-    
+
     # Test with real audio
     python tools/test_vertex_models.py --audio sample.mp3
-    
+
     # Custom credentials
     python tools/test_vertex_models.py --credentials path/to/key.json
 ============================================================================
 """
+
 import argparse
 import os
 import pathlib
@@ -69,7 +70,7 @@ from services.vertex_ai_client import (  # noqa: E402
 DEFAULT_MODELS = (
     "models/gemini-2.5-flash",
     "models/gemini-3-flash-preview",
-    "models/gemini-2.0-flash-001",
+    "models/gemini-2.5-flash-lite",
 )
 
 
@@ -172,10 +173,15 @@ def main() -> int:
             print(f"Text Response: {text[:200]}")
 
             if args.multimodal_smoke or audio_bytes is not None:
-                mm_audio = audio_bytes if audio_bytes is not None else _synthetic_wav_header()
+                mm_audio = (
+                    audio_bytes if audio_bytes is not None else _synthetic_wav_header()
+                )
                 mm_response = generate_content(
                     model,
-                    [Part.from_data(mm_audio, mime_type="audio/wav"), Part.from_text(args.prompt)],
+                    [
+                        Part.from_data(mm_audio, mime_type="audio/wav"),
+                        Part.from_text(args.prompt),
+                    ],
                     generation_config=GenerationConfig(temperature=0.0),
                     safety_settings=block_none_safety_settings(),
                 )
