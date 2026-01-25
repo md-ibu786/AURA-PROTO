@@ -30,6 +30,7 @@ from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 from datetime import datetime
 import logging
+import asyncio
 
 try:
     from config import db
@@ -326,6 +327,60 @@ async def get_task_status(task_id: str):
 # POST /kg/delete-batch
 # ============================================================================
 
+# Constants for Firestore retry logic
+FIRESTORE_MAX_RETRIES = 3
+FIRESTORE_INITIAL_BACKOFF_S = 0.5  # 500ms initial backoff
+
+
+async def _update_firestore_with_retry(
+    note_ref, doc_id: str, max_retries: int = FIRESTORE_MAX_RETRIES
+) -> bool:
+    """
+    Update Firestore document with exponential backoff retry.
+
+    Args:
+        note_ref: Firestore document reference
+        doc_id: Document ID for logging
+        max_retries: Maximum retry attempts
+
+    Returns:
+        True if update succeeded, False if all retries failed
+    """
+    backoff = FIRESTORE_INITIAL_BACKOFF_S
+
+    for attempt in range(max_retries):
+        try:
+            note_ref.update(
+                {
+                    "kg_status": "pending",
+                    "kg_processed_at": None,
+                    "kg_chunk_count": None,
+                    "kg_entity_count": None,
+                    "kg_error": None,
+                    "updated_at": datetime.utcnow(),
+                }
+            )
+            logger.debug(f"Reset Firestore status for {doc_id}")
+            return True
+        except Exception as e:
+            if attempt < max_retries - 1:
+                logger.warning(
+                    f"Firestore update attempt {attempt + 1}/{max_retries} failed for "
+                    f"{doc_id}: {e}. Retrying in {backoff}s..."
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2  # Exponential backoff
+            else:
+                logger.critical(
+                    f"CRITICAL: Firestore update FAILED after {max_retries} attempts "
+                    f"for document {doc_id}. Document was deleted from Neo4j but "
+                    f"Firestore still shows kg_status=ready. Manual intervention required. "
+                    f"Error: {e}"
+                )
+                return False
+
+    return False
+
 
 @router.post("/delete-batch", response_model=BatchDeleteResponse)
 async def delete_batch(request: BatchDeleteRequest):
@@ -345,6 +400,7 @@ async def delete_batch(request: BatchDeleteRequest):
 
     deleted_count = 0
     failed_ids = []
+    all_connected_entity_ids: List[str] = []
 
     # Initialize graph manager
     graph_manager = GraphManager(neo4j_driver)
@@ -385,33 +441,40 @@ async def delete_batch(request: BatchDeleteRequest):
 
         # Delete from Neo4j
         try:
-            success = await graph_manager.delete_document(doc_id)
+            success, connected_entities = await graph_manager.delete_document(doc_id)
             if not success:
                 logger.error(f"Failed to delete {doc_id} from Neo4j")
                 failed_ids.append(doc_id)
                 continue
+            # Collect entity IDs for batch orphan cleanup
+            all_connected_entity_ids.extend(connected_entities)
         except Exception as e:
             logger.error(f"Exception deleting {doc_id} from Neo4j: {e}")
             failed_ids.append(doc_id)
             continue
 
-        # Reset Firestore status
-        try:
-            note.reference.update(
-                {
-                    "kg_status": "pending",
-                    "kg_processed_at": None,
-                    "kg_chunk_count": None,
-                    "kg_entity_count": None,
-                    "kg_error": None,
-                    "updated_at": datetime.utcnow(),
-                }
-            )
-            logger.debug(f"Reset Firestore status for {doc_id}")
+        # Reset Firestore status with retry logic
+        firestore_success = await _update_firestore_with_retry(note.reference, doc_id)
+        if firestore_success:
             deleted_count += 1
-        except Exception as e:
-            logger.error(f"Failed to reset Firestore status for {doc_id}: {e}")
-            failed_ids.append(doc_id)
+        else:
+            # Neo4j deletion succeeded but Firestore failed - log but don't add to failed_ids
+            # The document IS deleted from KG, Firestore is just out of sync
+            logger.error(
+                f"Document {doc_id} deleted from Neo4j but Firestore update failed. "
+                "Document counted as deleted but may need manual Firestore cleanup."
+            )
+            deleted_count += 1  # Count as deleted since Neo4j succeeded
+
+    # Perform orphan cleanup ONCE after all deletions
+    if all_connected_entity_ids:
+        unique_entity_ids = list(set(all_connected_entity_ids))
+        orphans_deleted = await graph_manager.cleanup_orphaned_entities(
+            unique_entity_ids
+        )
+        logger.info(
+            f"Batch orphan cleanup: {orphans_deleted} orphaned entities deleted"
+        )
 
     logger.info(
         f"Delete batch complete: {deleted_count} deleted, {len(failed_ids)} failed"

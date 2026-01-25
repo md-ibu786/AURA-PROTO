@@ -421,6 +421,16 @@
     background: var(--color-bg-selected);
 }
 
+/* KG-processed disabled state in selection mode (list view) */
+.list-row.kg-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.list-row.kg-disabled:hover {
+    background: transparent;
+}
+
 .list-row-icon {
     width: 24px;
     height: 24px;

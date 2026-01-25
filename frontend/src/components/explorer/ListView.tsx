@@ -44,7 +44,9 @@ import {
     Calendar,
     BookOpen,
     Package,
-    FileText
+    FileText,
+    CheckSquare,
+    Square
 } from 'lucide-react';
 
 interface ListViewProps {
@@ -72,7 +74,9 @@ export function ListView({ items }: ListViewProps) {
         searchQuery,
         renamingNodeId,
         setRenamingNodeId,
-        openWarningDialog
+        openWarningDialog,
+        selectionMode,
+        deleteMode
     } = useExplorerStore();
 
     // Renaming state
@@ -136,6 +140,25 @@ export function ListView({ items }: ListViewProps) {
 
         const itemIds = filteredItems.map(i => i.id);
 
+        // Check if note is already KG-processed
+        const isKGReady = item.type === 'note' && item.meta?.kg_status === 'ready';
+
+        if (selectionMode) {
+            if (deleteMode) {
+                // In delete mode, only allow selecting KG-ready notes
+                if (!isKGReady) {
+                    return; // Do nothing - item is disabled in delete mode
+                }
+            } else {
+                // In process mode, prevent selecting already-processed notes
+                if (isKGReady) {
+                    return; // Do nothing - item is disabled
+                }
+            }
+            toggleSelect(item.id);
+            return;
+        }
+
         if (e.shiftKey) {
             rangeSelect(item.id, itemIds);
         } else if (e.ctrlKey || e.metaKey) {
@@ -189,17 +212,46 @@ export function ListView({ items }: ListViewProps) {
                 const Icon = typeIcons[item.type] || FileText;
                 const isSelected = selectedIds.has(item.id);
                 const isRenaming = item.id === renamingNodeId;
+                // Check if note is already KG-processed
+                const isKGReady = item.type === 'note' && item.meta?.kg_status === 'ready';
+                
+                // Determine disabled state based on mode:
+                // - Process mode (deleteMode=false): KG-ready notes are disabled (can't reprocess)
+                // - Delete mode (deleteMode=true): non-KG-ready notes are disabled (can't delete)
+                const isDisabledInSelection = selectionMode && (
+                    deleteMode ? !isKGReady : isKGReady
+                );
+                
+                // Tooltip for disabled items
+                const disabledTooltip = deleteMode 
+                    ? 'Not processed - cannot delete from KG'
+                    : 'Already processed - will be skipped';
 
                 return (
                     <div
                         key={item.id}
-                        className={`list-row ${isSelected ? 'selected' : ''}`}
+                        className={`list-row ${isSelected ? 'selected' : ''} ${isDisabledInSelection ? 'kg-disabled' : ''}`}
                         onClick={(e) => handleClick(e, item)}
                         onDoubleClick={() => handleDoubleClick(item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}
+                        title={isDisabledInSelection ? disabledTooltip : undefined}
                     >
                         <div className={`list-row-icon grid-item-icon ${item.type}`}>
-                            <Icon size={18} />
+                            {/* Selection Checkbox - overlays icon in selection mode */}
+                            {selectionMode ? (
+                                isDisabledInSelection ? (
+                                    <div 
+                                        className="kg-ready-led-inline" 
+                                        title={disabledTooltip}
+                                    />
+                                ) : isSelected ? (
+                                    <CheckSquare className="h-5 w-5 text-primary fill-background" />
+                                ) : (
+                                    <Square className="h-5 w-5 text-zinc-300 dark:text-zinc-600" />
+                                )
+                            ) : (
+                                <Icon size={18} />
+                            )}
                         </div>
 
                         <div className="list-row-name">

@@ -511,22 +511,29 @@ class GraphManager:
             logger.warning(f"Failed to extract subgraph: {e}")
             return Subgraph(nodes=[], edges=[], node_count=0, edge_count=0)
 
-    async def delete_document(self, doc_id: str) -> bool:
+    async def delete_document(self, doc_id: str) -> tuple[bool, List[str]]:
         """
         Delete a document and ALL associated data from Neo4j.
 
         This performs comprehensive cleanup:
-        1. Delete parent chunks (ParentChunk nodes) with DETACH DELETE
-        2. Delete child/regular chunks (Chunk nodes) with DETACH DELETE
-        3. Delete the Document node explicitly
-        4. Delete ALL orphaned entities (not connected to any remaining Document or Chunk)
+        1. Collect entity IDs connected to the document's chunks (for later orphan check)
+        2. Delete parent chunks (ParentChunk nodes) with DETACH DELETE
+        3. Delete child/regular chunks (Chunk nodes) with DETACH DELETE
+        4. Delete the Document node explicitly
+
+        NOTE: Orphan cleanup is NOT performed here. Call cleanup_orphaned_entities()
+        with the returned entity IDs after all documents in a batch are deleted.
 
         Args:
             doc_id: The unique ID of the document to delete
 
         Returns:
-            True if deletion was successful, False otherwise
+            Tuple of (success: bool, connected_entity_ids: List[str])
+            - success: True if deletion was successful, False otherwise
+            - connected_entity_ids: List of entity IDs that were connected to this doc
         """
+        connected_entity_ids: List[str] = []
+
         try:
             # Step 1: Check document exists
             check_query = """
@@ -539,11 +546,28 @@ class GraphManager:
 
                 if not record:
                     logger.warning(f"Document {doc_id} not found in Neo4j")
-                    return True  # Consider it a success if already not present
+                    return True, []  # Consider it a success if already not present
 
             logger.info(f"Starting deletion of document {doc_id}")
 
-            # Step 2: Delete all parent chunks linked to this document
+            # Step 2: Collect entity IDs connected to this document's chunks
+            # This scopes orphan cleanup to only entities from this document
+            collect_entities_query = """
+            MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK|HAS_PARENT_CHUNK]->(c)
+            MATCH (c)-[:CONTAINS_ENTITY]->(e)
+            WHERE e:Topic OR e:Concept OR e:Methodology OR e:Finding
+            RETURN DISTINCT e.id as entity_id
+            """
+            with self.driver.session() as session:
+                result = session.run(collect_entities_query, {"doc_id": doc_id})
+                for record in result:
+                    if record["entity_id"]:
+                        connected_entity_ids.append(record["entity_id"])
+            logger.debug(
+                f"Collected {len(connected_entity_ids)} entity IDs for document {doc_id}"
+            )
+
+            # Step 3: Delete all parent chunks linked to this document
             delete_parent_chunks_query = """
             MATCH (d:Document {id: $doc_id})-[:HAS_PARENT_CHUNK]->(p:ParentChunk)
             DETACH DELETE p
@@ -552,7 +576,7 @@ class GraphManager:
                 session.run(delete_parent_chunks_query, {"doc_id": doc_id})
             logger.debug(f"Deleted parent chunks for document {doc_id}")
 
-            # Step 3: Delete all child/regular chunks linked to this document
+            # Step 4: Delete all child/regular chunks linked to this document
             delete_chunks_query = """
             MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK]->(c:Chunk)
             DETACH DELETE c
@@ -561,7 +585,7 @@ class GraphManager:
                 session.run(delete_chunks_query, {"doc_id": doc_id})
             logger.debug(f"Deleted chunks for document {doc_id}")
 
-            # Step 4: Delete the document node itself (MUST be separate query!)
+            # Step 5: Delete the document node itself (MUST be separate query!)
             delete_doc_query = """
             MATCH (d:Document {id: $doc_id})
             DETACH DELETE d
@@ -570,26 +594,57 @@ class GraphManager:
                 session.run(delete_doc_query, {"doc_id": doc_id})
             logger.debug(f"Deleted Document node {doc_id}")
 
-            # Step 5: GLOBAL ORPHAN CLEANUP
-            # Delete ALL entities that are not connected to ANY Document or Chunk
-            # This catches all orphaned nodes regardless of how they were linked
-            cleanup_orphans_query = """
-            MATCH (e)
-            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-            AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
-            AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
-            DETACH DELETE e
-            """
-            with self.driver.session() as session:
-                session.run(cleanup_orphans_query, {})
-            logger.debug("Cleaned up all orphaned entities globally")
-
             logger.info(f"Successfully completed deletion of document {doc_id}")
-            return True
+            return True, connected_entity_ids
 
         except Exception as e:
             logger.error(f"Failed to delete document {doc_id}: {e}")
-            return False
+            return False, connected_entity_ids
+
+    async def cleanup_orphaned_entities(self, entity_ids: List[str]) -> int:
+        """
+        Delete orphaned entities from the graph.
+
+        Only deletes entities from the provided list that are no longer connected
+        to any Document or Chunk. This scoped approach prevents accidentally
+        deleting entities from unrelated documents.
+
+        Args:
+            entity_ids: List of entity IDs to check for orphan status
+
+        Returns:
+            Number of entities deleted
+        """
+        if not entity_ids:
+            return 0
+
+        try:
+            # Delete entities that are in the provided list AND are orphaned
+            # (not connected to any Document or Chunk)
+            cleanup_query = """
+            MATCH (e)
+            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+            AND e.id IN $entity_ids
+            AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
+            AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
+            WITH e, e.id as deleted_id
+            DETACH DELETE e
+            RETURN count(deleted_id) as deleted_count
+            """
+            with self.driver.session() as session:
+                result = session.run(cleanup_query, {"entity_ids": entity_ids})
+                record = result.single()
+                deleted_count = record["deleted_count"] if record else 0
+
+            logger.info(
+                f"Orphan cleanup: checked {len(entity_ids)} entities, "
+                f"deleted {deleted_count} orphans"
+            )
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup orphaned entities: {e}")
+            return 0
 
     async def expand_graph_context(
         self,
