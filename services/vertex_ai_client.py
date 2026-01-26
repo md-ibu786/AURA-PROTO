@@ -50,8 +50,22 @@ except Exception:  # pragma: no cover
         SafetySetting,
     )
 
-_LOCATION = os.environ.get("VERTEX_LOCATION", "global")
+_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
 _INITIALIZED = False
+
+
+# Map "global" to a valid region for Vertex AI SDK
+# The SDK doesn't support "global" but REST API does
+# For preview models like gemini-3-flash-preview, use us-central1
+def _normalize_location(location: str) -> str:
+    """Normalize location for Vertex AI SDK compatibility.
+
+    The REST API supports "global" location for preview models, but the
+    Python SDK doesn't. Map "global" to us-central1 for SDK compatibility.
+    """
+    if location.lower() == "global":
+        return "us-central1"
+    return location
 
 
 class _TestGenerativeModel:
@@ -106,12 +120,16 @@ def _get_project_id() -> Optional[str]:
         return explicit_project
 
     # Fallback to google.auth.default
-    _, project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])  # type: ignore
+    _, project_id = google.auth.default(
+        scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )  # type: ignore
     if project_id:
         return project_id
 
     # Final fallback: read from credentials file
-    creds_path = os.environ.get("VERTEX_CREDENTIALS") or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    creds_path = os.environ.get("VERTEX_CREDENTIALS") or os.environ.get(
+        "GOOGLE_APPLICATION_CREDENTIALS"
+    )
     if creds_path:
         return _read_project_id_from_credentials_file(creds_path)
 
@@ -154,7 +172,7 @@ def init_vertex_ai() -> None:
             "project_id)."
         )
 
-    vertexai.init(project=project_id, location=_LOCATION)
+    vertexai.init(project=project_id, location=_normalize_location(_LOCATION))
     _INITIALIZED = True
 
 
