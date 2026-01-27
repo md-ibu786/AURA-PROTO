@@ -1,11 +1,11 @@
 # config.py
-# Centralized configuration for AI services and infrastructure
+# Centralized configuration for AI services and Firestore access
 
 # Longer description (2-4 lines):
 # - Loads .env values and exposes constants for Vertex AI, Neo4j, Redis,
 #   and Celery settings used across the API and services layer.
-# - Ensures GOOGLE_APPLICATION_CREDENTIALS is set for Vertex AI SDK usage
-#   to keep authentication consistent across environments.
+# - Initializes Firebase Admin SDK and provides Firestore clients so
+#   task modules can import db/async_db consistently.
 
 # @see: AURA-NOTES-MANAGER/.env - Environment variable values
 # @note: Defaults support local development without secrets
@@ -13,7 +13,10 @@
 import os
 from pathlib import Path
 
+import firebase_admin
 from dotenv import load_dotenv
+from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1.async_client import AsyncClient
 
 
 # Load environment variables from .env
@@ -54,3 +57,57 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 
 # Celery Configuration
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))
+
+
+def init_firebase():
+    """Initializes Firebase Admin SDK and returns Firestore client."""
+    if not firebase_admin._apps:
+        key_path = os.environ.get("FIREBASE_CREDENTIALS")
+        if key_path and not os.path.isabs(key_path):
+            key_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                key_path,
+            )
+
+        if not key_path:
+            key_path = os.path.join(
+                os.path.dirname(os.path.dirname(__file__)),
+                "serviceAccountKey.json",
+            )
+
+        if not os.path.exists(key_path):
+            raise FileNotFoundError(
+                f"Service account key not found at {key_path}",
+            )
+
+        cred = credentials.Certificate(key_path)
+        firebase_admin.initialize_app(cred)
+
+    return firestore.client()
+
+
+def init_async_firebase():
+    """Returns an async Firestore client for async endpoints."""
+    if not firebase_admin._apps:
+        init_firebase()
+
+    key_path = os.environ.get("FIREBASE_CREDENTIALS")
+    if key_path and not os.path.isabs(key_path):
+        key_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            key_path,
+        )
+    if not key_path:
+        key_path = os.path.join(
+            os.path.dirname(os.path.dirname(__file__)),
+            "serviceAccountKey.json",
+        )
+
+    from google.oauth2 import service_account
+
+    creds = service_account.Credentials.from_service_account_file(key_path)
+    return AsyncClient(credentials=creds)
+
+
+db = init_firebase()
+async_db = init_async_firebase()

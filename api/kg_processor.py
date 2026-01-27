@@ -1,3 +1,13 @@
+# kg_processor.py
+# Knowledge graph processing and entity extraction pipeline
+
+# Longer description (2-4 lines):
+# - Converts documents into chunked text, embeddings, and entities for Neo4j.
+# - Uses Vertex AI Gemini for generation and Vertex AI embeddings for vectors.
+
+# @see: api/config.py - Centralized configuration for Vertex AI settings
+# @note: Uses ADC authentication and skips calls in test mode
+
 """
 ============================================================================
 FILE: kg_processor.py
@@ -44,7 +54,8 @@ USAGE:
     results = await processor.process_batch([doc_id1, doc_id2], module_id, user_id)
 
 ENVIRONMENT VARIABLES:
-    - GEMINI_API_KEY: Google Gemini API key for embeddings and entity extraction
+    - VERTEX_PROJECT: GCP project for Vertex AI
+    - VERTEX_LOCATION: Vertex AI region (default: us-central1)
     - CHUNK_SIZE: Token size for text chunking (default: 800)
     - CHUNK_OVERLAP: Token overlap between chunks (default: 100)
 ============================================================================
@@ -71,6 +82,21 @@ sys.path.insert(0, os.path.dirname(__file__))
 from neo4j_config import neo4j_driver
 from logging_config import logger
 from google.cloud.firestore import FieldFilter
+
+from api.config import (
+    LLM_ENTITY_EXTRACTION_MODEL,
+    EMBEDDING_MODEL,
+    AURA_TEST_MODE,
+    VERTEX_PROJECT,
+    VERTEX_LOCATION,
+)
+
+from services.vertex_ai_client import (
+    init_vertex_ai,
+    get_model,
+    generate_content,
+    GenerationConfig,
+)
 
 # Import chunking utilities (ported from AURA-CHAT)
 try:
@@ -949,7 +975,9 @@ class KnowledgeGraphProcessor:
             self._emit_progress("loading", 0, 1, f"Loading document {document_id}")
 
             # Step 1: Load document content
-            text = await self._parse_document(document_id, file_path, document_data, module_id=module_id)
+            text = await self._parse_document(
+                document_id, file_path, document_data, module_id=module_id
+            )
             if not text:
                 raise ValueError(f"Failed to load document content: {document_id}")
 
@@ -1515,55 +1543,74 @@ class KnowledgeGraphProcessor:
 
             # Helper to extract content from doc data
             async def _extract_content_from_doc(doc_data):
-                logger.debug(f"Extracting content from doc data: keys={list(doc_data.keys())}")
-                
+                logger.debug(
+                    f"Extracting content from doc data: keys={list(doc_data.keys())}"
+                )
+
                 # 1. Check for stored content
                 content = doc_data.get("content")
                 if content:
-                    logger.debug(f"Found content in Firestore doc ({len(content)} chars)")
+                    logger.debug(
+                        f"Found content in Firestore doc ({len(content)} chars)"
+                    )
                     return content
-                
+
                 # 2. Check for linked file (pdf_url)
                 pdf_url = doc_data.get("pdf_url")
                 if pdf_url:
                     logger.debug(f"Found pdf_url: {pdf_url}")
                     # pdf_url is like "/pdfs/filename.pdf"
                     # Remove leading slash to make it relative to project root
-                    clean_path = pdf_url.lstrip('/')
-                    
+                    clean_path = pdf_url.lstrip("/")
+
                     paths_to_check = [
                         clean_path,
                         os.path.join("AURA-NOTES-MANAGER", clean_path),
                         os.path.join("..", clean_path),
-                        os.path.join("api", "..", clean_path)
+                        os.path.join("api", "..", clean_path),
                     ]
-                    
+
                     for p in paths_to_check:
-                        logger.debug(f"Checking path: {p} (exists: {os.path.exists(p)})")
+                        logger.debug(
+                            f"Checking path: {p} (exists: {os.path.exists(p)})"
+                        )
                         if os.path.exists(p):
                             logger.info(f"Found document file at: {p}")
                             return await self._parse_file(p)
-                    
-                    logger.warning(f"File not found for pdf_url '{pdf_url}' at any checked locations")
+
+                    logger.warning(
+                        f"File not found for pdf_url '{pdf_url}' at any checked locations"
+                    )
                 else:
-                    logger.warning(f"No content or pdf_url found in document data for {document_id}")
-                        
+                    logger.warning(
+                        f"No content or pdf_url found in document data for {document_id}"
+                    )
+
                 return ""
 
             # 1. Scoped lookup if module_id is known (Preferred)
             if module_id:
                 # Modules are nested, find module doc first
-                modules = list(db.collection_group("modules").where(filter=FieldFilter("id", "==", module_id)).limit(1).stream())
+                modules = list(
+                    db.collection_group("modules")
+                    .where(filter=FieldFilter("id", "==", module_id))
+                    .limit(1)
+                    .stream()
+                )
                 if modules:
                     module_ref = modules[0].reference
                     doc_ref = module_ref.collection("notes").document(document_id)
                     doc = doc_ref.get()
                     if doc.exists:
                         return await _extract_content_from_doc(doc.to_dict())
-                    
-                    logger.warning(f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})")
+
+                    logger.warning(
+                        f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})"
+                    )
                 else:
-                    logger.warning(f"Module {module_id} not found via collection_group query")
+                    logger.warning(
+                        f"Module {module_id} not found via collection_group query"
+                    )
 
             # 2. Fallback: Find note in nested subcollections by 'id' field
             notes = list(
@@ -1574,7 +1621,7 @@ class KnowledgeGraphProcessor:
             )
             if notes:
                 return await _extract_content_from_doc(notes[0].to_dict())
-                
+
         except Exception as e:
             logger.warning(f"Failed to fetch document from Firestore: {e}")
 
