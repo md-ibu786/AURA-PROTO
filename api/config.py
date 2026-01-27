@@ -1,90 +1,56 @@
-"""
-============================================================================
-FILE: config.py
-LOCATION: api/config.py
-============================================================================
+# config.py
+# Centralized configuration for AI services and infrastructure
 
-PURPOSE:
-    Handles Firebase Admin SDK initialization and provides Firestore database
-    client instances (both synchronous and asynchronous) for the entire
-    backend application.
+# Longer description (2-4 lines):
+# - Loads .env values and exposes constants for Vertex AI, Neo4j, Redis,
+#   and Celery settings used across the API and services layer.
+# - Ensures GOOGLE_APPLICATION_CREDENTIALS is set for Vertex AI SDK usage
+#   to keep authentication consistent across environments.
 
-ROLE IN PROJECT:
-    This is the database configuration layer. All modules that need to
-    interact with Firestore import `db` or `async_db` from this file.
-    It ensures Firebase is initialized only once (preventing errors during
-    hot-reloads in development) and handles credential path resolution.
-
-KEY COMPONENTS:
-    - init_firebase(): Initializes Firebase Admin SDK and returns sync Firestore client
-    - init_async_firebase(): Returns an async Firestore client for async endpoints
-    - db: Global synchronous Firestore client instance
-    - async_db: Global asynchronous Firestore client instance
-
-DEPENDENCIES:
-    - External: firebase_admin, google-cloud-firestore
-    - Internal: Reads serviceAccountKey.json from project root
-
-USAGE:
-    from config import db, async_db
-    
-    # Sync operations
-    docs = db.collection('departments').stream()
-    
-    # Async operations  
-    async for doc in async_db.collection('departments').stream():
-        ...
-
-ENVIRONMENT VARIABLES:
-    - FIREBASE_CREDENTIALS: Optional path to service account key JSON
-      (falls back to serviceAccountKey.json in project root)
-============================================================================
-"""
+# @see: AURA-NOTES-MANAGER/.env - Environment variable values
+# @note: Defaults support local development without secrets
 
 import os
-import firebase_admin
-from firebase_admin import credentials, firestore
-from google.cloud.firestore_v1.async_client import AsyncClient
+from pathlib import Path
 
-def init_firebase():
-    """Initializes Firebase Admin SDK and returns Firestore client."""
-    # Check if already initialized to prevent errors during reloads
-    if not firebase_admin._apps:
-        # Check for FIREBASE_CREDENTIALS env var first, fallback to hardcoded path
-        key_path = os.environ.get("FIREBASE_CREDENTIALS")
-        if key_path and not os.path.isabs(key_path):
-            # Resolve relative path from project root
-            key_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), key_path)
-        
-        if not key_path:
-            # Fallback to default location
-            key_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "serviceAccountKey.json")
-        
-        if not os.path.exists(key_path):
-            raise FileNotFoundError(f"Service account key not found at {key_path}")
+from dotenv import load_dotenv
 
-        cred = credentials.Certificate(key_path)
-        firebase_admin.initialize_app(cred)
-    
-    return firestore.client()
 
-def init_async_firebase():
-    """Returns an async Firestore client (shares credentials with sync client)."""
-    # Ensure sync initialization happened first
-    if not firebase_admin._apps:
-        init_firebase()
-    
-    # Get credentials path from env var or fallback
-    key_path = os.environ.get("FIREBASE_CREDENTIALS")
-    if key_path and not os.path.isabs(key_path):
-        key_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), key_path)
-    if not key_path:
-        key_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "serviceAccountKey.json")
-    
-    from google.oauth2 import service_account
-    creds = service_account.Credentials.from_service_account_file(key_path)
-    return AsyncClient(credentials=creds)
+# Load environment variables from .env
+dotenv_path = Path(__file__).parent.parent / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path)
 
-# Global Firestore client instances
-db = init_firebase()
-async_db = init_async_firebase()
+# Google Cloud / Vertex AI Configuration
+VERTEX_PROJECT = os.getenv("VERTEX_PROJECT", "lucky-processor-480412-n8")
+VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
+VERTEX_CREDENTIALS = os.getenv(
+    "VERTEX_CREDENTIALS",
+    "AURA-NOTES-MANAGER/service_account.json",
+)
+GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    VERTEX_CREDENTIALS,
+)
+
+# Set GOOGLE_APPLICATION_CREDENTIALS for Vertex AI SDK
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
+
+# LLM Model Configuration
+LLM_ENTITY_EXTRACTION_MODEL = "gemini-2.5-flash-lite"
+LLM_SUMMARIZATION_MODEL = "gemini-2.5-flash-lite"
+EMBEDDING_MODEL = "text-embedding-004"
+
+# Test Mode (set to True to skip actual API calls)
+AURA_TEST_MODE = os.getenv("AURA_TEST_MODE", "false").lower() == "true"
+
+# Neo4j Configuration
+NEO4J_URI = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
+NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
+
+# Redis Configuration
+REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+
+# Celery Configuration
+CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))
