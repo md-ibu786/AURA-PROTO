@@ -12,13 +12,17 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from api.config import LLM_SUMMARIZATION_MODEL
-from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+from services.genai_client import (
+    GENAI_AVAILABLE,
+    generate_content_with_thinking,
+    get_genai_model,
+)
 
 
 # ============================================================================
@@ -198,7 +202,7 @@ class AnswerSynthesizer:
         # SynthesizedAnswer with answer, citations, key_points, etc.
     """
 
-    def __init__(self, model_name: str = LLM_SUMMARIZATION_MODEL):
+    def __init__(self, model_name: str = "gemini-1.5-flash"):
         """
         Initialize AnswerSynthesizer with specified model.
 
@@ -207,9 +211,55 @@ class AnswerSynthesizer:
         """
         self.model_name = model_name
         self._model = None
-        logger.info(f"AnswerSynthesizer initialized with model={model_name}")
+        logger.info(
+            f"AnswerSynthesizer initialized with model={model_name}, "
+            f"genai_available={GENAI_AVAILABLE}"
+        )
 
-        # Check if Vertex AI is available
+    def _get_model(self) -> Any:
+        """
+        Get or initialize the Gemini model.
+
+        Returns:
+            Gemini model instance or None if unavailable.
+        """
+        if self._model is None:
+            self._model = get_genai_model(self.model_name)
+        return self._model
+
+    async def synthesize(
+        self,
+        query: str,
+        contexts: List[DocumentContext],
+        options: Optional[SynthesisOptions] = None,
+    ) -> SynthesizedAnswer:
+        """
+        Synthesize an answer from multiple document contexts.
+
+        Args:
+            query: The user's question.
+            contexts: List of document contexts with relevant chunks.
+            options: Optional synthesis configuration.
+
+        Returns:
+            SynthesizedAnswer with answer, citations, and metadata.
+        """
+        if options is None:
+            options = SynthesisOptions()
+
+        # Handle empty contexts
+        if not contexts:
+            logger.warning("synthesize called with empty contexts")
+            return SynthesizedAnswer(
+                answer="No relevant documents found to answer this question.",
+                confidence=0.0,
+                sources_used=0,
+                key_points=[],
+                citations=[],
+                contradictions=[],
+            )
+
+        # Check if GenAI is available
         model = self._get_model()
         if model is None:
             logger.warning("Vertex AI not available, returning fallback response")
