@@ -379,27 +379,42 @@ class ProcessingProgress:
 
 class GeminiClient:
     """
-    Client for Google Gemini API operations.
+    Client for Vertex AI Gemini operations.
 
     Handles embedding generation (text-embedding-004) and entity extraction
-    using Gemini's language models.
+    using Vertex AI Gemini models.
     """
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, model_name: str = LLM_ENTITY_EXTRACTION_MODEL):
         """
         Initialize Gemini client.
 
         Args:
-            api_key: Google Gemini API key (defaults to GEMINI_API_KEY env var)
+            model_name: Vertex AI Gemini model name for extraction
         """
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
-        self.embedding_model = "text-embedding-004"
-        self.extraction_model = "gemini-2.5-flash-lite"
-        self._client = None
+        self.embedding_model = EMBEDDING_MODEL
+        self.extraction_model = model_name
+        self._test_mode = AURA_TEST_MODE
+        self._model = None
+        self._embedding_service = EmbeddingService()
+
+        if not self._test_mode:
+            self._initialize_model()
+
+    def _initialize_model(self) -> None:
+        try:
+            self._model = get_model(self.extraction_model)
+        except Exception as exc:
+            logger.error("Failed to initialize Vertex AI model: %s", exc)
+
+    def _get_model(self):
+        if self._model is None and not self._test_mode:
+            self._initialize_model()
+        return self._model
 
     async def get_embedding(self, text: str) -> List[float]:
         """
-        Generate 768-dimensional embedding for text using Gemini text-embedding-004.
+        Generate 768-dimensional embedding for text using Vertex AI.
 
         Args:
             text: Text to generate embedding for
@@ -407,31 +422,11 @@ class GeminiClient:
         Returns:
             768-dimensional embedding vector
         """
-        try:
-            import google.generativeai as genai
-
-            if not self.api_key:
-                raise ValueError("GEMINI_API_KEY not configured")
-
-            genai.configure(api_key=self.api_key)
-
-            # Truncate text if too long (embedding model has token limits)
-            max_chars = 30000  # Conservative limit for embedding model
-            truncated_text = text[:max_chars] if len(text) > max_chars else text
-
-            # Generate embedding using the embedding model
-            result = genai.embed_content(
-                model=self.embedding_model,
-                content=truncated_text,
-                task_type="semantic_similarity",
-            )
-
-            embedding = result.get("embedding", [])
-            return embedding
-
-        except ImportError:
-            logger.warning("google-generativeai not installed, using mock embedding")
+        if self._test_mode:
             return self._mock_embedding(text)
+
+        try:
+            return self._embedding_service.embed_text(text)
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             return self._mock_embedding(text)
@@ -446,15 +441,18 @@ class GeminiClient:
         Returns:
             List of 768-dimensional embedding vectors
         """
-        embeddings = []
-        for text in texts:
-            embedding = await self.get_embedding(text)
-            embeddings.append(embedding)
-        return embeddings
+        if self._test_mode:
+            return [self._mock_embedding(text) for text in texts]
+
+        try:
+            return self._embedding_service.embed_batch(texts)
+        except Exception as e:
+            logger.error(f"Embedding batch generation failed: {e}")
+            return [self._mock_embedding(text) for text in texts]
 
     async def extract_entities(self, chunk_text: str, chunk_id: str) -> List[Entity]:
         """
-        Extract entities from chunk text using Gemini LLM.
+        Extract entities from chunk text using Vertex AI Gemini.
 
         Args:
             chunk_text: Text content to extract entities from
@@ -464,12 +462,9 @@ class GeminiClient:
             List of extracted Entity objects
         """
         try:
-            import google.generativeai as genai
-
-            if not self.api_key:
-                raise ValueError("GEMINI_API_KEY not configured")
-
-            genai.configure(api_key=self.api_key)
+            model = self._get_model()
+            if model is None:
+                raise RuntimeError("Vertex AI model not initialized")
 
             # Prompt for entity extraction
             prompt = f"""
@@ -487,17 +482,20 @@ class GeminiClient:
             {chunk_text[:10000]}  # Limit text size for API
             """
 
-            model = genai.GenerativeModel(self.extraction_model)
-            response = model.generate_content(prompt)
+            response = generate_content(
+                model,
+                prompt,
+                generation_config=GenerationConfig(
+                    max_output_tokens=2048,
+                    temperature=0.2,
+                ),
+            )
             response_text = response.text
 
             # Parse JSON from response
             entities = self._parse_entities_response(response_text, chunk_id)
             return entities
 
-        except ImportError:
-            logger.warning("google-generativeai not installed, using mock entities")
-            return self._mock_entities(chunk_text, chunk_id)
         except Exception as e:
             logger.error(f"Entity extraction failed: {e}")
             return self._mock_entities(chunk_text, chunk_id)
@@ -581,7 +579,7 @@ class GeminiClient:
 
     async def generate_text(self, prompt: str, max_tokens: int = 2048) -> str:
         """
-        Generate text using Gemini LLM.
+        Generate text using Vertex AI Gemini.
 
         Args:
             prompt: The prompt to send to the model
@@ -591,26 +589,21 @@ class GeminiClient:
             Generated text response
         """
         try:
-            import google.generativeai as genai
+            model = self._get_model()
+            if model is None:
+                raise RuntimeError("Vertex AI model not initialized")
 
-            if not self.api_key:
-                raise ValueError("GEMINI_API_KEY not configured")
-
-            genai.configure(api_key=self.api_key)
-
-            model = genai.GenerativeModel(self.extraction_model)
-            response = model.generate_content(
+            response = generate_content(
+                model,
                 prompt,
-                generation_config=genai.GenerationConfig(
-                    max_output_tokens=max_tokens, temperature=0.2
+                generation_config=GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=0.2,
                 ),
             )
 
             return response.text
 
-        except ImportError:
-            logger.warning("google-generativeai not installed")
-            return ""
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             return ""
@@ -718,7 +711,7 @@ class GeminiClient:
         self, chunk_text: str, chunk_id: str, max_tokens: int = 4096
     ) -> List[Dict[str, Any]]:
         """
-        Extract entities from chunk text using Gemini LLM.
+        Extract entities from chunk text using Vertex AI Gemini.
 
         Args:
             chunk_text: Text content to extract entities from
@@ -729,21 +722,19 @@ class GeminiClient:
             List of extracted entity dicts
         """
         try:
-            import google.generativeai as genai
-
-            if not self.api_key:
-                raise ValueError("GEMINI_API_KEY not configured")
-
-            genai.configure(api_key=self.api_key)
+            model = self._get_model()
+            if model is None:
+                raise RuntimeError("Vertex AI model not initialized")
 
             # Build prompt with entity extraction template
             prompt = ENTITY_EXTRACTION_PROMPT.format(chunk_text=chunk_text[:5000])
 
-            model = genai.GenerativeModel(self.extraction_model)
-            response = model.generate_content(
+            response = generate_content(
+                model,
                 prompt,
-                generation_config=genai.GenerationConfig(
-                    max_output_tokens=max_tokens, temperature=0.2
+                generation_config=GenerationConfig(
+                    max_output_tokens=max_tokens,
+                    temperature=0.2,
                 ),
             )
 
@@ -759,9 +750,6 @@ class GeminiClient:
 
             return entities
 
-        except ImportError:
-            logger.warning("google-generativeai not installed")
-            return self._mock_entities(chunk_text, chunk_id)
         except Exception as e:
             logger.error(f"Entity extraction failed for chunk {chunk_id}: {e}")
             return self._mock_entities(chunk_text, chunk_id)
@@ -929,7 +917,7 @@ class KnowledgeGraphProcessor:
         # Initialize LLM extractor if using LLM extraction
         if use_llm_extraction:
             try:
-                self._llm_extractor = LLMEntityExtractor(api_key=self.gemini.api_key)
+                self._llm_extractor = LLMEntityExtractor()
                 result["extraction_method"] = "llm"
             except Exception as e:
                 logger.warning(
@@ -1192,7 +1180,7 @@ class KnowledgeGraphProcessor:
                 )
                 try:
                     # Generate embeddings for deduplication
-                    embedding_service = EmbeddingService(api_key=self.gemini.api_key)
+                    embedding_service = EmbeddingService()
                     entity_embeddings = {}
                     entity_names = [
                         e.get("name", "")
@@ -2803,20 +2791,8 @@ class KnowledgeGraphProcessor:
         entity_names = [e.name for e in entities]
 
         try:
-            import google.generativeai as genai
-
-            if self.gemini.api_key:
-                genai.configure(api_key=self.gemini.api_key)
-                embeddings = []
-                for name in entity_names:
-                    result = genai.embed_content(
-                        model=self.gemini.embedding_model,
-                        content=name,
-                        task_type="semantic_similarity",
-                    )
-                    embeddings.append(result.get("embedding", []))
-            else:
-                raise ValueError("No API key")
+            embedding_service = EmbeddingService()
+            embeddings = embedding_service.embed_batch(entity_names)
         except Exception as e:
             logger.warning(f"Failed to get embeddings for semantic dedup: {e}")
             return entities
@@ -3158,7 +3134,7 @@ class KnowledgeGraphProcessor:
 
         try:
             # Initialize embedding service
-            embedding_service = EmbeddingService(api_key=self.gemini.api_key)
+            embedding_service = EmbeddingService()
 
             # Generate embeddings using the service
             entity_embeddings = embedding_service.embed_entities(entities)

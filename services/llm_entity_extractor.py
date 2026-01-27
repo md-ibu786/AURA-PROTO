@@ -6,7 +6,7 @@
 # Ported from AURA-CHAT/backend/llm_entity_extractor.py for consistency.
 
 # @see: api/kg_processor.py - Integration point for entity extraction
-# @note: Uses google-generativeai SDK, not Vertex AI (unlike AURA-CHAT)
+# @note: Uses Vertex AI SDK via services/vertex_ai_client
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from typing import Dict, List, Literal, Optional, Any, Tuple
 
 from pydantic import BaseModel, Field
 
+from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+
 # ============================================================================
 # CONFIGURATION CONSTANTS
 # ============================================================================
@@ -32,6 +34,10 @@ LLM_ENTITY_TEMPERATURE = 0.2  # Generation temperature
 LLM_RELATIONSHIP_MIN_CONFIDENCE = 0.3  # Minimum confidence for relationships
 LLM_RELATIONSHIP_MAX_PER_DOCUMENT = 50  # Max relationships per document
 LLM_RELATIONSHIP_MAX_PER_ENTITY = 10  # Max relationships per source entity
+DEFAULT_EXTRACTION_MODEL = os.getenv(
+    "LLM_ENTITY_EXTRACTION_MODEL",
+    "gemini-2.5-flash-lite",
+)
 
 # Supported relationship types for entity-entity relationships
 RELATIONSHIP_TYPES = [
@@ -164,18 +170,15 @@ class LLMEntityExtractor:
     - Test mode for unit testing
     """
 
-    def __init__(self, model_name: str = "gemini-1.5-flash", api_key: str = None):
+    def __init__(self, model_name: str = DEFAULT_EXTRACTION_MODEL, api_key: str = None):
         """
         Initialize with Gemini model.
 
         Args:
-            model_name: Name of the Gemini model to use (default: gemini-1.5-flash)
-            api_key: Google API key (defaults to GEMINI_API_KEY or GOOGLE_API_KEY env var)
+            model_name: Name of the Gemini model to use (Vertex AI model name)
+            api_key: Deprecated. Vertex AI uses ADC credentials instead.
         """
         self.model_name = model_name
-        self.api_key = (
-            api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        )
         self._test_mode = os.getenv("AURA_TEST_MODE", "").lower() == "true"
         self._model = None
         self._encoding = None
@@ -188,6 +191,9 @@ class LLMEntityExtractor:
         except ImportError:
             logger.warning("tiktoken not available, using whitespace tokenization")
 
+        if api_key:
+            logger.warning("LLMEntityExtractor no longer uses API keys; ignoring api_key")
+
         if not self._test_mode:
             self._initialize_model()
         else:
@@ -196,19 +202,10 @@ class LLMEntityExtractor:
     def _initialize_model(self):
         """Initialize the Gemini model."""
         try:
-            import google.generativeai as genai
-
-            if not self.api_key:
-                logger.warning("No API key configured for Gemini")
-                return
-
-            genai.configure(api_key=self.api_key)
-            self._model = genai.GenerativeModel(self.model_name)
+            self._model = get_model(self.model_name)
             logger.info(f"Initialized LLMEntityExtractor with model: {self.model_name}")
-        except ImportError:
-            logger.error("google-generativeai not installed")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini model: {e}")
+            logger.error(f"Failed to initialize Vertex AI model: {e}")
 
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text."""
@@ -392,13 +389,11 @@ class LLMEntityExtractor:
             return empty_result
 
         try:
-            import google.generativeai as genai
-
             # Build prompt
             prompt = self._build_extraction_prompt(batch_text)
 
             # Configure generation
-            generation_config = genai.GenerationConfig(
+            generation_config = GenerationConfig(
                 temperature=LLM_ENTITY_TEMPERATURE,
                 max_output_tokens=4096,
             )
@@ -408,8 +403,10 @@ class LLMEntityExtractor:
             )
 
             # Generate response
-            response = self._model.generate_content(
-                prompt, generation_config=generation_config
+            response = generate_content(
+                self._model,
+                prompt,
+                generation_config=generation_config,
             )
 
             response_text = response.text.strip() if response.text else ""
@@ -900,9 +897,7 @@ No markdown, no explanations. Return empty array if no relationships found.
             List of raw relationship dicts from LLM
         """
         try:
-            import google.generativeai as genai
-
-            generation_config = genai.GenerationConfig(
+            generation_config = GenerationConfig(
                 temperature=LLM_ENTITY_TEMPERATURE,
                 max_output_tokens=4096,
             )
@@ -911,8 +906,10 @@ No markdown, no explanations. Return empty array if no relationships found.
                 f"Calling LLM for relationship extraction, attempt {retry_count + 1}/{MAX_RETRIES + 1}"
             )
 
-            response = self._model.generate_content(
-                prompt, generation_config=generation_config
+            response = generate_content(
+                self._model,
+                prompt,
+                generation_config=generation_config,
             )
 
             response_text = response.text.strip() if response.text else ""

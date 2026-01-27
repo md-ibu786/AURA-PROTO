@@ -22,12 +22,7 @@
 import os
 from types import SimpleNamespace
 
-from services import genai_client
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
-
-
-def get_genai_model(model_name: str):
-    return genai_client.get_genai_model(model_name)
 
 
 def _build_generation_config():
@@ -107,21 +102,9 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         """
 
     try:
-        genai_model = get_genai_model("gemini-3-flash-preview")
+        model = get_model(model_name="models/gemini-3-flash-preview")
     except Exception as e:
         return f"Note Generation Failed: {str(e)}"
-
-    if genai_model is not None:
-        try:
-            response = genai_client.generate_content_with_thinking(
-                genai_model,
-                note_taking_prompt,
-            )
-            return response.text
-        except Exception as e:
-            return f"Note Generation Failed: {str(e)}"
-
-    model = get_model(model_name="models/gemini-3-flash-preview")
 
     # Note: Gemini 3 Flash is a "thinking model" by design, with inherent reasoning capabilities
     # The temperature=1.0 setting encourages more diverse and creative reasoning

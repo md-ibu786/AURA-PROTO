@@ -1,7 +1,7 @@
 # embeddings.py
-# Embedding service for AURA-NOTES-MANAGER with Gemini and test-mode fallback
+# Embedding service for AURA-NOTES-MANAGER with Vertex AI and test-mode fallback
 
-# Provides 768-dimensional embeddings via Google Gemini (gemini-embedding-001)
+# Provides 768-dimensional embeddings via Vertex AI text embeddings
 # with batching, rate limiting, and retry logic. Test mode provides deterministic
 # embeddings to avoid external dependencies during pytest runs.
 
@@ -21,6 +21,9 @@ import unicodedata
 from functools import lru_cache
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
+from google.cloud import aiplatform
+from services.vertex_ai_client import init_vertex_ai
+
 if TYPE_CHECKING:
     from api.kg_processor import Entity
 
@@ -28,7 +31,7 @@ if TYPE_CHECKING:
 # CONFIGURATION CONSTANTS
 # ============================================================================
 
-EMBEDDING_MODEL = "text-embedding-004"  # Gemini embedding model
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
 EMBEDDING_DIMENSIONS = 768  # Output vector dimensions
 EMBEDDING_BATCH_SIZE = 100  # Number of texts per API request
 RATE_LIMIT_RPM = 60  # Requests per minute limit (conservative)
@@ -56,7 +59,7 @@ class EmbeddingService:
     """
     Embedding service for generating 768-dimensional text embeddings.
 
-    Uses Google Gemini's text-embedding-004 model in production and provides
+    Uses Vertex AI text-embedding-004 model in production and provides
     deterministic test embeddings when AURA_TEST_MODE=true.
 
     Features:
@@ -77,20 +80,18 @@ class EmbeddingService:
     def __init__(
         self,
         model_name: str = EMBEDDING_MODEL,
-        api_key: str = None,
+        api_key: str | None = None,
     ):
         """
         Initialize embedding service.
 
         Args:
             model_name: Embedding model name (default: text-embedding-004)
-            api_key: Google API key (defaults to GEMINI_API_KEY or GOOGLE_API_KEY env var)
+            api_key: Deprecated. Vertex AI uses ADC credentials instead.
         """
         self.model_name = model_name
-        self.api_key = (
-            api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        )
         self._test_mode = os.getenv("AURA_TEST_MODE", "").lower() == "true"
+        self._embedding_model = None
 
         # Configuration
         self.batch_size = EMBEDDING_BATCH_SIZE
@@ -109,14 +110,34 @@ class EmbeddingService:
         self._cache_enabled = False
         self._cache_max_size = 1000
 
+        if api_key:
+            logger.warning("EmbeddingService no longer uses API keys; ignoring api_key")
+
         if self._test_mode:
             logger.info(
-                f"EmbeddingService initialized in test mode (dimensions: {EMBEDDING_DIMENSIONS})"
+                "EmbeddingService initialized in test mode "
+                f"(dimensions: {EMBEDDING_DIMENSIONS})"
             )
         else:
-            if not self.api_key:
-                logger.warning("No API key configured for Gemini embeddings")
+            self._init_embedding_model()
             logger.info(f"EmbeddingService initialized with model: {self.model_name}")
+
+    def _init_embedding_model(self) -> None:
+        if self._embedding_model is not None or self._test_mode:
+            return
+
+        init_vertex_ai()
+        aiplatform.init(
+            project=os.getenv("VERTEX_PROJECT"),
+            location=os.getenv("VERTEX_LOCATION", "us-central1"),
+        )
+
+        try:
+            self._embedding_model = aiplatform.TextEmbeddingModel.from_pretrained(
+                self.model_name
+            )
+        except AttributeError:
+            self._embedding_model = aiplatform.TextEmbeddingModel(self.model_name)
 
     def enable_cache(self, max_size: int = 1000) -> None:
         """
@@ -201,7 +222,7 @@ class EmbeddingService:
 
     def _call_embedding_api(self, texts: List[str]) -> List[List[float]]:
         """
-        Call Gemini embedding API with retry logic.
+        Call Vertex AI embedding API with retry logic.
 
         Args:
             texts: List of texts to embed
@@ -212,45 +233,43 @@ class EmbeddingService:
         Raises:
             Exception: If all retries fail
         """
-        try:
-            import google.generativeai as genai
-        except ImportError:
-            logger.error("google-generativeai not installed")
-            raise RuntimeError("google-generativeai package not installed")
-
-        if not self.api_key:
-            raise RuntimeError("No API key configured for Gemini embeddings")
-
-        genai.configure(api_key=self.api_key)
+        if self._embedding_model is None:
+            self._init_embedding_model()
+        if self._embedding_model is None:
+            raise RuntimeError("Vertex AI embedding model is not initialized")
 
         attempt = 0
         delay = self.backoff_initial
 
         while True:
             try:
-                embeddings = []
+                # Truncate text if too long
+                truncated_texts = [
+                    text[:MAX_TEXT_LENGTH] if len(text) > MAX_TEXT_LENGTH else text
+                    for text in texts
+                ]
 
-                for text in texts:
-                    # Truncate text if too long
-                    truncated = (
-                        text[:MAX_TEXT_LENGTH] if len(text) > MAX_TEXT_LENGTH else text
+                try:
+                    embeddings = self._embedding_model.get_embeddings(
+                        truncated_texts,
+                        output_dimensionality=EMBEDDING_DIMENSIONS,
                     )
+                except TypeError:
+                    embeddings = self._embedding_model.get_embeddings(truncated_texts)
 
-                    result = genai.embed_content(
-                        model=self.model_name,
-                        content=truncated,
-                        task_type="semantic_similarity",
-                    )
+                values_list = []
+                for embedding in embeddings:
+                    values = getattr(embedding, "values", None)
+                    if values is None and isinstance(embedding, dict):
+                        values = embedding.get("values")
+                    values_list.append(list(values or []))
 
-                    embedding = result.get("embedding", [])
-                    embeddings.append(embedding)
-
-                if len(embeddings) != len(texts):
+                if len(values_list) != len(texts):
                     raise RuntimeError(
-                        f"Expected {len(texts)} embeddings, got {len(embeddings)}"
+                        f"Expected {len(texts)} embeddings, got {len(values_list)}"
                     )
 
-                return embeddings
+                return values_list
 
             except Exception as e:
                 error_str = str(e).lower()
@@ -593,7 +612,7 @@ def get_embedding(text: str, api_key: str = None) -> List[float]:
 
     Args:
         text: Text to embed
-        api_key: Optional API key
+        api_key: Deprecated. Vertex AI uses ADC credentials instead.
 
     Returns:
         768-dimensional embedding vector
@@ -608,7 +627,7 @@ def get_embeddings_batch(texts: List[str], api_key: str = None) -> List[List[flo
 
     Args:
         texts: List of texts to embed
-        api_key: Optional API key
+        api_key: Deprecated. Vertex AI uses ADC credentials instead.
 
     Returns:
         List of embedding vectors

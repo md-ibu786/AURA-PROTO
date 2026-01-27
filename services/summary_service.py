@@ -6,7 +6,7 @@
 # supports configurable summary lengths. Implements Redis caching with 24-hour
 # TTL for performance optimization.
 
-# @see: services/genai_client.py - Gemini client for LLM calls
+# @see: services/vertex_ai_client.py - Vertex AI Gemini client wrapper
 # @see: api/graph_manager.py - Entity retrieval from knowledge graph
 # @see: api/cache.py - Redis caching for summaries
 # @note: Gracefully degrades when LLM or cache services unavailable
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import re
 from datetime import datetime
 from enum import Enum
@@ -22,11 +23,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from services.genai_client import (
-    GENAI_AVAILABLE,
-    generate_content_with_thinking,
-    get_genai_model,
-)
+from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
 # ============================================================================
@@ -51,7 +48,10 @@ CACHE_PREFIX_DOCUMENT = "summary:doc"
 CACHE_PREFIX_MODULE = "summary:mod"
 
 # LLM configuration
-DEFAULT_MODEL_NAME = "gemini-1.5-flash"
+DEFAULT_MODEL_NAME = os.getenv(
+    "LLM_SUMMARIZATION_MODEL",
+    "gemini-2.5-flash-lite",
+)
 
 
 # ============================================================================
@@ -226,7 +226,7 @@ class SummaryService:
         Initialize SummaryService.
 
         Args:
-            model_name: Gemini model to use for summarization.
+            model_name: Vertex AI Gemini model to use for summarization.
             graph_manager: Optional GraphManager for entity retrieval.
             neo4j_driver: Optional Neo4j driver for direct queries.
         """
@@ -237,14 +237,17 @@ class SummaryService:
         self._cache = None
 
         logger.info(
-            f"SummaryService initialized with model={model_name}, "
-            f"genai_available={GENAI_AVAILABLE}"
+            f"SummaryService initialized with model={model_name}"
         )
 
     def _get_model(self) -> Any:
-        """Get or initialize the Gemini model."""
+        """Get or initialize the Vertex AI Gemini model."""
         if self._model is None:
-            self._model = get_genai_model(self.model_name)
+            try:
+                self._model = get_model(self.model_name)
+            except Exception as exc:
+                logger.warning("Vertex AI model unavailable: %s", exc)
+                self._model = None
         return self._model
 
     def _get_cache(self):
@@ -698,7 +701,7 @@ class SummaryService:
         # Get model
         model = self._get_model()
         if model is None:
-            logger.warning("GenAI not available, returning fallback summary")
+            logger.warning("Vertex AI not available, returning fallback summary")
             return self._build_fallback_document_summary(
                 document_id, title, content, entities, length, cache_key
             )
@@ -715,7 +718,14 @@ class SummaryService:
         )
 
         try:
-            response = generate_content_with_thinking(model, prompt)
+            response = generate_content(
+                model,
+                prompt,
+                generation_config=GenerationConfig(
+                    temperature=0.2,
+                    max_output_tokens=4096,
+                ),
+            )
             response_text = response.text
 
             # Parse response
@@ -859,7 +869,7 @@ class SummaryService:
         # Synthesize module overview
         model = self._get_model()
         if model is None:
-            logger.warning("GenAI not available, returning aggregated summary")
+            logger.warning("Vertex AI not available, returning aggregated summary")
             return self._build_fallback_module_summary(
                 module_id,
                 module_name,
@@ -887,7 +897,14 @@ class SummaryService:
         )
 
         try:
-            response = generate_content_with_thinking(model, prompt)
+            response = generate_content(
+                model,
+                prompt,
+                generation_config=GenerationConfig(
+                    temperature=0.2,
+                    max_output_tokens=4096,
+                ),
+            )
             response_text = response.text
 
             # Parse response
@@ -1020,7 +1037,14 @@ class SummaryService:
 
 Provide a concise, coherent summary:"""
 
-                response = generate_content_with_thinking(model, prompt)
+                response = generate_content(
+                    model,
+                    prompt,
+                    generation_config=GenerationConfig(
+                        temperature=0.2,
+                        max_output_tokens=2048,
+                    ),
+                )
                 return response.text.strip()
 
         except Exception as e:
@@ -1042,7 +1066,7 @@ def create_summary_service(
     Factory function to create SummaryService.
 
     Args:
-        model_name: Gemini model to use for summarization.
+        model_name: Vertex AI Gemini model to use for summarization.
         graph_manager: Optional GraphManager for entity retrieval.
         neo4j_driver: Optional Neo4j driver for direct queries.
 
