@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 import re
 from datetime import datetime
 from enum import Enum
@@ -23,6 +22,7 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from api.config import LLM_SUMMARIZATION_MODEL
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
@@ -46,12 +46,6 @@ DETAILED_WORD_COUNT = 500
 CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 CACHE_PREFIX_DOCUMENT = "summary:doc"
 CACHE_PREFIX_MODULE = "summary:mod"
-
-# LLM configuration
-DEFAULT_MODEL_NAME = os.getenv(
-    "LLM_SUMMARIZATION_MODEL",
-    "gemini-2.5-flash-lite",
-)
 
 
 # ============================================================================
@@ -218,7 +212,7 @@ class SummaryService:
 
     def __init__(
         self,
-        model_name: str = DEFAULT_MODEL_NAME,
+        model_name: str = LLM_SUMMARIZATION_MODEL,
         graph_manager=None,
         neo4j_driver=None,
     ):
@@ -236,170 +230,7 @@ class SummaryService:
         self._neo4j_driver = neo4j_driver
         self._cache = None
 
-        logger.info(
-            f"SummaryService initialized with model={model_name}"
-        )
-
-    def _get_model(self) -> Any:
-        """Get or initialize the Vertex AI Gemini model."""
-        if self._model is None:
-            try:
-                self._model = get_model(self.model_name)
-            except Exception as exc:
-                logger.warning("Vertex AI model unavailable: %s", exc)
-                self._model = None
-        return self._model
-
-    def _get_cache(self):
-        """Get the Redis cache client with lazy initialization."""
-        if self._cache is None:
-            try:
-                from api.cache import redis_client
-
-                self._cache = redis_client
-            except ImportError:
-                try:
-                    from cache import redis_client
-
-                    self._cache = redis_client
-                except ImportError:
-                    logger.warning("Cache module not available, caching disabled")
-                    self._cache = None
-        return self._cache
-
-    def _get_word_count(self, length: SummaryLength) -> int:
-        """Get target word count for summary length."""
-        if length == SummaryLength.BRIEF:
-            return BRIEF_WORD_COUNT
-        elif length == SummaryLength.DETAILED:
-            return DETAILED_WORD_COUNT
-        return STANDARD_WORD_COUNT
-
-    def _generate_cache_key(
-        self,
-        prefix: str,
-        item_id: str,
-        length: SummaryLength,
-        content_hash: str = "",
-    ) -> str:
-        """Generate a cache key for a summary."""
-        return f"{prefix}:{item_id}:{length.value}:{content_hash[:8]}"
-
-    def _compute_content_hash(self, content: str) -> str:
-        """Compute a hash of the content for cache invalidation."""
-        return hashlib.md5(content.encode("utf-8")).hexdigest()
-
-    async def _get_cached_summary(
-        self,
-        cache_key: str,
-    ) -> Optional[Dict[str, Any]]:
-        """Retrieve a cached summary if available."""
-        cache = self._get_cache()
-        if cache is None:
-            return None
-
-        try:
-            data = cache.get(cache_key)
-            if data:
-                logger.debug(f"Cache hit for {cache_key}")
-                return data
-        except Exception as e:
-            logger.debug(f"Cache lookup failed for {cache_key}: {e}")
-
-        return None
-
-    def _parse_generated_at(self, value: Any) -> Optional[datetime]:
-        """Parse generated_at values for cache comparisons."""
-        if isinstance(value, datetime):
-            return value
-
-        if isinstance(value, str):
-            try:
-                return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except ValueError:
-                return None
-
-        return None
-
-    async def _get_latest_cached_summary(
-        self,
-        keys: List[str],
-    ) -> Optional[Dict[str, Any]]:
-        """Fetch the newest cached summary from a list of cache keys."""
-        latest_summary = None
-        latest_generated_at = None
-
-        for key in keys:
-            cached = await self._get_cached_summary(key)
-            if not cached:
-                continue
-
-            generated_at = self._parse_generated_at(cached.get("generated_at"))
-            if generated_at is None:
-                continue
-
-            if latest_generated_at is None or generated_at > latest_generated_at:
-                latest_generated_at = generated_at
-                latest_summary = cached
-
-        return latest_summary
-
-    async def get_cached_document_summary(
-        self,
-        document_id: str,
-        length: SummaryLength,
-    ) -> Optional[DocumentSummary]:
-        """Retrieve the latest cached document summary without regenerating."""
-        cache = self._get_cache()
-        if cache is None:
-            return None
-
-        pattern = f"{CACHE_PREFIX_DOCUMENT}:{document_id}:{length.value}:*"
-        keys = cache.keys(pattern)
-        if not keys:
-            return None
-
-        cached = await self._get_latest_cached_summary(keys)
-        if not cached:
-            return None
-
-        return DocumentSummary(**cached)
-
-    async def get_cached_module_summary(
-        self,
-        module_id: str,
-        length: SummaryLength,
-        include_document_summaries: bool = True,
-    ) -> Optional[ModuleSummary]:
-        """Retrieve the latest cached module summary without regenerating."""
-        cache = self._get_cache()
-        if cache is None:
-            return None
-
-        pattern = f"{CACHE_PREFIX_MODULE}:{module_id}:{length.value}:*"
-        keys = cache.keys(pattern)
-        if not keys:
-            return None
-
-        cached = await self._get_latest_cached_summary(keys)
-        if not cached:
-            return None
-
-        module_summary = ModuleSummary(**cached)
-
-        if include_document_summaries:
-            _, doc_ids = await self._get_module_documents(module_id)
-            if doc_ids:
-                doc_summaries = []
-                for doc_id in doc_ids:
-                    cached_summary = await self.get_cached_document_summary(
-                        doc_id, SummaryLength.BRIEF
-                    )
-                    if cached_summary:
-                        doc_summaries.append(cached_summary)
-                module_summary.document_summaries = doc_summaries
-
-        return module_summary
+        logger.info(f"SummaryService initialized with model={model_name}")
 
     def _cache_summary(
         self,
@@ -1058,7 +889,7 @@ Provide a concise, coherent summary:"""
 
 
 def create_summary_service(
-    model_name: str = DEFAULT_MODEL_NAME,
+    model_name: str = LLM_SUMMARIZATION_MODEL,
     graph_manager=None,
     neo4j_driver=None,
 ) -> SummaryService:

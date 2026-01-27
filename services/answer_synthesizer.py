@@ -5,9 +5,9 @@
 # detection, and confidence scoring. Uses Gemini LLM to generate comprehensive
 # answers from retrieved document contexts while maintaining source attribution.
 
-# @see: services/genai_client.py - Gemini client and availability checks
+# @see: services/vertex_ai_client.py - Vertex AI Gemini client wrapper
 # @see: services/query_analyzer.py - Query analysis for intent detection
-# @note: Gracefully degrades when GENAI_AVAILABLE is False
+# @note: Gracefully degrades when Vertex AI is unavailable
 
 from __future__ import annotations
 
@@ -17,11 +17,8 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from services.genai_client import (
-    GENAI_AVAILABLE,
-    generate_content_with_thinking,
-    get_genai_model,
-)
+from api.config import LLM_SUMMARIZATION_MODEL
+from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
 # ============================================================================
@@ -201,74 +198,35 @@ class AnswerSynthesizer:
         # SynthesizedAnswer with answer, citations, key_points, etc.
     """
 
-    def __init__(self, model_name: str = "gemini-1.5-flash"):
+    def __init__(self, model_name: str = LLM_SUMMARIZATION_MODEL):
         """
         Initialize AnswerSynthesizer with specified model.
 
         Args:
-            model_name: Gemini model to use for synthesis.
+            model_name: Vertex AI Gemini model to use for synthesis.
         """
         self.model_name = model_name
         self._model = None
-        logger.info(
-            f"AnswerSynthesizer initialized with model={model_name}, "
-            f"genai_available={GENAI_AVAILABLE}"
-        )
+        logger.info(f"AnswerSynthesizer initialized with model={model_name}")
 
-    def _get_model(self) -> Any:
-        """
-        Get or initialize the Gemini model.
-
-        Returns:
-            Gemini model instance or None if unavailable.
-        """
-        if self._model is None:
-            self._model = get_genai_model(self.model_name)
-        return self._model
-
-    async def synthesize(
-        self,
-        query: str,
-        contexts: List[DocumentContext],
-        options: Optional[SynthesisOptions] = None,
-    ) -> SynthesizedAnswer:
-        """
-        Synthesize an answer from multiple document contexts.
-
-        Args:
-            query: The user's question.
-            contexts: List of document contexts with relevant chunks.
-            options: Optional synthesis configuration.
-
-        Returns:
-            SynthesizedAnswer with answer, citations, and metadata.
-        """
-        if options is None:
-            options = SynthesisOptions()
-
-        # Handle empty contexts
-        if not contexts:
-            logger.warning("synthesize called with empty contexts")
-            return SynthesizedAnswer(
-                answer="No relevant documents found to answer this question.",
-                confidence=0.0,
-                sources_used=0,
-                key_points=[],
-                citations=[],
-                contradictions=[],
-            )
-
-        # Check if GenAI is available
+        # Check if Vertex AI is available
         model = self._get_model()
         if model is None:
-            logger.warning("GenAI not available, returning fallback response")
+            logger.warning("Vertex AI not available, returning fallback response")
             return self._build_fallback_response(query, contexts)
 
         # Build prompt and call LLM
         prompt = self._build_synthesis_prompt(query, contexts)
 
         try:
-            response = generate_content_with_thinking(model, prompt)
+            response = generate_content(
+                model,
+                prompt,
+                generation_config=GenerationConfig(
+                    temperature=0.2,
+                    max_output_tokens=4096,
+                ),
+            )
             response_text = response.text
         except Exception as e:
             logger.error(f"LLM synthesis failed: {e}")

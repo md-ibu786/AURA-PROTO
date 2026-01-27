@@ -20,6 +20,7 @@ from typing import Dict, List, Literal, Optional, Any, Tuple
 
 from pydantic import BaseModel, Field
 
+from api.config import LLM_ENTITY_EXTRACTION_MODEL
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 # ============================================================================
@@ -34,10 +35,6 @@ LLM_ENTITY_TEMPERATURE = 0.2  # Generation temperature
 LLM_RELATIONSHIP_MIN_CONFIDENCE = 0.3  # Minimum confidence for relationships
 LLM_RELATIONSHIP_MAX_PER_DOCUMENT = 50  # Max relationships per document
 LLM_RELATIONSHIP_MAX_PER_ENTITY = 10  # Max relationships per source entity
-DEFAULT_EXTRACTION_MODEL = os.getenv(
-    "LLM_ENTITY_EXTRACTION_MODEL",
-    "gemini-2.5-flash-lite",
-)
 
 # Supported relationship types for entity-entity relationships
 RELATIONSHIP_TYPES = [
@@ -170,7 +167,9 @@ class LLMEntityExtractor:
     - Test mode for unit testing
     """
 
-    def __init__(self, model_name: str = DEFAULT_EXTRACTION_MODEL, api_key: str = None):
+    def __init__(
+        self, model_name: str = LLM_ENTITY_EXTRACTION_MODEL, api_key: str = None
+    ):
         """
         Initialize with Gemini model.
 
@@ -192,7 +191,9 @@ class LLMEntityExtractor:
             logger.warning("tiktoken not available, using whitespace tokenization")
 
         if api_key:
-            logger.warning("LLMEntityExtractor no longer uses API keys; ignoring api_key")
+            logger.warning(
+                "LLMEntityExtractor no longer uses API keys; ignoring api_key"
+            )
 
         if not self._test_mode:
             self._initialize_model()

@@ -27,8 +27,6 @@ def get_genai_model(model_name: str) -> Any | None:
     try:
         return get_model(model_name)
     except Exception:
-        if _TEST_MODE:
-            return get_model(model_name)
         return None
 
 

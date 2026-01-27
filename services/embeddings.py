@@ -22,6 +22,8 @@ from functools import lru_cache
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 from google.cloud import aiplatform
+
+from api.config import EMBEDDING_MODEL
 from services.vertex_ai_client import init_vertex_ai
 
 if TYPE_CHECKING:
@@ -31,7 +33,6 @@ if TYPE_CHECKING:
 # CONFIGURATION CONSTANTS
 # ============================================================================
 
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-004")
 EMBEDDING_DIMENSIONS = 768  # Output vector dimensions
 EMBEDDING_BATCH_SIZE = 100  # Number of texts per API request
 RATE_LIMIT_RPM = 60  # Requests per minute limit (conservative)
@@ -127,10 +128,6 @@ class EmbeddingService:
             return
 
         init_vertex_ai()
-        aiplatform.init(
-            project=os.getenv("VERTEX_PROJECT"),
-            location=os.getenv("VERTEX_LOCATION", "us-central1"),
-        )
 
         try:
             self._embedding_model = aiplatform.TextEmbeddingModel.from_pretrained(
@@ -262,7 +259,12 @@ class EmbeddingService:
                     values = getattr(embedding, "values", None)
                     if values is None and isinstance(embedding, dict):
                         values = embedding.get("values")
-                    values_list.append(list(values or []))
+                    if values is None:
+                        logger.error(
+                            f"Failed to extract embedding values from response: {embedding}"
+                        )
+                        raise RuntimeError("Embedding API returned no values")
+                    values_list.append(list(values))
 
                 if len(values_list) != len(texts):
                     raise RuntimeError(

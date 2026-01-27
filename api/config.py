@@ -29,7 +29,7 @@ VERTEX_PROJECT = os.getenv("VERTEX_PROJECT", "lucky-processor-480412-n8")
 VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "us-central1")
 VERTEX_CREDENTIALS = os.getenv(
     "VERTEX_CREDENTIALS",
-    "AURA-NOTES-MANAGER/service_account.json",
+    str(Path(__file__).parent.parent / "service_account.json"),
 )
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
     "GOOGLE_APPLICATION_CREDENTIALS",
@@ -40,9 +40,18 @@ GOOGLE_APPLICATION_CREDENTIALS = os.getenv(
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = GOOGLE_APPLICATION_CREDENTIALS
 
 # LLM Model Configuration
-LLM_ENTITY_EXTRACTION_MODEL = "gemini-2.5-flash-lite"
-LLM_SUMMARIZATION_MODEL = "gemini-2.5-flash-lite"
-EMBEDDING_MODEL = "text-embedding-004"
+LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
+    "LLM_ENTITY_EXTRACTION_MODEL",
+    "gemini-2.5-flash-lite",
+)
+LLM_SUMMARIZATION_MODEL = os.getenv(
+    "LLM_SUMMARIZATION_MODEL",
+    "gemini-2.5-flash-lite",
+)
+EMBEDDING_MODEL = os.getenv(
+    "EMBEDDING_MODEL",
+    "text-embedding-004",
+)
 
 # Test Mode (set to True to skip actual API calls)
 AURA_TEST_MODE = os.getenv("AURA_TEST_MODE", "false").lower() == "true"
