@@ -70,7 +70,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from neo4j_config import neo4j_driver
 from logging_config import logger
-from google.cloud.firestore import FieldFilter
 
 # Import chunking utilities (ported from AURA-CHAT)
 try:
@@ -1514,8 +1513,8 @@ class KnowledgeGraphProcessor:
             # Find note in nested subcollections (modules/{id}/notes/{id})
             notes = list(
                 db.collection_group("notes")
-                .filter(FieldFilter("__name__", ">=", document_id))
-                .filter(FieldFilter("__name__", "<=", document_id + "\uf8ff"))
+                .where("__name__", ">=", document_id)
+                .where("__name__", "<=", document_id + "\uf8ff")
                 .limit(1)
                 .stream()
             )

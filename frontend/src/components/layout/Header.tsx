@@ -220,43 +220,20 @@ export function Header() {
                     <div className="h-6 w-px bg-border mx-2" style={{ marginLeft: 'auto' }} />
                     <div className="flex items-center gap-md">
                         {/* Mode Toggle: Process vs Delete */}
-                        <div 
-                            className="flex items-center rounded-md overflow-hidden"
-                            style={{ 
-                                border: '1px solid var(--color-border)',
-                                background: 'var(--color-bg-secondary)'
-                            }}
-                        >
-                            <button
-                                className="px-3 py-1 text-xs font-medium transition-colors"
-                                style={{
-                                    background: !deleteMode ? 'var(--color-primary)' : 'transparent',
-                                    color: !deleteMode ? 'var(--color-bg)' : 'var(--color-text-secondary)'
-                                }}
+                        <div className="aura-toggle-container">
+                            <div 
+                                className={`aura-toggle ${!deleteMode ? 'process' : 'delete'}`}
                                 onClick={() => {
                                     clearSelection();
-                                    setDeleteMode(false);
+                                    setDeleteMode(!deleteMode);
                                 }}
-                                title="Select notes to add to Knowledge Graph"
+                                title={!deleteMode ? "Switch to Delete mode" : "Switch to Process mode"}
                             >
-                                <Zap size={12} className="inline mr-1" />
-                                Process
-                            </button>
-                            <button
-                                className="px-3 py-1 text-xs font-medium transition-colors"
-                                style={{
-                                    background: deleteMode ? '#ef4444' : 'transparent',
-                                    color: deleteMode ? 'white' : 'var(--color-text-secondary)'
-                                }}
-                                onClick={() => {
-                                    clearSelection();
-                                    setDeleteMode(true);
-                                }}
-                                title="Select notes to remove from Knowledge Graph"
-                            >
-                                <Trash2 size={12} className="inline mr-1" />
-                                Delete
-                            </button>
+                                <div className="aura-toggle-knob" />
+                                <span className="aura-toggle-text">
+                                    {!deleteMode ? 'Process' : 'Delete'}
+                                </span>
+                            </div>
                         </div>
 
                         <span
