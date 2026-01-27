@@ -70,6 +70,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from neo4j_config import neo4j_driver
 from logging_config import logger
+from google.cloud.firestore import FieldFilter
 
 # Import chunking utilities (ported from AURA-CHAT)
 try:
@@ -367,7 +368,7 @@ class GeminiClient:
         """
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         self.embedding_model = "text-embedding-004"
-        self.extraction_model = "gemini-1.5-pro"
+        self.extraction_model = "gemini-2.5-flash-lite"
         self._client = None
 
     async def get_embedding(self, text: str) -> List[float]:
@@ -948,7 +949,7 @@ class KnowledgeGraphProcessor:
             self._emit_progress("loading", 0, 1, f"Loading document {document_id}")
 
             # Step 1: Load document content
-            text = await self._parse_document(document_id, file_path, document_data)
+            text = await self._parse_document(document_id, file_path, document_data, module_id=module_id)
             if not text:
                 raise ValueError(f"Failed to load document content: {document_id}")
 
@@ -1471,6 +1472,7 @@ class KnowledgeGraphProcessor:
         document_id: str,
         file_path: str = None,
         document_data: Dict[str, Any] = None,
+        module_id: str = None,
     ) -> str:
         """
         Extract text from PDF or plain text file.
@@ -1479,6 +1481,7 @@ class KnowledgeGraphProcessor:
             document_id: Document identifier
             file_path: Path to the file (optional)
             document_data: Pre-loaded document data with 'content' field (optional)
+            module_id: Optional module ID for efficient Firestore lookup
 
         Returns:
             Extracted text content
@@ -1510,18 +1513,68 @@ class KnowledgeGraphProcessor:
         try:
             from config import db
 
-            # Find note in nested subcollections (modules/{id}/notes/{id})
+            # Helper to extract content from doc data
+            async def _extract_content_from_doc(doc_data):
+                logger.debug(f"Extracting content from doc data: keys={list(doc_data.keys())}")
+                
+                # 1. Check for stored content
+                content = doc_data.get("content")
+                if content:
+                    logger.debug(f"Found content in Firestore doc ({len(content)} chars)")
+                    return content
+                
+                # 2. Check for linked file (pdf_url)
+                pdf_url = doc_data.get("pdf_url")
+                if pdf_url:
+                    logger.debug(f"Found pdf_url: {pdf_url}")
+                    # pdf_url is like "/pdfs/filename.pdf"
+                    # Remove leading slash to make it relative to project root
+                    clean_path = pdf_url.lstrip('/')
+                    
+                    paths_to_check = [
+                        clean_path,
+                        os.path.join("AURA-NOTES-MANAGER", clean_path),
+                        os.path.join("..", clean_path),
+                        os.path.join("api", "..", clean_path)
+                    ]
+                    
+                    for p in paths_to_check:
+                        logger.debug(f"Checking path: {p} (exists: {os.path.exists(p)})")
+                        if os.path.exists(p):
+                            logger.info(f"Found document file at: {p}")
+                            return await self._parse_file(p)
+                    
+                    logger.warning(f"File not found for pdf_url '{pdf_url}' at any checked locations")
+                else:
+                    logger.warning(f"No content or pdf_url found in document data for {document_id}")
+                        
+                return ""
+
+            # 1. Scoped lookup if module_id is known (Preferred)
+            if module_id:
+                # Modules are nested, find module doc first
+                modules = list(db.collection_group("modules").where(filter=FieldFilter("id", "==", module_id)).limit(1).stream())
+                if modules:
+                    module_ref = modules[0].reference
+                    doc_ref = module_ref.collection("notes").document(document_id)
+                    doc = doc_ref.get()
+                    if doc.exists:
+                        return await _extract_content_from_doc(doc.to_dict())
+                    
+                    logger.warning(f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})")
+                else:
+                    logger.warning(f"Module {module_id} not found via collection_group query")
+
+            # 2. Fallback: Find note in nested subcollections by 'id' field
             notes = list(
                 db.collection_group("notes")
-                .where("__name__", ">=", document_id)
-                .where("__name__", "<=", document_id + "\uf8ff")
+                .where(filter=FieldFilter("id", "==", document_id))
                 .limit(1)
                 .stream()
             )
             if notes:
-                doc_data = notes[0].to_dict()
-                # Return content field if present (some notes store parsed content)
-                return doc_data.get("content", "")
+                return await _extract_content_from_doc(notes[0].to_dict())
+                
         except Exception as e:
             logger.warning(f"Failed to fetch document from Firestore: {e}")
 

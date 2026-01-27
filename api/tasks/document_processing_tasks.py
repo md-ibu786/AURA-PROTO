@@ -66,29 +66,50 @@ try:
 except ImportError:
     from api.config import db
 
+from google.cloud.firestore import FieldFilter
+
 
 # ============================================================================
 # FIRESTORE STATUS UPDATE HELPER
 # ============================================================================
 
-def _find_note_by_id(document_id: str):
-    """Find a note document by ID using collection_group query.
+def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
+    """Find a note document by ID.
 
-    Notes are stored in nested subcollections: modules/{module_id}/notes/{note_id}
-    Use collection_group to find them regardless of their parent module.
+    If module_id is provided, looks up the module first (via collection_group on 'id')
+    to get the correct path, then finds the note.
+    Otherwise, attempts a collection_group query on the 'id' field.
 
     Args:
         document_id: The note document ID to find
+        module_id: Optional module ID to scope the search
 
     Returns:
         The note document reference if found, None otherwise
     """
     try:
-        # Use collection_group to find note in any modules subcollection
+        # 1. Scoped lookup if module_id is known (Preferred)
+        if module_id:
+            # Modules are nested, so we must find the module doc first
+            modules = list(db.collection_group("modules").where(filter=FieldFilter("id", "==", module_id)).limit(1).stream())
+            if modules:
+                module_ref = modules[0].reference
+                # Construct path: .../modules/{module_id}/notes/{note_id}
+                doc_ref = module_ref.collection("notes").document(document_id)
+                if doc_ref.get().exists:
+                    return doc_ref
+                
+                logger.warning(f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})")
+                return None
+            
+            logger.warning(f"Module {module_id} not found via collection_group query")
+            return None
+
+        # 2. Fallback: Use collection_group to find note by 'id' field
+        # This works because documents store their own ID in the 'id' field
         notes = list(
             db.collection_group("notes")
-            .where("__name__", ">=", document_id)
-            .where("__name__", "<=", document_id + "\uf8ff")
+            .where(filter=FieldFilter("id", "==", document_id))
             .limit(1)
             .stream()
         )
@@ -107,7 +128,8 @@ def update_document_status(
     progress: Optional[int] = None,
     step: Optional[str] = None,
     chunk_count: Optional[int] = None,
-    entity_count: Optional[int] = None
+    entity_count: Optional[int] = None,
+    module_id: Optional[str] = None
 ):
     """
     Update document KG status in Firestore.
@@ -120,9 +142,10 @@ def update_document_status(
         step: Current processing step (parsing, chunking, etc.)
         chunk_count: Number of chunks created (for ready status)
         entity_count: Number of entities extracted (for ready status)
+        module_id: Optional module ID to optimize lookup
     """
     # Find the note in nested subcollections
-    doc_ref = _find_note_by_id(document_id)
+    doc_ref = _find_note_by_id(document_id, module_id)
 
     if doc_ref is None:
         logger.error(f"No document found to update: {document_id}")
@@ -353,7 +376,7 @@ def process_document_task(
 
         # Idempotency check: skip if already processed
         # Find note in nested subcollections (modules/{id}/notes/{id})
-        doc_ref = _find_note_by_id(document_id)
+        doc_ref = _find_note_by_id(document_id, module_id)
         if doc_ref is not None:
             doc = doc_ref.get()
             if doc.exists and doc.to_dict().get("kg_status") == "ready":
@@ -365,7 +388,7 @@ def process_document_task(
                 }
 
         # Update Firestore status to PROCESSING
-        update_document_status(document_id, "processing", progress=5, step="starting")
+        update_document_status(document_id, "processing", progress=5, step="starting", module_id=module_id)
 
         # Update state: PARSING (0-10%)
         self.update_progress('parsing', 5, {'status': 'Extracting text from document'})
@@ -387,9 +410,12 @@ def process_document_task(
         # Calculate processing time
         processing_time = (datetime.utcnow() - start_time).total_seconds()
 
+        # Determine success from result status
+        is_success = result.get('status') == 'success'
+
         # Final result
         final_result = {
-            'success': True,
+            'success': is_success,
             'document_id': document_id,
             'module_id': module_id,
             'user_id': user_id,
@@ -401,6 +427,23 @@ def process_document_task(
             'completed_at': datetime.utcnow().isoformat()
         }
 
+        if not is_success:
+            error_msg = result.get('error', 'Unknown processing error')
+            final_result['error'] = error_msg
+            
+            # Update state: FAILED
+            self.update_progress('failed', 100, final_result)
+            
+            # Update Firestore status to FAILED
+            update_document_status(
+                document_id, "failed", 
+                error=error_msg, 
+                module_id=module_id
+            )
+            
+            task_logger.error(f"Document processing failed: {error_msg}")
+            return final_result
+
         # Update state: COMPLETED (100%)
         self.update_progress('completed', 100, final_result)
 
@@ -409,7 +452,8 @@ def process_document_task(
             document_id, "ready",
             progress=100, step="complete",
             chunk_count=final_result['chunk_count'],
-            entity_count=final_result['entity_count']
+            entity_count=final_result['entity_count'],
+            module_id=module_id
         )
 
         task_logger.info(
@@ -435,7 +479,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
-        update_document_status(document_id, "failed", error=error_msg)
+        update_document_status(document_id, "failed", error=error_msg, module_id=module_id)
 
         # Don't retry on timeout - it's likely a very large document
         raise
@@ -454,7 +498,7 @@ def process_document_task(
                 'document_id': document_id
             }
         )
-        update_document_status(document_id, "failed", error=error_msg)
+        update_document_status(document_id, "failed", error=error_msg, module_id=module_id)
 
         raise
 
@@ -500,9 +544,8 @@ def process_document_task(
                 'document_id': document_id
             }
         )
-        update_document_status(document_id, "failed", error=str(e))
+        update_document_status(document_id, "failed", error=str(e), module_id=module_id)
 
-        # Re-raise to trigger retry if applicable
         raise
 
 
