@@ -20,8 +20,13 @@ from typing import Dict, List, Literal, Optional, Any, Tuple
 
 from pydantic import BaseModel, Field
 
-from api.config import LLM_ENTITY_EXTRACTION_MODEL
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+
+# Load config directly from environment to avoid circular import with api package
+LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
+    "LLM_ENTITY_EXTRACTION_MODEL",
+    "gemini-2.5-flash-lite",
+)
 
 # ============================================================================
 # CONFIGURATION CONSTANTS
@@ -95,6 +100,33 @@ class Relationship(BaseModel):
     )
     evidence: Optional[str] = Field(
         default=None, max_length=300, description="Text supporting the relationship"
+    )
+
+
+class ExtractionResult(BaseModel):
+    """
+    Result container for entity and relationship extraction.
+
+    This is the return type for the module-level extract_entities() function,
+    matching the interface expected by the plan's test script.
+    """
+
+    entities: Dict[str, List[ExtractedEntity]] = Field(
+        default_factory=lambda: {
+            "concepts": [],
+            "topics": [],
+            "methodologies": [],
+            "findings": [],
+        },
+        description="Extracted entities by type",
+    )
+    relationships: List[Relationship] = Field(
+        default_factory=list,
+        description="Extracted relationships between entities",
+    )
+    raw_response: Optional[str] = Field(
+        default=None,
+        description="Raw LLM response (for debugging)",
     )
 
 
@@ -393,10 +425,11 @@ class LLMEntityExtractor:
             # Build prompt
             prompt = self._build_extraction_prompt(batch_text)
 
-            # Configure generation
+            # Configure generation with JSON response mode for structured output
             generation_config = GenerationConfig(
                 temperature=LLM_ENTITY_TEMPERATURE,
                 max_output_tokens=4096,
+                response_mime_type="application/json",
             )
 
             logger.debug(
@@ -1191,3 +1224,102 @@ No markdown, no explanations. Return empty array if no relationships found.
             )
 
         return relationships
+
+
+# ============================================================================
+# MODULE-LEVEL CONVENIENCE FUNCTIONS
+# ============================================================================
+
+# Lazy-initialized singleton extractor for module-level functions
+_extractor_instance: Optional[LLMEntityExtractor] = None
+
+
+def _get_extractor() -> LLMEntityExtractor:
+    """
+    Get or create singleton LLMEntityExtractor instance.
+    
+    If model initialization previously failed, retries on each call
+    until successful. This allows recovery from transient auth issues.
+    """
+    global _extractor_instance
+    if _extractor_instance is None:
+        _extractor_instance = LLMEntityExtractor()
+    elif _extractor_instance._model is None and not _extractor_instance._test_mode:
+        # Model init failed previously - retry
+        _extractor_instance._initialize_model()
+    return _extractor_instance
+
+
+async def extract_entities(
+    text: str, chunk_id: str = "unknown", *, include_relationships: bool = True
+) -> ExtractionResult:
+    """
+    Module-level async function for entity extraction.
+
+    This is a convenience wrapper around LLMEntityExtractor that provides
+    a simpler API matching the plan's expected interface.
+
+    Args:
+        text: Text to extract entities from
+        chunk_id: Identifier for the text chunk (for logging)
+        include_relationships: If True (default), also extract entity-entity
+            relationships. Set to False for faster entity-only extraction.
+
+    Returns:
+        ExtractionResult containing entities and optionally relationships
+    """
+    extractor = _get_extractor()
+    
+    if include_relationships:
+        entities, relationships = await extractor.extract_entities_and_relationships(
+            text, doc_id=chunk_id
+        )
+    else:
+        entities = await extractor.extract_entities(text, doc_id=chunk_id)
+        relationships = []
+    
+    return ExtractionResult(
+        entities=entities,
+        relationships=relationships,
+        raw_response=None,
+    )
+
+
+def merge_extraction_results(
+    results: List[ExtractionResult],
+) -> Dict[str, List[ExtractedEntity]]:
+    """
+    Merge multiple extraction results into a single entity dict.
+
+    Used when processing multiple chunks from the same document.
+    Deduplicates entities by name (case-insensitive).
+
+    Args:
+        results: List of ExtractionResult objects from multiple chunks
+
+    Returns:
+        Dict with merged entities: {concepts: [...], topics: [...], ...}
+    """
+    merged: Dict[str, List[ExtractedEntity]] = {
+        "concepts": [],
+        "topics": [],
+        "methodologies": [],
+        "findings": [],
+    }
+
+    seen: Dict[str, set] = {
+        "concepts": set(),
+        "topics": set(),
+        "methodologies": set(),
+        "findings": set(),
+    }
+
+    for result in results:
+        for entity_type, entities in result.entities.items():
+            for entity in entities:
+                name_lower = entity.name.lower().strip()
+                if name_lower not in seen[entity_type]:
+                    merged[entity_type].append(entity)
+                    seen[entity_type].add(name_lower)
+
+    return merged

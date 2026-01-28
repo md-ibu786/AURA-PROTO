@@ -73,6 +73,20 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional, Callable, Union
 from enum import Enum
 
+# Tenacity for retry logic (02-04-PLAN)
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+    after_log,
+)
+import logging
+
+# Logger for tenacity retry callbacks
+retry_logger = logging.getLogger(__name__ + ".retry")
+
 # PDF and text parsing
 import fitz  # PyMuPDF for PDF parsing
 
@@ -122,6 +136,10 @@ try:
         LLMEntityExtractor,
         ExtractedEntity,
         Relationship as EntityRelationship,
+        # Module-level convenience functions (02-03-PLAN)
+        extract_entities as llm_extract_entities,
+        merge_extraction_results,
+        ExtractionResult,
     )
 except ImportError:
     # Fallback if services module not in path
@@ -132,6 +150,10 @@ except ImportError:
         LLMEntityExtractor,
         ExtractedEntity,
         Relationship as EntityRelationship,
+        # Module-level convenience functions (02-03-PLAN)
+        extract_entities as llm_extract_entities,
+        merge_extraction_results,
+        ExtractionResult,
     )
 
 # Import embedding service for entity embeddings
@@ -142,6 +164,21 @@ except ImportError:
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.embeddings import EmbeddingService
+
+# Import entity-aware chunker (02-03-PLAN)
+try:
+    from services.entity_aware_chunker import (
+        chunk_text_hierarchical as chunker_hierarchical,
+        EntityAwareChunker,
+    )
+except ImportError:
+    import sys
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from services.entity_aware_chunker import (
+        chunk_text_hierarchical as chunker_hierarchical,
+        EntityAwareChunker,
+    )
 
 # Import semantic entity deduplicator (09-06-PLAN)
 try:
@@ -356,6 +393,84 @@ class ParentChunk:
     token_count: int
     embedding: Optional[List[float]] = None
     child_indices: List[int] = field(default_factory=list)
+
+
+# ============================================================================
+# CUSTOM EXCEPTIONS (02-04-PLAN)
+# ============================================================================
+
+
+class ExtractionError(Exception):
+    """Raised when entity extraction fails after retries."""
+
+    pass
+
+
+class VertexAIError(Exception):
+    """Raised when Vertex AI API returns an error."""
+
+    pass
+
+
+class EmbeddingError(Exception):
+    """Raised when embedding generation fails after retries."""
+
+    pass
+
+
+# ============================================================================
+# RETRY-DECORATED HELPERS (02-04-PLAN)
+# ============================================================================
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=2, max=60),
+    retry=retry_if_exception_type((VertexAIError, ExtractionError)),
+    before_sleep=before_sleep_log(retry_logger, logging.WARNING),
+)
+async def extract_entities_with_retry(
+    text: str, chunk_id: str, include_relationships: bool = False
+) -> ExtractionResult:
+    """Extract entities with automatic retry on failure."""
+    from services.llm_entity_extractor import extract_entities
+    from services.vertex_ai_client import VertexAIRequestError
+
+    try:
+        return await extract_entities(
+            text, chunk_id, include_relationships=include_relationships
+        )
+    except VertexAIRequestError as e:
+        # Wrap Vertex AI specific errors (02-04-PLAN)
+        logger.warning(f"Vertex AI error during extraction for {chunk_id}: {e}")
+        raise VertexAIError(str(e)) from e
+    except Exception as e:
+        # Wrap general extraction errors (02-04-PLAN)
+        logger.warning(f"Extraction error for {chunk_id}: {e}")
+        raise ExtractionError(str(e)) from e
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=30),
+    retry=retry_if_exception_type((VertexAIError, EmbeddingError)),
+    before_sleep=before_sleep_log(retry_logger, logging.WARNING),
+)
+def generate_embeddings_batch_with_retry(texts: List[str]) -> List[List[float]]:
+    """Generate embeddings batch with automatic retry on failure."""
+    from services.embeddings import get_embeddings_batch
+    from services.vertex_ai_client import VertexAIRequestError
+
+    try:
+        return get_embeddings_batch(texts)
+    except VertexAIRequestError as e:
+        # Wrap Vertex AI specific errors
+        logger.warning(f"Vertex AI error during batch embedding generation: {e}")
+        raise VertexAIError(str(e)) from e
+    except Exception as e:
+        # Wrap general embedding errors
+        logger.warning(f"Batch embedding error: {e}")
+        raise EmbeddingError(str(e)) from e
 
 
 @dataclass
@@ -802,6 +917,16 @@ class KnowledgeGraphProcessor:
         self.min_chunk_tokens = min_chunk_tokens
         self.max_chunk_tokens = max_chunk_tokens
 
+        # Initialize entity-aware chunker (02-03-PLAN integration)
+        self.chunker = EntityAwareChunker(
+            chunker_config={
+                "CHUNK_SIZE": chunk_size,
+                "CHUNK_OVERLAP": chunk_overlap,
+                "MIN_CHUNK_TOKENS": min_chunk_tokens,
+                "MAX_CHUNK_TOKENS": max_chunk_tokens,
+            }
+        )
+
         # Initialize tiktoken for accurate token counting
         self._init_tokenizer()
 
@@ -811,7 +936,8 @@ class KnowledgeGraphProcessor:
         logger.info(
             f"KnowledgeGraphProcessor initialized: "
             f"chunk_size={chunk_size}, overlap={chunk_overlap}, "
-            f"min_tokens={min_chunk_tokens}, max_tokens={max_chunk_tokens}"
+            f"min_tokens={min_chunk_tokens}, max_tokens={max_chunk_tokens}, "
+            f"chunker={type(self.chunker).__name__}"
         )
 
     def _init_tokenizer(self):
@@ -1027,17 +1153,39 @@ class KnowledgeGraphProcessor:
                     "chunking", 0, 1, f"Creating chunks from {len(text)} chars"
                 )
 
-                # Use flat chunking (original behavior)
-                chunks = await self._create_chunks(text, document_id, module_id)
+                # Use entity-aware chunker (02-03-PLAN integration)
+                # self.chunker.chunk_text_hierarchical returns List[Chunk] dataclass objects
+                chunk_results = self.chunker.chunk_text_hierarchical(text, document_id)
+
+                # Convert chunker.Chunk to local Chunk objects if needed
+                chunks = []
+                for i, chunk_obj in enumerate(chunk_results):
+                    # chunk_obj is services.entity_aware_chunker.Chunk with text, chunk_id, section_path, entities_mentioned
+                    chunk = Chunk(
+                        id=chunk_obj.chunk_id
+                        if hasattr(chunk_obj, "chunk_id")
+                        else f"chunk_{document_id}_{i}",
+                        text=chunk_obj.text,
+                        index=i,
+                        token_count=self._count_tokens(chunk_obj.text),
+                    )
+                    chunks.append(chunk)
+
+                logger.info(
+                    f"EntityAwareChunker created {len(chunks)} chunks (02-03-PLAN)"
+                )
                 parent_chunks = None
                 relationships = None
 
             result["chunk_count"] = len(chunks)
             self._emit_progress("embeddings", 0, len(chunks), "Generating embeddings")
 
-            # Step 3: Generate embeddings for chunks
+            # Step 3: Generate embeddings for chunks (02-03-PLAN integration)
             if chunks:
-                embeddings = await self._generate_embeddings([c.text for c in chunks])
+                # Use new helper that wraps EmbeddingService.embed_batch()
+                embeddings = await self._generate_chunk_embeddings(
+                    [c.text for c in chunks]
+                )
                 for chunk, embedding in zip(chunks, embeddings):
                     chunk.embedding = embedding
 
@@ -1123,16 +1271,147 @@ class KnowledgeGraphProcessor:
                         "Template extraction yielded no entities, falling back to chunk-based"
                     )
 
+                # Use new entity extraction pipeline (02-03-PLAN integration)
+                # No relationships at this stage to save cost (done in step 4.5)
+                chunk_texts = [chunk.text for chunk in chunks]
+                extraction_results = await self._extract_entities_from_chunks(
+                    chunk_texts, include_relationships=False
+                )
+
+                # Merge results from all chunks using module-level helper
+                merged_entities = merge_extraction_results(extraction_results)
+
+                # Convert merged entity dicts to Entity objects
+                self._emit_progress(
+                    "entities",
+                    0,
+                    1,
+                    f"Processing {sum(len(v) for v in merged_entities.values())} merged entities",
+                )
+
+                type_mapping = {
+                    "concepts": EntityType.CONCEPT,
+                    "topics": EntityType.TOPIC,
+                    "methodologies": EntityType.METHODOLOGY,
+                    "findings": EntityType.FINDING,
+                }
+
+                for entity_type, entity_list in merged_entities.items():
+                    for extracted in entity_list:
+                        try:
+                            e_type = type_mapping.get(entity_type, EntityType.CONCEPT)
+
+                            # Generate unique ID
+                            entity_id = self._generate_entity_id(
+                                extracted.name, module_id
+                            )
+
+                            confidence_score = (
+                                extracted.confidence_score
+                                if hasattr(extracted, "confidence_score")
+                                else 0.7
+                            )
+
+                            entity = Entity(
+                                id=entity_id,
+                                name=extracted.name,
+                                entity_type=e_type,
+                                definition=extracted.definition
+                                if hasattr(extracted, "definition")
+                                else "",
+                                properties={
+                                    "confidence": confidence_score,
+                                    "confidence_score": confidence_score,
+                                    "category": entity_type,
+                                    "extraction_method": "llm_02_03",
+                                    "context_snippet": extracted.source_text[:150]
+                                    if hasattr(extracted, "source_text")
+                                    and extracted.source_text
+                                    else "",
+                                },
+                            )
+                            all_entities.append(entity)
+                        except Exception as e:
+                            logger.warning(f"Failed to convert extracted entity: {e}")
+
+                entity_lookup = {}
+                for entity in all_entities:
+                    entity_category = entity.properties.get("category", "")
+                    entity_name_key = entity.name.lower().strip()
+                    entity_lookup[(entity_category, entity_name_key)] = entity
+
+                # Also attach entities to their source chunks for reference
                 for i, chunk in enumerate(chunks):
-                    entities = await self._extract_entities(chunk)
-                    chunk.entities = entities
-                    all_entities.extend(entities)
-                    self._emit_progress(
-                        "entities",
-                        i + 1,
-                        len(chunks),
-                        f"Extracted {len(entities)} entities from chunk {i + 1}",
-                    )
+                    if i < len(extraction_results):
+                        chunk_result = extraction_results[i]
+                        # Convert ExtractionResult entities to Entity objects for chunk
+                        chunk_entities = []
+                        for etype, elist in chunk_result.entities.items():
+                            for ext in elist:
+                                entity_key = (etype, ext.name.lower().strip())
+                                canonical_entity = entity_lookup.get(entity_key)
+                                if canonical_entity:
+                                    entity_properties = dict(
+                                        canonical_entity.properties or {}
+                                    )
+                                    entity_properties["chunk_id"] = chunk.id
+                                    entity_properties.setdefault(
+                                        "confidence_score",
+                                        entity_properties.get("confidence", 0.7),
+                                    )
+                                    chunk_entities.append(
+                                        Entity(
+                                            id=canonical_entity.id,
+                                            name=canonical_entity.name,
+                                            entity_type=canonical_entity.entity_type,
+                                            definition=canonical_entity.definition,
+                                            properties=entity_properties,
+                                        )
+                                    )
+                                    continue
+
+                                fallback_type = type_mapping.get(
+                                    etype, EntityType.CONCEPT
+                                )
+                                fallback_confidence = (
+                                    ext.confidence_score
+                                    if hasattr(ext, "confidence_score")
+                                    else 0.7
+                                )
+                                chunk_entities.append(
+                                    Entity(
+                                        id=self._generate_entity_id(
+                                            ext.name, module_id
+                                        ),
+                                        name=ext.name,
+                                        entity_type=fallback_type,
+                                        definition=getattr(ext, "definition", ""),
+                                        properties={
+                                            "confidence": fallback_confidence,
+                                            "confidence_score": fallback_confidence,
+                                            "category": etype,
+                                            "extraction_method": "llm_02_03",
+                                            "context_snippet": (
+                                                ext.source_text[:150]
+                                                if hasattr(ext, "source_text")
+                                                and ext.source_text
+                                                else ""
+                                            ),
+                                            "chunk_id": chunk.id,
+                                        },
+                                    )
+                                )
+                        chunk.entities = chunk_entities
+
+                self._emit_progress(
+                    "entities",
+                    len(chunks),
+                    len(chunks),
+                    f"Extracted {len(all_entities)} entities via 02-03 pipeline",
+                )
+                logger.info(
+                    f"02-03-PLAN entity extraction: {len(all_entities)} entities from {len(chunks)} chunks"
+                )
 
             result["entity_count"] = len(all_entities)
 
@@ -1482,6 +1761,91 @@ class KnowledgeGraphProcessor:
 
         logger.info(f"Batch processing complete: {len(results)} documents")
         return results
+
+    # ========================================================================
+    # HELPER METHODS (02-03-PLAN)
+    # ========================================================================
+
+    async def _generate_chunk_embeddings(
+        self, chunk_texts: List[str]
+    ) -> List[List[float]]:
+        """
+        Generate embeddings for chunk texts using batch retry logic.
+
+        Args:
+            chunk_texts: List of text strings to embed
+
+        Returns:
+            List of 768-dimensional embedding vectors
+        """
+        if not chunk_texts:
+            return []
+
+        try:
+            # Run sync batch embedding in thread pool to avoid blocking async loop
+            embeddings = await asyncio.to_thread(
+                generate_embeddings_batch_with_retry, chunk_texts
+            )
+            logger.debug(
+                f"Generated embeddings for {len(chunk_texts)} chunks via batch retry helper"
+            )
+            return embeddings
+        except Exception as e:
+            logger.error(f"Batch embedding failed after retries: {e}")
+            # Fallback to empty vectors or GeminiClient fallback if needed
+            # For now, return zeros to maintain shape
+            return [[0.0] * 768 for _ in chunk_texts]
+
+    async def _extract_entities_from_chunks(
+        self, chunk_texts: List[str], include_relationships: bool = False
+    ) -> List[ExtractionResult]:
+        """
+        Extract entities from chunks in parallel with retry logic.
+
+        Args:
+            chunk_texts: List of text strings to extract entities from
+            include_relationships: If True, also extract entity relationships.
+                                   Defaults to False to save tokens, as
+                                   relationships are extracted later in process_document.
+
+        Returns:
+            List of ExtractionResult objects, one per chunk
+        """
+        # Create tasks with retry-decorated helper (02-04-PLAN)
+        # Force include_relationships to False unless explicitly needed to save cost
+        tasks = [
+            extract_entities_with_retry(
+                text, f"chunk_{i}", include_relationships=include_relationships
+            )
+            for i, text in enumerate(chunk_texts)
+        ]
+
+        # Use asyncio.gather for parallelism
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        processed_results = []
+        for i, res in enumerate(results):
+            if isinstance(res, Exception):
+                logger.error(
+                    f"Entity extraction failed for chunk {i} after all retries: {res}"
+                )
+                # Add empty result to keep indices aligned
+                processed_results.append(
+                    ExtractionResult(
+                        entities={
+                            "concepts": [],
+                            "topics": [],
+                            "methodologies": [],
+                            "findings": [],
+                        },
+                        relationships=[],
+                        raw_response=None,
+                    )
+                )
+            else:
+                processed_results.append(res)
+
+        return processed_results
 
     async def _parse_document(
         self,
