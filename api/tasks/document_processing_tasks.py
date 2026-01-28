@@ -181,23 +181,21 @@ def update_document_status(
 # CELERY APP CONFIGURATION
 # ============================================================================
 
-# Redis broker configuration
-# Strip whitespace to avoid connection issues with trailing spaces
-REDIS_HOST = os.environ.get('REDIS_HOST', '127.0.0.1').strip()
-REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
-REDIS_DB = int(os.environ.get('REDIS_DB', 0))
+# Import Redis and Celery settings from centralized config
+# This ensures operators can configure these settings in a single place (api/config.py)
+try:
+    from config import REDIS_URL, CELERY_RESULT_EXPIRES
+except ImportError:
+    from api.config import REDIS_URL, CELERY_RESULT_EXPIRES
 
 # Log Redis config for debugging
-logger.info(f"Celery Redis config: host='{REDIS_HOST}', port={REDIS_PORT}, db={REDIS_DB}")
+logger.info(f"Celery Redis config: URL='{REDIS_URL}', result_expires={CELERY_RESULT_EXPIRES}s")
 
-# Celery result backend (same Redis instance)
-CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-
-# Create Celery app
+# Create Celery app using centralized config
 app = Celery(
     'aura_notes_tasks',
-    broker=CELERY_RESULT_BACKEND,
-    backend=CELERY_RESULT_BACKEND,
+    broker=REDIS_URL,
+    backend=REDIS_URL,
     include=['api.tasks.document_processing_tasks']
 )
 
@@ -217,8 +215,8 @@ app.conf.update(
     task_reject_on_worker_lost=True,  # Re-queue if worker dies
     worker_prefetch_multiplier=1,  # One task per worker at a time
 
-    # Result settings (keep for 1 hour)
-    result_expires=3600,
+    # Result settings (use centralized config)
+    result_expires=CELERY_RESULT_EXPIRES,
     task_track_started=True,       # Track when task starts
 
     # Task routing (optional - can be configured in worker)
@@ -323,33 +321,59 @@ def process_document_task(
 ) -> Dict[str, Any]:
     """
     Process a single document into a knowledge graph asynchronously.
-
+    
+    This task orchestrates the full document processing pipeline:
+    1. Text extraction from document file
+    2. Entity-aware semantic chunking (Phase 2)
+    3. Embedding generation via Vertex AI (Phase 2)
+    4. Structured entity extraction with retry (Phase 2)
+    5. Knowledge graph storage in Neo4j
+    6. Firestore status synchronization
+    
     This task is IDEMPOTENT: running it multiple times with the same
     inputs produces the same result (MERGE semantics in Neo4j).
-
+    
     Args:
-        document_id: Unique identifier for the document
-        module_id: Module ID for tagging all created nodes
-        user_id: User who owns this document
-        file_path: Optional path to document file (PDF/TXT)
-
+        document_id: Unique document/note identifier in Firestore
+        module_id: Module ID for scoping document lookup and tagging nodes
+        user_id: User who initiated processing
+        file_path: Optional path to document file (PDF/DOCX/TXT)
+    
     Returns:
-        Dict containing:
-        - success: Boolean indicating success/failure
-        - document_id: The processed document ID
-        - module_id: The module ID used
-        - chunk_count: Number of chunks created
-        - entity_count: Number of entities extracted
-        - processing_time_seconds: Total processing time
-        - error: Error message if failed
-
+        dict: Processing result with:
+            - success: Boolean indicating success/failure
+            - document_id: The processed document ID
+            - module_id: The module ID used
+            - chunk_count: Number of chunks created
+            - entity_count: Number of entities extracted
+            - relationship_count: Number of relationships extracted
+            - processing_time_seconds: Total processing time
+            - task_id: Celery task ID
+            - error: Error message if failed
+        
+    Raises:
+        SoftTimeLimitExceeded: Task exceeded time limit (25 min soft, 30 min hard)
+        MaxRetriesExceededError: All retry attempts exhausted
+        ValueError: Invalid input parameters
+        Exception: Unexpected processing error
+        
     Progress States:
-        0-10%: PARSING - Extracting text from document
-        10-30%: CHUNKING - Creating semantic chunks
-        30-50%: EMBEDDING - Generating Gemini embeddings
-        50-70%: EXTRACTING - Extracting entities with LLM
-        70-90%: STORING - Saving to Neo4j
-        100%: COMPLETED
+        PENDING (0%) → RECEIVED (5%) → PARSING (10%) → CHUNKING (30%) →
+        EMBEDDING (50%) → EXTRACTING (70%) → STORING (90%) → COMPLETED (100%)
+        
+    Celery Configuration:
+        - Max retries: 5
+        - Retry backoff: Exponential (max 10 min)
+        - Time limit: 30 minutes (hard), 25 minutes (soft)
+        - Queue: kg_processing
+        - Auto-retry: ConnectionError, TimeoutError
+        
+    Phase 2 Integration:
+        - Uses services/entity_aware_chunker.py for semantic chunking
+        - Uses services/llm_entity_extractor.py for structured extraction
+        - Uses services/vertex_ai_client.py for Vertex AI authentication
+        - Implements tenacity retry logic for LLM calls
+        - Uses services/embeddings.py for 768-dim vector generation
     """
     task_logger = logging.getLogger(f'kg_task.{self.request.id}')
 

@@ -97,13 +97,22 @@ from neo4j_config import neo4j_driver
 from logging_config import logger
 from google.cloud.firestore import FieldFilter
 
-from api.config import (
-    LLM_ENTITY_EXTRACTION_MODEL,
-    EMBEDDING_MODEL,
-    AURA_TEST_MODE,
-    VERTEX_PROJECT,
-    VERTEX_LOCATION,
-)
+try:
+    from config import (
+        LLM_ENTITY_EXTRACTION_MODEL,
+        EMBEDDING_MODEL,
+        AURA_TEST_MODE,
+        VERTEX_PROJECT,
+        VERTEX_LOCATION,
+    )
+except ImportError:
+    from api.config import (
+        LLM_ENTITY_EXTRACTION_MODEL,
+        EMBEDDING_MODEL,
+        AURA_TEST_MODE,
+        VERTEX_PROJECT,
+        VERTEX_LOCATION,
+    )
 
 from services.vertex_ai_client import (
     init_vertex_ai,

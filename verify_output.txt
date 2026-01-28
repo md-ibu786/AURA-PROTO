@@ -1,0 +1,36 @@
+D:\Peter\AURA Twin Proj\AURA-PROJ\.venv\lib\site-packages\google\api_core\_python_version_support.py:275: FutureWarning: You are using a Python version (3.10.6) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+D:\Peter\AURA Twin Proj\AURA-PROJ\.venv\lib\site-packages\google\api_core\_python_version_support.py:275: FutureWarning: You are using a Python version (3.10.6) which Google will stop supporting in new releases of google.cloud.resourcemanager_v3 once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.cloud.resourcemanager_v3 past that date.
+  warnings.warn(message, FutureWarning)
+======================================================================
+03-02-PLAN VERIFICATION: Celery Pipeline Integration
+======================================================================
+
+1. Verifying: Task uses KnowledgeGraphProcessor
+Traceback (most recent call last):
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\verify_03_02_plan.py", line 28, in main
+    from tasks.document_processing_tasks import process_document_task, KGProcessingTask
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\tasks\__init__.py", line 34, in <module>
+    from .document_processing_tasks import (
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\tasks\document_processing_tasks.py", line 60, in <module>
+    from kg_processor import KnowledgeGraphProcessor, process_document_simple
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\kg_processor.py", line 100, in <module>
+    from api.config import (
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\__init__.py", line 50, in <module>
+    from .tasks import (
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\tasks\__init__.py", line 34, in <module>
+    from .document_processing_tasks import (
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\tasks\document_processing_tasks.py", line 60, in <module>
+    from kg_processor import KnowledgeGraphProcessor, process_document_simple
+ImportError: cannot import name 'KnowledgeGraphProcessor' from partially initialized module 'kg_processor' (most likely due to a circular import) (D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\kg_processor.py)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\verify_03_02_plan.py", line 149, in <module>
+    sys.exit(main())
+  File "D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\api\verify_03_02_plan.py", line 33, in main
+    print(f"   \u274c Failed: {e}")
+  File "C:\Users\Peter\AppData\Local\Programs\Python\Python310\lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+UnicodeEncodeError: 'charmap' codec can't encode character '\u274c' in position 3: character maps to <undefined>

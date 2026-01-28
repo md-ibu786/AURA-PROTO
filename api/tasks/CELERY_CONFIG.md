@@ -4,8 +4,9 @@
 Celery configuration for AURA-NOTES-MANAGER knowledge graph processing tasks.
 
 ## Configuration Location
-- **File:** `api/tasks/document_processing_tasks.py` (lines 196-228)
-- **Rationale:** Single-file configuration keeps task and config co-located
+- **File:** `api/tasks/document_processing_tasks.py` (lines 180-226)
+- **Centralized Config:** `api/config.py` (REDIS_URL, CELERY_RESULT_EXPIRES)
+- **Rationale:** Single source of truth for Redis/Celery settings in `api/config.py`, task definitions co-located with Celery app
 
 ## Key Settings
 
@@ -43,9 +44,7 @@ Celery configuration for AURA-NOTES-MANAGER knowledge graph processing tasks.
 
 ## Environment Variables
 ```env
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
-REDIS_DB=0
+REDIS_URL=redis://127.0.0.1:6379/0
 CELERY_RESULT_EXPIRES=3600
 ```
 
