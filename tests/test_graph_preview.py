@@ -101,7 +101,7 @@ class TestGraphPreviewEndpoints:
     """Tests for /api/v1/graph-preview endpoints."""
 
     def test_get_module_graph_success(self, mock_neo4j_session):
-        """GET /modules/{module_id} returns graph data."""
+        """GET /modules/{module_id} returns graph data with correct property mappings."""
         # Mock Neo4j query result
         mock_record = Mock()
         mock_record.__getitem__ = Mock(
@@ -152,6 +152,35 @@ class TestGraphPreviewEndpoints:
             assert data["edge_count"] == 1
             assert data["module_id"] == "test-module"
 
+            # Verify property mappings for nodes
+            nodes = data["nodes"]
+            assert len(nodes) == 2
+
+            # Check first node properties
+            node1 = next(n for n in nodes if n["id"] == "n1")
+            assert node1["name"] == "Machine Learning"
+            assert node1["type"] == "Topic"
+            assert node1["properties"]["definition"] == "Study of algorithms"
+            assert node1["properties"]["confidence"] == 0.95
+            assert node1["properties"]["mention_count"] == 10
+
+            # Check second node properties
+            node2 = next(n for n in nodes if n["id"] == "n2")
+            assert node2["name"] == "Neural Networks"
+            assert node2["type"] == "Concept"
+            assert node2["properties"]["definition"] == "Computing systems"
+            assert node2["properties"]["confidence"] == 0.88
+            assert node2["properties"]["mention_count"] == 8
+
+            # Verify property mappings for edges
+            edges = data["edges"]
+            assert len(edges) == 1
+            edge = edges[0]
+            assert edge["source"] == "n1"
+            assert edge["target"] == "n2"
+            assert edge["type"] == "CONTAINS"
+            assert edge["properties"]["confidence"] == 0.92
+
     def test_get_module_graph_with_filters(self, mock_neo4j_session):
         """GET /modules/{module_id} accepts query parameters."""
         # Mock Neo4j query result with single entity
@@ -192,60 +221,42 @@ class TestGraphPreviewEndpoints:
     def test_get_module_graph_stats_success(self, mock_neo4j_session):
         """GET /modules/{module_id}/stats returns statistics."""
         # Mock Neo4j query results for entity counts
-        entity_results = [
-            Mock(
-                **{
-                    "__getitem__": lambda s, k: {"entity_type": "Topic", "count": 10}[k]
-                    if k in {"entity_type", "count"}
-                    else None
-                }
-            ),
-            Mock(
-                **{
-                    "__getitem__": lambda s, k: {"entity_type": "Concept", "count": 30}[
-                        k
-                    ]
-                    if k in {"entity_type", "count"}
-                    else None
-                }
-            ),
-            Mock(
-                **{
-                    "__getitem__": lambda s, k: {"entity_type": "Finding", "count": 10}[
-                        k
-                    ]
-                    if k in {"entity_type", "count"}
-                    else None
-                }
-            ),
-        ]
+        entity_record_1 = Mock()
+        entity_record_1.__getitem__ = Mock(
+            side_effect=lambda k: {"entity_type": "Topic", "count": 10}[k]
+        )
+
+        entity_record_2 = Mock()
+        entity_record_2.__getitem__ = Mock(
+            side_effect=lambda k: {"entity_type": "Concept", "count": 30}[k]
+        )
+
+        entity_record_3 = Mock()
+        entity_record_3.__getitem__ = Mock(
+            side_effect=lambda k: {"entity_type": "Finding", "count": 10}[k]
+        )
 
         # Mock Neo4j query results for relationship counts
-        rel_results = [
-            Mock(
-                **{
-                    "__getitem__": lambda s, k: {"rel_type": "CONTAINS", "count": 40}[k]
-                    if k in {"rel_type", "count"}
-                    else None
-                }
-            ),
-            Mock(
-                **{
-                    "__getitem__": lambda s, k: {"rel_type": "RELATES_TO", "count": 35}[
-                        k
-                    ]
-                    if k in {"rel_type", "count"}
-                    else None
-                }
-            ),
-        ]
+        rel_record_1 = Mock()
+        rel_record_1.__getitem__ = Mock(
+            side_effect=lambda k: {"rel_type": "CONTAINS", "count": 40}[k]
+        )
+
+        rel_record_2 = Mock()
+        rel_record_2.__getitem__ = Mock(
+            side_effect=lambda k: {"rel_type": "RELATES_TO", "count": 35}[k]
+        )
 
         # Create separate result mocks for each query
         mock_result_entities = Mock()
-        mock_result_entities.__iter__ = Mock(return_value=iter(entity_results))
+        mock_result_entities.__iter__ = Mock(
+            return_value=iter([entity_record_1, entity_record_2, entity_record_3])
+        )
 
         mock_result_rels = Mock()
-        mock_result_rels.__iter__ = Mock(return_value=iter(rel_results))
+        mock_result_rels.__iter__ = Mock(
+            return_value=iter([rel_record_1, rel_record_2])
+        )
 
         # Session.run returns different results for each call
         mock_neo4j_session.run = Mock(
@@ -267,7 +278,7 @@ class TestGraphPreviewEndpoints:
             assert data["edge_count"] == 75
 
     def test_get_module_graph_not_found(self, mock_neo4j_session):
-        """GET /modules/{module_id} returns empty data for unknown module."""
+        """GET /modules/{module_id} returns 404 for unknown module."""
         # Mock Neo4j query result with no records
         mock_result = Mock()
         mock_result.single = Mock(return_value=None)
@@ -278,11 +289,8 @@ class TestGraphPreviewEndpoints:
 
             response = client.get("/api/v1/graph-preview/modules/nonexistent")
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["node_count"] == 0
-            assert data["edge_count"] == 0
-            assert len(data["nodes"]) == 0
+            assert response.status_code == 404
+            assert "not found" in response.json()["detail"].lower()
 
     def test_get_module_graph_invalid_limit(self, mock_neo4j_session):
         """GET /modules/{module_id} validates limit parameter."""
@@ -314,8 +322,8 @@ class TestGraphPreviewEndpoints:
             assert "Invalid entity types" in response.json()["detail"]
 
     def test_get_module_graph_stats_not_found(self, mock_neo4j_session):
-        """GET /modules/{module_id}/stats returns zero counts for unknown module."""
-        # Mock Neo4j query results with empty iterators
+        """GET /modules/{module_id}/stats returns 404 for unknown module."""
+        # Mock Neo4j query results with empty iterators (no entities)
         mock_result_entities = Mock()
         mock_result_entities.__iter__ = Mock(return_value=iter([]))
 
@@ -331,10 +339,8 @@ class TestGraphPreviewEndpoints:
 
             response = client.get("/api/v1/graph-preview/modules/nonexistent/stats")
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["node_count"] == 0
-            assert data["edge_count"] == 0
+            assert response.status_code == 404
+            assert "not found" in response.json()["detail"].lower()
 
     def test_get_module_graph_neo4j_unavailable(self):
         """GET /modules/{module_id} returns 503 when Neo4j is unavailable."""
@@ -343,6 +349,82 @@ class TestGraphPreviewEndpoints:
 
             assert response.status_code == 503
             assert "Neo4j driver not initialized" in response.json()["detail"]
+
+    def test_get_module_graph_edge_filtering(self, mock_neo4j_session):
+        """GET /modules/{module_id} filters edges to only include returned nodes."""
+        # Mock scenario: 3 nodes (n1, n2, n3) but relationship to n3 exists
+        # The query should only return edges where BOTH endpoints are in node set
+        mock_record = Mock()
+        mock_record.__getitem__ = Mock(
+            side_effect=lambda key: {
+                "entity_data": [
+                    {
+                        "id": "n1",
+                        "name": "Node 1",
+                        "type": "Topic",
+                        "definition": "First node",
+                        "confidence": 0.9,
+                        "mention_count": 5,
+                    },
+                    {
+                        "id": "n2",
+                        "name": "Node 2",
+                        "type": "Concept",
+                        "definition": "Second node",
+                        "confidence": 0.85,
+                        "mention_count": 3,
+                    },
+                ],
+                "relationships": [
+                    # Valid edge: both endpoints in node set
+                    {
+                        "source": "n1",
+                        "target": "n2",
+                        "type": "CONTAINS",
+                        "confidence": 0.9,
+                    },
+                    # Invalid edge: n3 not in node set (should be filtered out)
+                    {
+                        "source": "n1",
+                        "target": "n3",
+                        "type": "RELATES_TO",
+                        "confidence": 0.8,
+                    },
+                    # Invalid edge: n3 not in node set (should be filtered out)
+                    {
+                        "source": "n3",
+                        "target": "n2",
+                        "type": "CONTAINS",
+                        "confidence": 0.7,
+                    },
+                ],
+            }[key]
+        )
+
+        mock_result = Mock()
+        mock_result.single = Mock(return_value=mock_record)
+        mock_neo4j_session.run = Mock(return_value=mock_result)
+
+        with patch("api.routers.graph_preview.neo4j_driver") as mock_driver:
+            mock_driver.session = Mock(return_value=mock_neo4j_session)
+
+            response = client.get("/api/v1/graph-preview/modules/test-module")
+
+            assert response.status_code == 200
+            data = response.json()
+
+            # Should have 2 nodes
+            assert data["node_count"] == 2
+            assert len(data["nodes"]) == 2
+
+            # Should only have 1 edge (n1->n2), edges to n3 filtered out
+            assert data["edge_count"] == 1
+            assert len(data["edges"]) == 1
+
+            edge = data["edges"][0]
+            assert edge["source"] == "n1"
+            assert edge["target"] == "n2"
+            assert edge["type"] == "CONTAINS"
 
 
 class TestGraphPreviewSchemas:

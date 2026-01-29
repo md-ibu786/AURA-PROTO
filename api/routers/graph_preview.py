@@ -123,8 +123,9 @@ async def get_module_graph(
 
         if not record:
             logger.info(f"No entities found for module {module_id}")
-            return GraphPreviewResponse(
-                nodes=[], edges=[], node_count=0, edge_count=0, module_id=module_id
+            raise HTTPException(
+                status_code=404,
+                detail=f"Module '{module_id}' not found or has no entities",
             )
 
         # Build nodes list (node data already formatted in query)
@@ -180,6 +181,9 @@ async def get_module_graph(
             module_id=module_id,
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (don't wrap in 500)
+        raise
     except Exception as e:
         logger.error(f"Error retrieving module graph for {module_id}: {e}")
         raise HTTPException(
@@ -248,6 +252,14 @@ async def get_module_graph_stats(
                 relationship_types[rel_type] = count
                 total_edges += count
 
+        # If no entities found, module doesn't exist
+        if total_nodes == 0:
+            logger.info(f"No entities found for module {module_id}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Module '{module_id}' not found or has no entities",
+            )
+
         logger.info(
             f"Retrieved stats for module {module_id}: {total_nodes} nodes, {total_edges} edges"
         )
@@ -259,6 +271,9 @@ async def get_module_graph_stats(
             relationship_types=relationship_types,
         )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions (don't wrap in 500)
+        raise
     except Exception as e:
         logger.error(f"Error retrieving stats for module {module_id}: {e}")
         raise HTTPException(
