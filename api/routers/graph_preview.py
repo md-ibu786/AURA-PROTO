@@ -28,6 +28,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/graph-preview", tags=["Graph Preview"])
 
+# Whitelist of allowed entity types to prevent Cypher injection
+ALLOWED_ENTITY_TYPES = {"Topic", "Concept", "Methodology", "Finding"}
+
 
 def get_graph_manager() -> GraphManager:
     """Dependency injection for GraphManager."""
@@ -65,6 +68,16 @@ async def get_module_graph(
         GraphPreviewResponse with nodes, edges, and counts
     """
     try:
+        # Validate entity_types against whitelist (security: prevent Cypher injection)
+        if entity_types:
+            invalid_types = set(entity_types) - ALLOWED_ENTITY_TYPES
+            if invalid_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid entity types: {invalid_types}. "
+                    f"Allowed types: {ALLOWED_ENTITY_TYPES}",
+                )
+
         # Query Neo4j for module entities
         cypher = """
         MATCH (e)
@@ -72,18 +85,28 @@ async def get_module_graph(
         AND e.module_id = $module_id
         """
 
-        # Add entity type filter if specified
+        # Add entity type filter if specified (safe after whitelist validation)
         if entity_types:
             type_filter = " OR ".join([f"e:{t}" for t in entity_types])
             cypher += f" AND ({type_filter})"
 
+        # Apply LIMIT in query (not Python) for efficiency
         cypher += """
+        WITH e
+        LIMIT $limit
         WITH collect(e) as entities
         UNWIND entities as e1
         OPTIONAL MATCH (e1)-[r]->(e2)
         WHERE e2 IN entities
         RETURN 
-            entities,
+            [entity IN entities | {
+                id: entity.id,
+                name: entity.name,
+                type: labels(entity)[0],
+                definition: entity.definition,
+                confidence: entity.confidence,
+                mention_count: entity.mention_count
+            }] as entity_data,
             collect(DISTINCT {
                 source: e1.id, 
                 target: e2.id, 
@@ -94,7 +117,7 @@ async def get_module_graph(
         """
 
         with graph_manager.driver.session() as session:
-            result = session.run(cypher, {"module_id": module_id})
+            result = session.run(cypher, {"module_id": module_id, "limit": limit})
             record = result.single()
 
         if not record:
@@ -103,20 +126,21 @@ async def get_module_graph(
                 nodes=[], edges=[], node_count=0, edge_count=0, module_id=module_id
             )
 
-        # Build nodes list
+        # Build nodes list (node data already formatted in query)
         nodes = []
-        entities = record["entities"] or []
+        entity_data = record["entity_data"] or []
+        node_ids = set()  # Track node IDs for edge filtering
 
-        for entity in entities[:limit]:
+        for entity in entity_data:
             if entity:
+                node_id = entity.get("id", "")
+                node_ids.add(node_id)
                 nodes.append(
                     GraphNode(
-                        id=entity.get("id", ""),
+                        id=node_id,
                         label=entity.get("name", ""),
                         name=entity.get("name", ""),
-                        type=entity.element_id.split(":")[-1]
-                        if hasattr(entity, "element_id")
-                        else entity.get("entity_type", "Entity"),
+                        type=entity.get("type", "Entity"),
                         properties={
                             "definition": entity.get("definition"),
                             "confidence": entity.get("confidence"),
@@ -125,21 +149,23 @@ async def get_module_graph(
                     )
                 )
 
-        # Build edges list (filter out null relationships)
+        # Build edges list (filter to only nodes in returned set)
         edges = []
         edge_counter = 0
         for rel in record["relationships"] or []:
             if rel and rel.get("source") and rel.get("target") and rel.get("type"):
-                edges.append(
-                    GraphEdge(
-                        id=f"{rel['source']}_{rel['target']}_{edge_counter}",
-                        source=rel["source"],
-                        target=rel["target"],
-                        type=rel["type"],
-                        properties={"confidence": rel.get("confidence", 1.0)},
+                # Only include edges where both endpoints are in the node set
+                if rel["source"] in node_ids and rel["target"] in node_ids:
+                    edges.append(
+                        GraphEdge(
+                            id=f"{rel['source']}_{rel['target']}_{edge_counter}",
+                            source=rel["source"],
+                            target=rel["target"],
+                            type=rel["type"],
+                            properties={"confidence": rel.get("confidence", 1.0)},
+                        )
                     )
-                )
-                edge_counter += 1
+                    edge_counter += 1
 
         logger.info(
             f"Retrieved {len(nodes)} nodes and {len(edges)} edges for module {module_id}"
