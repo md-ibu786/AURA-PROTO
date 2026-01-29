@@ -8,11 +8,19 @@
 # @see: api/routers/summaries.py - Auto-summarization endpoints
 # @see: api/routers/templates.py - Extraction template endpoints
 # @see: api/routers/schema.py - Schema validation and migration endpoints
+# @see: api/routers/graph_preview.py - Graph preview endpoints (RC-02)
 # @see: api/main.py - Router registration
 
 from api.routers.query import router as query_router
 from api.routers.summaries import router as summaries_router
 from api.routers.templates import router as templates_router
 from api.routers.schema import router as schema_router
+from api.routers.graph_preview import router as graph_preview_router
 
-__all__ = ["query_router", "summaries_router", "templates_router", "schema_router"]
+__all__ = [
+    "query_router",
+    "summaries_router",
+    "templates_router",
+    "schema_router",
+    "graph_preview_router",
+]
