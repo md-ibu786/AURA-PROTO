@@ -67,17 +67,18 @@ async def get_module_graph(
     Returns:
         GraphPreviewResponse with nodes, edges, and counts
     """
-    try:
-        # Validate entity_types against whitelist (security: prevent Cypher injection)
-        if entity_types:
-            invalid_types = set(entity_types) - ALLOWED_ENTITY_TYPES
-            if invalid_types:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid entity types: {invalid_types}. "
-                    f"Allowed types: {ALLOWED_ENTITY_TYPES}",
-                )
+    # Validate entity_types against whitelist BEFORE try block
+    # (HTTPException should not be caught by generic exception handler)
+    if entity_types:
+        invalid_types = set(entity_types) - ALLOWED_ENTITY_TYPES
+        if invalid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid entity types: {invalid_types}. "
+                f"Allowed types: {ALLOWED_ENTITY_TYPES}",
+            )
 
+    try:
         # Query Neo4j for module entities
         cypher = """
         MATCH (e)
