@@ -22,7 +22,7 @@
  *
  * DEPENDENCIES:
  *    - External: react-router-dom, sonner
- *    - Internal: pages/ExplorerPage, features/kg-query/pages/KGQueryPage
+ *    - Internal: pages/ExplorerPage
  *
  * USAGE:
  *    This component is rendered by main.tsx and wraps the entire application.
@@ -32,14 +32,13 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import ExplorerPage from './pages/ExplorerPage'
-import { KGQueryPage } from './features/kg-query/pages/KGQueryPage'
+
 
 function App() {
     return (
         <BrowserRouter>
             <Toaster position="bottom-right" richColors closeButton />
             <Routes>
-                <Route path="/kg-query" element={<KGQueryPage />} />
                 <Route path="/*" element={<ExplorerPage />} />
             </Routes>
         </BrowserRouter>

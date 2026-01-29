@@ -82,7 +82,7 @@ vi.mock('../components/explorer/ContextMenu', () => ({
 }));
 
 vi.mock('../components/ui/ConfirmDialog', () => ({
-    ConfirmDialog: ({ isOpen, title }: { isOpen: boolean; title: string }) => 
+    ConfirmDialog: ({ isOpen, title }: { isOpen: boolean; title: string }) =>
         isOpen ? <div data-testid="confirm-dialog">{title}</div> : null,
 }));
 
@@ -101,6 +101,11 @@ vi.mock('../features/kg/components/ProcessDialog', () => ({
 vi.mock('../features/kg/components/ProcessingQueue', () => ({
     ProcessingQueue: () => <div data-testid="processing-queue">Processing Queue</div>,
 }));
+
+vi.mock('../features/kg/components/DeleteFromKGDialog', () => ({
+    DeleteFromKGDialog: () => <div data-testid="delete-kg-dialog">Delete KG Dialog</div>,
+}));
+
 
 describe('ExplorerPage', () => {
     const mockCloseContextMenu = vi.fn();
@@ -142,7 +147,7 @@ describe('ExplorerPage', () => {
     describe('Layout Rendering', () => {
         it('renders main layout with sidebar, header, and content', () => {
             render(<ExplorerPage />);
-            
+
             expect(screen.getByTestId('sidebar')).toBeInTheDocument();
             expect(screen.getByTestId('header')).toBeInTheDocument();
             expect(screen.getByTestId('grid-view')).toBeInTheDocument();
@@ -150,7 +155,7 @@ describe('ExplorerPage', () => {
 
         it('renders KG feature components', () => {
             render(<ExplorerPage />);
-            
+
             expect(screen.getByTestId('file-selection-bar')).toBeInTheDocument();
             expect(screen.getByTestId('process-dialog')).toBeInTheDocument();
             expect(screen.getByTestId('processing-queue')).toBeInTheDocument();
@@ -230,7 +235,7 @@ describe('ExplorerPage', () => {
 
         it('shows general message when not at root', () => {
             const parentNode: FileSystemNode = { id: 'dept-1', name: 'CS', type: 'department', children: [] };
-            
+
             (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [parentNode],
                 isLoading: false,
@@ -299,12 +304,12 @@ describe('ExplorerPage', () => {
             });
 
             render(<ExplorerPage />);
-            
+
             const layout = document.querySelector('.explorer-layout');
             if (layout) {
                 fireEvent.click(layout);
             }
-            
+
             expect(mockCloseContextMenu).toHaveBeenCalled();
         });
     });
@@ -333,12 +338,12 @@ describe('ExplorerPage', () => {
                 { id: 'sem-1', name: 'Semester 1', type: 'semester', children: [] },
                 { id: 'sem-2', name: 'Semester 2', type: 'semester', children: [] },
             ];
-            
-            const parentNode: FileSystemNode = { 
-                id: 'dept-1', 
-                name: 'CS', 
-                type: 'department', 
-                children: childNodes 
+
+            const parentNode: FileSystemNode = {
+                id: 'dept-1',
+                name: 'CS',
+                type: 'department',
+                children: childNodes
             };
 
             (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({

@@ -26,15 +26,12 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import React from 'react';
 
 // Import types
 import type {
-    KGStatusResponse,
-    ProcessingRequest,
-    BatchProcessingResponse,
-    ProcessingQueueItem
+    ProcessingRequest
 } from '../types/kg.types';
 
 // Import the hook

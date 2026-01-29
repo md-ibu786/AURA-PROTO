@@ -2,11 +2,11 @@
 # Centralized graph manager for Neo4j graph traversal and manipulation operations
 
 # Provides graph traversal methods for multi-hop entity expansion, subgraph extraction,
-# and neighbor retrieval. Separates graph-specific operations from RAG search logic
-# to enable reuse across different components (RAGEngine, Query API, etc.).
+# and neighbor retrieval. Used by graph preview API for visualization and module structure
+# exploration.
 
-# @see: api/rag_engine.py - Uses GraphManager for graph expansion in search
 # @see: api/neo4j_config.py - Neo4j driver configuration
+# @see: api/routers/graph_preview.py - Uses GraphManager for graph preview
 # @note: 2-hop traversal default; increase cautiously to avoid performance issues
 
 from __future__ import annotations

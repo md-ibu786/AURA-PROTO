@@ -1,13 +1,12 @@
 # search.py
 # Pydantic schemas for hybrid search API requests and responses
 
-# Defines the API contracts for the /v1/kg/query endpoint including request
-# validation, response models, and weight normalization. Enhanced with graph
-# expansion schemas for multi-hop entity traversal support.
+# Defines the API contracts for search and graph traversal including request
+# validation, response models, and weight normalization. Used by graph preview
+# API for visualization schemas.
 
-# @see: api/rag_engine.py - Uses these schemas for type safety
 # @see: api/graph_manager.py - Graph traversal operations
-# @see: api/routers/query.py - API endpoint using these schemas (Phase 10-04)
+# @see: api/routers/graph_preview.py - API endpoint using these schemas
 # @note: vector_weight + fulltext_weight normalized to 1.0 via validator
 
 from __future__ import annotations

@@ -94,8 +94,6 @@ from kg import kg_router
 # Import hierarchy navigation router (for AURA-CHAT proxy)
 from hierarchy import hierarchy_router
 
-# Import KG Query API router (Phase 10-04)
-from api.routers.query import router as query_router
 
 # Import Summaries API router (Phase 11-01)
 from api.routers.summaries import router as summaries_router
@@ -145,9 +143,7 @@ app.include_router(audio_router)
 app.include_router(modules_router, prefix="/api/v1")  # M2KG Module endpoints
 app.include_router(kg_router, prefix="/api/v1")  # KG processing endpoints
 app.include_router(hierarchy_router, prefix="/api/v1")  # Hierarchy navigation endpoints
-app.include_router(
-    query_router
-)  # KG Query API (Phase 10-04) - prefix already set in router
+
 app.include_router(
     summaries_router
 )  # Summaries API (Phase 11-01) - prefix already set in router

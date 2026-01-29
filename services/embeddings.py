@@ -6,7 +6,6 @@
 # embeddings to avoid external dependencies during pytest runs.
 
 # @see: api/kg_processor.py - Uses EmbeddingService for chunk and entity embeddings
-# @see: api/rag_engine.py - Uses embed_query for search queries
 # @see: AURA-CHAT/backend/utils/embeddings.py - Reference implementation
 # @note: Test mode is enabled via AURA_TEST_MODE=true
 
