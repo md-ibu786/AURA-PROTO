@@ -34,16 +34,31 @@
  * @note: Uses native <dialog> element for accessibility
  */
 import { useEffect, useRef } from 'react';
+import { Trash2, AlertTriangle, Download, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
     isOpen: boolean;
     title: string;
     message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
     onConfirm: () => void;
     onCancel: () => void;
+    variant?: 'danger' | 'warning' | 'info';
+    destructive?: boolean;
 }
 
-export function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ 
+    isOpen, 
+    title, 
+    message, 
+    confirmLabel = 'Confirm', 
+    cancelLabel = 'Cancel',
+    onConfirm, 
+    onCancel,
+    variant = 'info',
+    destructive = false
+}: ConfirmDialogProps) {
     const dialogRef = useRef<HTMLDialogElement>(null);
 
     useEffect(() => {
@@ -70,10 +85,19 @@ export function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel }: C
 
     if (!isOpen) return null;
 
+    const getIcon = () => {
+        switch (variant) {
+            case 'danger': return <Trash2 className="dialog-icon danger" />;
+            case 'warning': return <AlertTriangle className="dialog-icon warning" />;
+            case 'info': return <Download className="dialog-icon info" />;
+            default: return null;
+        }
+    };
+
     return (
         <dialog
             ref={dialogRef}
-            className="confirm-dialog"
+            className={`confirm-dialog-v2 ${isOpen ? 'open' : ''}`}
             onClick={(e) => {
                 // Close on backdrop click
                 if (e.target === dialogRef.current) {
@@ -81,16 +105,32 @@ export function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel }: C
                 }
             }}
         >
-            <div className="confirm-dialog-content">
-                <h3 className="confirm-dialog-title">{title}</h3>
-                <p className="confirm-dialog-message">{message}</p>
-                <div className="confirm-dialog-actions">
-                    <button className="confirm-dialog-btn cancel" onClick={onCancel}>
-                        Cancel
-                    </button>
-                    <button className="confirm-dialog-btn confirm" onClick={onConfirm}>
-                        Delete
-                    </button>
+            <div className="confirm-dialog-card">
+                <button className="dialog-close-btn" onClick={onCancel}>
+                    <X size={18} />
+                </button>
+
+                <div className="dialog-content-wrapper">
+                    <div className={`dialog-icon-container ${variant}`}>
+                        {getIcon()}
+                    </div>
+
+                    <div className="dialog-text-content">
+                        <h3 className="dialog-title">{title}</h3>
+                        <p className="dialog-message">{message}</p>
+
+                        <div className="dialog-actions-row">
+                            <button className="dialog-btn secondary" onClick={onCancel}>
+                                {cancelLabel}
+                            </button>
+                            <button 
+                                className={`dialog-btn primary ${destructive || variant === 'danger' ? 'danger' : ''}`} 
+                                onClick={onConfirm}
+                            >
+                                {confirmLabel}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </dialog>

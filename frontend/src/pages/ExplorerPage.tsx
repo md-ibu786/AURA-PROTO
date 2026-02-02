@@ -31,7 +31,7 @@
  *    4. User interactions update Zustand store → triggers re-render
  *
  * DEPENDENCIES:
- *    - External: @tanstack/react-query, lucide-react
+ *    - External: @tanstack/react-query, lucide-react, jszip, sonner
  *    - Internal: stores, api, components (Sidebar, Header, GridView, etc.)
  *
  * USAGE:
@@ -40,13 +40,18 @@
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useExplorerStore } from '../stores';
-import { getExplorerTree } from '../api';
+import { getExplorerTree, deleteNoteCascade } from '../api';
 import * as api from '../api';
+import JSZip from 'jszip';
+import { toast } from 'sonner';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Header } from '../components/layout/Header';
 import { GridView } from '../components/explorer/GridView';
 import { ListView } from '../components/explorer/ListView';
+import { SelectionOverlay } from '../components/explorer/SelectionOverlay';
+import { SelectionActionBar } from '../components/explorer/SelectionActionBar';
 import { ContextMenu } from '../components/explorer/ContextMenu';
+
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { WarningDialog } from '../components/ui/WarningDialog';
 import type { FileSystemNode } from '../types';
@@ -65,8 +70,16 @@ export default function ExplorerPage() {
         creatingNodeType,
         deleteDialogOpen,
         nodeToDelete,
-        closeDeleteDialog
+        closeDeleteDialog,
+        bulkDeleteDialogOpen,
+        nodesToDelete,
+        closeBulkDeleteDialog,
+        bulkDownloadDialogOpen,
+        nodesToDownload,
+        closeBulkDownloadDialog,
+        clearSelection
     } = useExplorerStore();
+
 
     const queryClient = useQueryClient();
 
@@ -97,7 +110,7 @@ export default function ExplorerPage() {
                     await api.deleteModule(id);
                     break;
                 case 'note':
-                    await api.deleteNote(id);
+                    await deleteNoteCascade(id);
                     break;
             }
 
@@ -107,7 +120,78 @@ export default function ExplorerPage() {
         }
     };
 
+    const handleBulkDeleteConfirm = async () => {
+        if (nodesToDelete.length === 0) return;
+
+        closeBulkDeleteDialog();
+
+        try {
+            await Promise.allSettled(nodesToDelete.map(node => {
+                switch (node.type) {
+                    case 'department': return api.deleteDepartment(node.id);
+                    case 'semester': return api.deleteSemester(node.id);
+                    case 'subject': return api.deleteSubject(node.id);
+                    case 'module': return api.deleteModule(node.id);
+                    case 'note': return deleteNoteCascade(node.id);
+                    default: return Promise.resolve();
+                }
+            }));
+
+            await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
+            clearSelection();
+        } catch (error) {
+            alert(`Bulk delete failed: ${(error as Error).message}`);
+        }
+    };
+
+    const handleBulkDownloadConfirm = async () => {
+        const notes = nodesToDownload.filter(n => n.type === 'note' && n.meta?.pdfFilename);
+        closeBulkDownloadDialog();
+
+        if (notes.length === 0) return;
+
+        const downloadToastId = toast.loading(`Preparing ZIP for ${notes.length} notes...`);
+
+        const zip = new JSZip();
+        
+        // Get naming context: [..., subject, module]
+        const moduleNode = currentPath[currentPath.length - 1];
+        const subjectNode = currentPath[currentPath.length - 2];
+        const fileName = `${subjectNode?.label || 'Subject'}-${moduleNode?.label || 'Module'}-notes.zip`;
+
+        try {
+            // Fetch all PDFs in parallel
+            const fetchPromises = notes.map(async (note) => {
+                const response = await fetch(`/pdfs/${note.meta!.pdfFilename}`);
+                if (!response.ok) throw new Error(`Failed to fetch ${note.label}`);
+                const blob = await response.blob();
+                // Ensure unique filenames in zip if multiple notes have same label
+                const name = note.label.toLowerCase().endsWith('.pdf') ? note.label : `${note.label}.pdf`;
+                zip.file(name, blob);
+            });
+
+            await Promise.all(fetchPromises);
+            toast.loading('Generating ZIP file...', { id: downloadToastId });
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            
+            toast.success(`Download started: ${fileName}`, { id: downloadToastId });
+            clearSelection();
+        } catch (error) {
+            toast.error(`Bulk download failed: ${(error as Error).message}`, { id: downloadToastId });
+        }
+    };
+
     // Get current folder's children to display
+
     const getCurrentChildren = (): FileSystemNode[] => {
         if (currentPath.length === 0) {
             // At root, show departments
@@ -165,28 +249,31 @@ export default function ExplorerPage() {
             <main className="explorer-main">
                 <Header />
 
-                <div className="explorer-content">
-                    {isLoading ? (
-                        <div className="empty-state">
-                            <div className="spinner" />
-                            <div className="empty-state-text" style={{ marginTop: '16px' }}>Loading...</div>
-                        </div>
-                    ) : children.length === 0 && !creatingNodeType ? (
-                        <div className="empty-state">
-                            <Folder className="empty-state-icon" />
-                            <div className="empty-state-title">This folder is empty</div>
-                            <div className="empty-state-text">
-                                {currentPath.length === 0
-                                    ? 'Create a department to get started'
-                                    : 'Right-click to create a new item'}
+                <SelectionOverlay>
+                    <div className="explorer-content">
+                        {isLoading ? (
+                            <div className="empty-state">
+                                <div className="spinner" />
+                                <div className="empty-state-text" style={{ marginTop: '16px' }}>Loading...</div>
                             </div>
-                        </div>
-                    ) : viewMode === 'grid' ? (
-                        <GridView items={children} allItems={tree} />
-                    ) : (
-                        <ListView items={children} allItems={tree} />
-                    )}
-                </div>
+                        ) : children.length === 0 && !creatingNodeType ? (
+                            <div className="empty-state">
+                                <Folder className="empty-state-icon" />
+                                <div className="empty-state-title">This folder is empty</div>
+                                <div className="empty-state-text">
+                                    {currentPath.length === 0
+                                        ? 'Create a department to get started'
+                                        : 'Right-click to create a new item'}
+                                </div>
+                            </div>
+                        ) : viewMode === 'grid' ? (
+                            <GridView items={children} allItems={tree} />
+                        ) : (
+                            <ListView items={children} allItems={tree} />
+                        )}
+                    </div>
+                </SelectionOverlay>
+
             </main>
 
             {contextMenuPosition && <ContextMenu />}
@@ -194,18 +281,47 @@ export default function ExplorerPage() {
             <ConfirmDialog
                 isOpen={deleteDialogOpen}
                 title="Confirm Delete"
-                message={nodeToDelete ? `Are you sure you want to delete "${nodeToDelete.label}"? This action cannot be undone.` : ''}
+                message={nodeToDelete ? `Are you sure you want to delete "${nodeToDelete.label}"? This action cannot be undone.${nodeToDelete.type === 'note' ? ' Any associated Knowledge Graph data will also be removed.' : ''}` : ''}
                 onConfirm={handleDeleteConfirm}
                 onCancel={closeDeleteDialog}
+                variant="danger"
+                confirmLabel="Delete"
+                destructive
+            />
+
+            <ConfirmDialog
+                isOpen={bulkDeleteDialogOpen}
+                title="Confirm Bulk Delete"
+                message={`Are you sure you want to delete ${nodesToDelete.length} items? This action cannot be undone and will remove them from the primary database.${nodesToDelete.some(n => n.type === 'note') ? ' Notes will have their Knowledge Graph data cleaned up first.' : ''}`}
+                onConfirm={handleBulkDeleteConfirm}
+                onCancel={closeBulkDeleteDialog}
+                variant="danger"
+                confirmLabel="Delete All"
+                destructive
+            />
+
+            <ConfirmDialog
+                isOpen={bulkDownloadDialogOpen}
+                title="Download as ZIP"
+                message={`You are about to bundle ${nodesToDownload.length} notes into a single ZIP file for download.`}
+                onConfirm={handleBulkDownloadConfirm}
+                onCancel={closeBulkDownloadDialog}
+                variant="info"
+                confirmLabel="Download ZIP"
             />
 
             <WarningDialog />
+
 
             {/* KG Features */}
             <FileSelectionBar />
             <ProcessDialog />
             <DeleteFromKGDialog />
             <ProcessingQueue />
+
+            {/* Bulk Actions */}
+            <SelectionActionBar />
         </div>
+
     );
 }

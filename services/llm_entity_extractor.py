@@ -18,6 +18,7 @@ import os
 import time
 from typing import Dict, List, Literal, Optional, Any, Tuple
 
+from json_repair import repair_json
 from pydantic import BaseModel, Field
 
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
@@ -969,9 +970,22 @@ No markdown, no explanations. Return empty array if no relationships found.
                         f"Successfully parsed relationship JSON: {list(result.keys())}"
                     )
                 except json.JSONDecodeError as e:
-                    logger.error(f"Relationship JSON decode error: {e}")
-                    logger.error(f"JSON string that failed: {json_str[:500]}")
-                    raise
+                    logger.warning(f"Relationship JSON decode error: {e}")
+                    logger.info(f"Attempting to repair malformed JSON...")
+
+                    # Try to repair malformed JSON from LLM
+                    repaired_json = repair_json(json_str)
+                    try:
+                        result = json.loads(repaired_json)
+                        logger.info(
+                            f"Successfully parsed repaired relationship JSON: {list(result.keys())}"
+                        )
+                    except json.JSONDecodeError as repair_error:
+                        logger.error(
+                            f"Relationship JSON decode error after repair: {repair_error}"
+                        )
+                        logger.error(f"JSON string that failed: {json_str[:500]}")
+                        raise
 
                 if "relationships" in result:
                     relationships = result["relationships"]
@@ -1237,7 +1251,7 @@ _extractor_instance: Optional[LLMEntityExtractor] = None
 def _get_extractor() -> LLMEntityExtractor:
     """
     Get or create singleton LLMEntityExtractor instance.
-    
+
     If model initialization previously failed, retries on each call
     until successful. This allows recovery from transient auth issues.
     """
@@ -1269,7 +1283,7 @@ async def extract_entities(
         ExtractionResult containing entities and optionally relationships
     """
     extractor = _get_extractor()
-    
+
     if include_relationships:
         entities, relationships = await extractor.extract_entities_and_relationships(
             text, doc_id=chunk_id
@@ -1277,7 +1291,7 @@ async def extract_entities(
     else:
         entities = await extractor.extract_entities(text, doc_id=chunk_id)
         relationships = []
-    
+
     return ExtractionResult(
         entities=entities,
         relationships=relationships,

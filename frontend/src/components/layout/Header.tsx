@@ -55,11 +55,7 @@ import {
     Search,
     LayoutGrid,
     List,
-    Home,
-    Zap,
-    XCircle,
-    Trash2,
-    X
+    Home
 } from 'lucide-react';
 
 export function Header() {
@@ -74,12 +70,7 @@ export function Header() {
         setActiveNode,
         selectionMode,
         setSelectionMode,
-        selectedIds,
-        clearSelection,
-        openProcessDialog,
-        deleteMode,
         setDeleteMode,
-        openKGDeleteDialog
     } = useExplorerStore();
 
     const goHome = () => {
@@ -154,39 +145,8 @@ export function Header() {
             </nav>
 
 
-            {/* Selection Mode Toggle - Only visible inside modules */}
-            {isInsideModule && (
-                <button
-                    className="flex items-center gap-2 px-3 py-1.5 mr-4 rounded-md text-sm font-medium transition-colors"
-                    style={{
-                        color: selectionMode ? '#ef4444' : '#22c55e'
-                    }}
-                    onClick={() => {
-                        if (selectionMode) {
-                            clearSelection();
-                            setSelectionMode(false);
-                        } else {
-                            setSelectionMode(true);
-                        }
-                    }}
-                    title={selectionMode ? 'Exit selection mode' : 'Select notes for vectorization'}
-                >
-                    {selectionMode ? (
-                        <>
-                            <XCircle className="h-4 w-4" />
-                            Deselect All
-                        </>
-                    ) : (
-                        <>
-                            <Zap className="h-4 w-4" />
-                            Vectorize the notes
-                        </>
-                    )}
-                </button>
-            )}
-
             {/* Search */}
-            <div className="search-box">
+            <div className="search-box ml-auto">
                 <Search size={16} className="text-muted" />
                 <input
                     type="text"
@@ -195,6 +155,7 @@ export function Header() {
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
             </div>
+
 
             {/* View toggle */}
             <div className="view-toggle">
@@ -213,99 +174,7 @@ export function Header() {
                     <List size={16} />
                 </button>
             </div>
-
-            {/* Selection Mode Actions - Shows count and process/delete button */}
-            {selectionMode && (
-                <>
-                    <div className="h-6 w-px bg-border mx-2" style={{ marginLeft: 'auto' }} />
-                    <div className="flex items-center gap-md">
-                        {/* Mode Toggle: Process vs Delete */}
-                        <div className="aura-toggle-container">
-                            <div 
-                                className={`aura-toggle ${!deleteMode ? 'process' : 'delete'}`}
-                                onClick={() => {
-                                    clearSelection();
-                                    setDeleteMode(!deleteMode);
-                                }}
-                                title={!deleteMode ? "Switch to Delete mode" : "Switch to Process mode"}
-                            >
-                                <div className="aura-toggle-knob" />
-                                <span className="aura-toggle-text">
-                                    {!deleteMode ? 'Process' : 'Delete'}
-                                </span>
-                            </div>
-                        </div>
-
-                        <span
-                            className="text-accent font-medium whitespace-nowrap"
-                            style={{ fontSize: '14px' }}
-                        >
-                            {selectedIds.size} Selected
-                        </span>
-                        
-                        {/* Action button - Process or Delete based on mode */}
-                        {deleteMode ? (
-                            <button
-                                className="btn"
-                                style={{
-                                    padding: '6px 16px',
-                                    background: '#ef4444',
-                                    color: 'white',
-                                    border: 'none'
-                                }}
-                                onClick={() => {
-                                    if (selectedIds.size > 0) {
-                                        const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
-                                        openKGDeleteDialog(Array.from(selectedIds), currentModuleId);
-                                    }
-                                }}
-                                disabled={selectedIds.size === 0}
-                                title="Delete selected documents from Knowledge Graph"
-                            >
-                                <Trash2 size={16} />
-                                Delete from KG
-                            </button>
-                        ) : (
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                    if (selectedIds.size > 0) {
-                                        const currentModuleId = currentPath[currentPath.length - 1]?.id || '';
-                                        openProcessDialog(Array.from(selectedIds), currentModuleId);
-                                    }
-                                }}
-                                disabled={selectedIds.size === 0}
-                                title="Process selected documents for Knowledge Graph"
-                                style={{ padding: '6px 16px' }}
-                            >
-                                <Zap size={16} />
-                                Process
-                            </button>
-                        )}
-                        
-                        <div className="flex items-center gap-xs">
-                            <button
-                                className="nav-btn"
-                                onClick={clearSelection}
-                                title="Clear selection"
-                            >
-                                <Trash2 size={18} />
-                            </button>
-                            <button
-                                className="nav-btn"
-                                onClick={() => {
-                                    clearSelection();
-                                    setSelectionMode(false);
-                                    setDeleteMode(false);
-                                }}
-                                title="Exit selection mode"
-                            >
-                                <X size={18} />
-                            </button>
-                        </div>
-                    </div>
-                </>
-            )}
         </header>
     );
 }
+

@@ -354,7 +354,8 @@ export function GridView({ items }: GridViewProps) {
                 return (
                     <div
                         key={item.id}
-                        className={`grid-item ${isSelected ? 'selected' : ''} ${isDisabledInSelection ? 'kg-disabled' : ''}`}
+                        data-id={item.id}
+                        className={`grid-item selectable-item ${isSelected ? 'selected' : ''} ${isDisabledInSelection ? 'kg-disabled' : ''}`}
                         onClick={(e) => handleClick(e, item)}
                         onDoubleClick={() => handleDoubleClick(item)}
                         onContextMenu={(e) => handleContextMenu(e, item)}

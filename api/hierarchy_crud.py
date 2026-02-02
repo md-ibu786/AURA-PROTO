@@ -13,12 +13,13 @@ PURPOSE:
 ROLE IN PROJECT:
     This is the write layer for hierarchy management. The React frontend's
     context menu operations (New Folder, Rename, Delete) call these endpoints.
-    
+
     Key features:
     - Automatic unique name generation for duplicates (e.g., "Name (2)")
     - Transactional parent validation before creating children
     - Recursive deletion of subcollections and associated PDF files
     - Collection group queries to find nested documents by ID
+    - Cascade delete with Knowledge Graph cleanup (delete_note_cascade)
 
 KEY COMPONENTS:
     Utility Functions:
@@ -27,26 +28,31 @@ KEY COMPONENTS:
     - get_unique_name(): Add (N) suffix for duplicate names
     - delete_document_recursive(): Cascade delete with PDF cleanup
     - find_doc_by_id(): Collection group query to locate nested docs
-    
+
     Pydantic Models:
     - DepartmentCreate/Update, SemesterCreate/Update
     - SubjectCreate/Update, ModuleCreate/Update, NoteUpdate
-    
+
     Endpoints:
     - POST/PUT/DELETE /api/departments/{id}
     - POST/PUT/DELETE /api/semesters/{id}
     - POST/PUT/DELETE /api/subjects/{id}
     - POST/PUT/DELETE /api/modules/{id}
     - PUT/DELETE /api/notes/{id} (notes created via audio_processing)
+    - DELETE /api/notes/{id}/cascade (cascade delete with KG cleanup)
 
 DEPENDENCIES:
     - External: fastapi, pydantic, google-cloud-firestore
-    - Internal: config.py (db client)
+    - Internal: config.py (db client), graph_manager.py (Neo4j cleanup)
 
 USAGE:
     # Create a new subject under a semester
     POST /api/subjects
     {"semester_id": "abc123", "name": "Data Structures", "code": "CS201"}
+
+    # Cascade delete (removes KG data first, then document)
+    DELETE /api/notes/{note_id}/cascade
+
     
     # Delete a module (cascades to notes, deletes PDFs)
     DELETE /api/modules/xyz789
@@ -55,6 +61,8 @@ USAGE:
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
+import os
+import logging
 from google.cloud import firestore
 try:
     from config import db
@@ -64,6 +72,14 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
         from api.config import db
 
+# Import GraphManager for cascade delete (KG cleanup)
+try:
+    from graph_manager import GraphManager
+    GRAPH_MANAGER_AVAILABLE = True
+except ImportError:
+    GRAPH_MANAGER_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["hierarchy-crud"])
 
 # ========== UTILITY FUNCTIONS ==========
@@ -464,9 +480,8 @@ def update_note(note_id: str, note: NoteUpdate):
 def delete_note(note_id: str):
     doc_ref = find_doc_by_id('notes', note_id)
     if not doc_ref: raise HTTPException(status_code=404, detail="Not found")
-    
+
     # Try delete file
-    import os
     data = doc_ref.get().to_dict()
     pdf_url = data.get('pdf_url')
     if pdf_url:
@@ -478,6 +493,95 @@ def delete_note(note_id: str):
                 os.remove(file_path)
         except Exception:
             pass
-            
+
     doc_ref.delete()
     return {"message": "Note deleted"}
+
+
+@router.delete("/notes/{note_id}/cascade")
+def delete_note_cascade(note_id: str):
+    """
+    Cascade delete: removes KG data first, then deletes the document.
+
+    This endpoint ensures complete cleanup by:
+    1. Checking if note has KG processing (kg_status === 'ready')
+    2. If yes, deleting from Neo4j first (document, chunks, entities)
+    3. Then deleting the Firestore document and PDF file
+
+    This prevents orphaned Document nodes in Neo4j that can't be traced
+    back to Firestore after document deletion.
+
+    Args:
+        note_id: The ID of the note to cascade delete
+
+    Returns:
+        JSON with message and cascade_status:
+        - "complete": KG data deleted + document deleted
+        - "document_only": No KG data found, only document deleted
+        - "kg_failed": KG deletion failed, document NOT deleted (rollback)
+    """
+    doc_ref = find_doc_by_id('notes', note_id)
+    if not doc_ref:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    data = doc_ref.get().to_dict()
+    pdf_url = data.get('pdf_url')
+    kg_status = data.get('kg_status', 'pending')
+
+    # Step 1: Delete from Knowledge Graph if processed
+    kg_deletion_status = "skipped"  # skipped, success, failed
+
+    if kg_status == "ready" and GRAPH_MANAGER_AVAILABLE:
+        try:
+            graph_manager = GraphManager()
+            success, _ = graph_manager.delete_document(note_id)
+            if success:
+                kg_deletion_status = "success"
+                logger.info(f"Cascade delete: Successfully removed note {note_id} from Neo4j")
+            else:
+                kg_deletion_status = "failed"
+                logger.error(f"Cascade delete: Failed to remove note {note_id} from Neo4j")
+        except Exception as e:
+            kg_deletion_status = "failed"
+            logger.error(f"Cascade delete: Exception deleting from Neo4j: {e}")
+
+        # Rollback: don't delete document if KG deletion failed
+        if kg_deletion_status == "failed":
+            return {
+                "message": "Cascade delete aborted: KG deletion failed",
+                "note_id": note_id,
+                "cascade_status": "kg_failed",
+                "kg_deletion_status": kg_deletion_status,
+                "detail": "Document was NOT deleted. Please retry or delete from KG manually."
+            }
+
+    # Step 2: Delete PDF file from disk
+    if pdf_url:
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            clean_path = pdf_url.lstrip('/')
+            file_path = os.path.join(base_dir, clean_path)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Cascade delete: Removed PDF file for note {note_id}")
+        except Exception as e:
+            logger.warning(f"Cascade delete: Failed to remove PDF file: {e}")
+
+    # Step 3: Delete Firestore document
+    doc_ref.delete()
+    logger.info(f"Cascade delete: Removed Firestore document {note_id}")
+
+    # Determine cascade status
+    if kg_deletion_status == "success":
+        cascade_status = "complete"
+    else:
+        cascade_status = "document_only"
+
+    return {
+        "message": "Cascade delete completed",
+        "note_id": note_id,
+        "cascade_status": cascade_status,
+        "kg_deletion_status": kg_deletion_status,
+        "pdf_deleted": bool(pdf_url),
+        "document_deleted": True
+    }

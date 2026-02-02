@@ -1236,7 +1236,7 @@ class KnowledgeGraphProcessor:
                                     entity_type = EntityType.CONCEPT
 
                             # Generate ID (use module_id as scope + name hash)
-                            entity_id = self._generate_entity_id(
+                            entity_id = self.gemini._generate_entity_id(
                                 item.get("name", "unknown"), module_id
                             )
 
@@ -1311,7 +1311,7 @@ class KnowledgeGraphProcessor:
                             e_type = type_mapping.get(entity_type, EntityType.CONCEPT)
 
                             # Generate unique ID
-                            entity_id = self._generate_entity_id(
+                            entity_id = self.gemini._generate_entity_id(
                                 extracted.name, module_id
                             )
 
@@ -1389,7 +1389,7 @@ class KnowledgeGraphProcessor:
                                 )
                                 chunk_entities.append(
                                     Entity(
-                                        id=self._generate_entity_id(
+                                        id=self.gemini._generate_entity_id(
                                             ext.name, module_id
                                         ),
                                         name=ext.name,

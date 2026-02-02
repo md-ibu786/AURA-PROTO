@@ -167,6 +167,17 @@ export async function deleteNote(id: string) {
     return fetchApi(`/notes/${id}`, { method: 'DELETE' });
 }
 
+export async function deleteNoteCascade(id: string): Promise<{
+    message: string;
+    note_id: string;
+    cascade_status: 'complete' | 'document_only' | 'kg_failed';
+    kg_deletion_status: string;
+    pdf_deleted: boolean;
+    document_deleted: boolean;
+}> {
+    return fetchApi(`/notes/${id}/cascade`, { method: 'DELETE' });
+}
+
 // Unified rename function
 export async function renameNode(type: HierarchyType, id: string, name: string) {
     switch (type) {

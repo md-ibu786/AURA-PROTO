@@ -49,7 +49,7 @@
  * ============================================================================
  */
 import { create } from 'zustand';
-import type { FileSystemNode, HierarchyType } from '../types';
+import type { FileSystemNode, HierarchyType, FileSystemNodeMeta } from '../types';
 
 export type ViewMode = 'grid' | 'list';
 
@@ -141,6 +141,18 @@ interface ExplorerState {
     nodeToDelete: { id: string; type: HierarchyType; label: string } | null;
     openDeleteDialog: (node: { id: string; type: HierarchyType; label: string }) => void;
     closeDeleteDialog: () => void;
+
+    // Bulk Delete
+    bulkDeleteDialogOpen: boolean;
+    nodesToDelete: { id: string; type: HierarchyType; label: string }[];
+    openBulkDeleteDialog: (nodes: { id: string; type: HierarchyType; label: string }[]) => void;
+    closeBulkDeleteDialog: () => void;
+
+    // Bulk Download
+    bulkDownloadDialogOpen: boolean;
+    nodesToDownload: { id: string; type: HierarchyType; label: string; meta?: FileSystemNodeMeta }[];
+    openBulkDownloadDialog: (nodes: { id: string; type: HierarchyType; label: string; meta?: FileSystemNodeMeta }[]) => void;
+    closeBulkDownloadDialog: () => void;
 
     // View actions
     setViewMode: (mode: ViewMode) => void;
@@ -281,7 +293,9 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     select: (id) => set({
         selectedIds: new Set([id]),
         lastSelectedId: id,
+        selectionMode: true
     }),
+
 
     toggleSelect: (id) => {
         const { selectedIds } = get();
@@ -294,13 +308,14 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         set({
             selectedIds: newSelected,
             lastSelectedId: id,
+            selectionMode: newSelected.size > 0
         });
     },
 
     rangeSelect: (id, allIds) => {
         const { lastSelectedId, selectedIds } = get();
         if (!lastSelectedId) {
-            set({ selectedIds: new Set([id]), lastSelectedId: id });
+            set({ selectedIds: new Set([id]), lastSelectedId: id, selectionMode: true });
             return;
         }
 
@@ -308,27 +323,32 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         const endIdx = allIds.indexOf(id);
 
         if (startIdx === -1 || endIdx === -1) {
-            set({ selectedIds: new Set([id]), lastSelectedId: id });
+            set({ selectedIds: new Set([id]), lastSelectedId: id, selectionMode: true });
             return;
         }
 
         const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
         const rangeIds = allIds.slice(from, to + 1);
 
+        const newSelected = new Set([...selectedIds, ...rangeIds]);
         set({
-            selectedIds: new Set([...selectedIds, ...rangeIds]),
+            selectedIds: newSelected,
+            selectionMode: true
         });
     },
 
     clearSelection: () => set({
         selectedIds: new Set(),
         lastSelectedId: null,
+        selectionMode: false
     }),
 
     selectAll: (ids) => set({
         selectedIds: new Set(ids),
         lastSelectedId: ids[ids.length - 1] ?? null,
+        selectionMode: ids.length > 0
     }),
+
 
     // Tree
     expand: (id) => {
@@ -367,6 +387,32 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     closeDeleteDialog: () => set({
         deleteDialogOpen: false,
         nodeToDelete: null
+    }),
+
+    bulkDeleteDialogOpen: false,
+    nodesToDelete: [],
+    bulkDownloadDialogOpen: false,
+    nodesToDownload: [],
+    openBulkDeleteDialog: (nodes) => set({
+        bulkDeleteDialogOpen: true,
+        nodesToDelete: nodes,
+        contextMenuPosition: null,
+        contextMenuNodeId: null
+    }),
+    closeBulkDeleteDialog: () => set({
+        bulkDeleteDialogOpen: false,
+        nodesToDelete: []
+    }),
+
+    openBulkDownloadDialog: (nodes) => set({
+        bulkDownloadDialogOpen: true,
+        nodesToDownload: nodes,
+        contextMenuPosition: null,
+        contextMenuNodeId: null
+    }),
+    closeBulkDownloadDialog: () => set({
+        bulkDownloadDialogOpen: false,
+        nodesToDownload: []
     }),
 
     // View

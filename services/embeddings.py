@@ -22,6 +22,7 @@ from functools import lru_cache
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 from google.cloud import aiplatform
+from vertexai.language_models import TextEmbeddingModel
 
 _api_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api"))
 if _api_dir not in sys.path:
@@ -137,11 +138,9 @@ class EmbeddingService:
         init_vertex_ai()
 
         try:
-            self._embedding_model = aiplatform.TextEmbeddingModel.from_pretrained(
-                self.model_name
-            )
+            self._embedding_model = TextEmbeddingModel.from_pretrained(self.model_name)
         except AttributeError:
-            self._embedding_model = aiplatform.TextEmbeddingModel(self.model_name)
+            self._embedding_model = TextEmbeddingModel(self.model_name)
 
     def enable_cache(self, max_size: int = 1000) -> None:
         """
