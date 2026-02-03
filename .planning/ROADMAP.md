@@ -10,7 +10,7 @@ This roadmap outlines the implementation of a complete authentication system for
 
 ## Phases
 
-- [ ] **Phase 1: Backend Auth Foundation** - Core auth module, mock Firestore, and config updates
+- [x] **Phase 1: Backend Auth Foundation** - Core auth module, mock Firestore, and config updates
 - [ ] **Phase 2: Backend User Management** - User CRUD endpoints and login API
 - [ ] **Phase 3: Frontend Auth State** - Zustand auth store with session persistence
 - [ ] **Phase 4: Frontend Auth UI** - Login page and protected routes
@@ -24,8 +24,8 @@ This roadmap outlines the implementation of a complete authentication system for
 **Plans**: 2 plans
 
 Plans:
-- [ ] [01-01-PLAN.md](phases/01-backend-auth-foundation/01-01-PLAN.md): Create `api/mock_firestore.py` with MockFirestoreClient, MockAuth, MockQuery classes
-- [ ] [01-02-PLAN.md](phases/01-backend-auth-foundation/01-02-PLAN.md): Create `api/auth.py` with UserInfo model, verify_firebase_token(), authentication dependencies
+- [x] [01-01-PLAN.md](phases/01-backend-auth-foundation/01-01-PLAN.md): Create `api/mock_firestore.py` with MockFirestoreClient, MockAuth, MockQuery classes
+- [x] [01-02-PLAN.md](phases/01-backend-auth-foundation/01-02-PLAN.md): Create `api/auth.py` with UserInfo model, verify_firebase_token(), authentication dependencies
 
 Key Deliverables:
 - MockFirestoreClient with collection/document/where/stream support
@@ -102,7 +102,7 @@ Key Deliverables:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Auth Foundation | 1/2 | **In Progress** | 01-01 ✅ |
+| 1. Backend Auth Foundation | 2/2 | **Complete** | 01-01 ✅, 01-02 ✅ |
 | 2. Backend User Management | 0/1 | **Plans Ready** | - |
 | 3. Frontend Auth State | 0/2 | **Plans Ready** | - |
 | 4. Frontend Auth UI | 0/2 | **Plans Ready** | - |

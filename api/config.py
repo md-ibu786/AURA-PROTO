@@ -67,6 +67,34 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 # Celery Configuration
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))
 
+# Mock Database Configuration
+USE_MOCK_DB = os.environ.get("USE_REAL_FIREBASE", "false").lower() != "true"
+
+# Global database instance
+_db_instance = None
+
+
+def get_db():
+    """
+    Get Firestore database client (mock or real).
+
+    Returns MockFirestoreClient if USE_MOCK_DB is True, otherwise returns
+    real Firestore client. Uses singleton pattern to avoid re-initialization.
+
+    Returns:
+        Firestore client or MockFirestoreClient instance
+    """
+    global _db_instance
+    if _db_instance is None:
+        if USE_MOCK_DB:
+            from mock_firestore import MockFirestoreClient
+
+            _db_instance = MockFirestoreClient()
+        else:
+            # Real Firebase initialization
+            _db_instance = init_firebase()
+    return _db_instance
+
 
 def init_firebase():
     """Initializes Firebase Admin SDK and returns Firestore client."""
@@ -118,5 +146,17 @@ def init_async_firebase():
     return AsyncClient(credentials=creds)
 
 
-db = init_firebase()
-async_db = init_async_firebase()
+# Initialize database clients
+# Use get_db() to support mock database toggle
+db = get_db()
+
+# Initialize async_db only if using real Firebase
+if not USE_MOCK_DB:
+    try:
+        async_db = init_async_firebase()
+    except Exception:
+        # Fallback to sync client if async initialization fails
+        async_db = db
+else:
+    # Use mock client for async operations
+    async_db = db

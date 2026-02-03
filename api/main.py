@@ -84,6 +84,7 @@ get_modules_by_subject = hierarchy_module.get_modules_by_subject
 from hierarchy_crud import router as crud_router
 from explorer import router as explorer_router
 from audio_processing import router as audio_router
+from auth import router as auth_router
 
 # Import M2KG modules router
 from modules import modules_router
@@ -140,6 +141,7 @@ app.add_middleware(
 app.include_router(crud_router)
 app.include_router(explorer_router)
 app.include_router(audio_router)
+app.include_router(auth_router)
 app.include_router(modules_router, prefix="/api/v1")  # M2KG Module endpoints
 app.include_router(kg_router, prefix="/api/v1")  # KG processing endpoints
 app.include_router(hierarchy_router, prefix="/api/v1")  # Hierarchy navigation endpoints
