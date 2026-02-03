@@ -24,8 +24,8 @@ This roadmap outlines the implementation of a complete authentication system for
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Create `api/mock_firestore.py` with MockFirestoreClient, MockAuth, MockQuery classes
-- [ ] 01-02: Create `api/auth.py` with UserInfo model, verify_firebase_token(), authentication dependencies (get_current_user, require_admin, require_staff, require_role, require_department_access)
+- [ ] [01-01-PLAN.md](phases/01-backend-auth-foundation/01-01-PLAN.md): Create `api/mock_firestore.py` with MockFirestoreClient, MockAuth, MockQuery classes
+- [ ] [01-02-PLAN.md](phases/01-backend-auth-foundation/01-02-PLAN.md): Create `api/auth.py` with UserInfo model, verify_firebase_token(), authentication dependencies
 
 Key Deliverables:
 - MockFirestoreClient with collection/document/where/stream support
@@ -37,11 +37,10 @@ Key Deliverables:
 ### Phase 2: Backend User Management
 **Goal**: Complete backend API with login endpoint and user CRUD operations
 **Depends on**: Phase 1
-**Plans**: 2 plans
+**Plans**: 1 plan
 
 Plans:
-- [ ] 02-01: Add mock login endpoint `/api/auth/login` to `auth.py` and mount router in `main.py`
-- [ ] 02-02: Create `api/users.py` with user CRUD endpoints (list, create, update, delete, get me)
+- [ ] [02-01-PLAN.md](phases/02-backend-user-management/02-01-PLAN.md): Create `api/users.py` with user CRUD endpoints (list, create, update, delete, get me) and mount routers
 
 Key Deliverables:
 - POST `/api/auth/login` - Mock login with email/password validation
@@ -57,8 +56,8 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Install firebase package and create `src/stores/useAuthStore.ts` with AuthUser interface and state
-- [ ] 03-02: Update `src/api/client.ts` to include Bearer token in all requests
+- [ ] [03-01-PLAN.md](phases/03-frontend-auth-state/03-01-PLAN.md): Create `src/stores/useAuthStore.ts` with AuthUser interface, state, and actions
+- [ ] [03-02-PLAN.md](phases/03-frontend-auth-state/03-02-PLAN.md): Update `src/api/client.ts` to include Bearer token in all requests
 
 Key Deliverables:
 - AuthUser interface with id, email, role, departmentId, status
@@ -73,8 +72,8 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: Create `src/pages/LoginPage.tsx` with email/password form and error handling
-- [ ] 04-02: Create `src/components/ProtectedRoute.tsx` and update `src/App.tsx` with protected routes
+- [ ] [04-01-PLAN.md](phases/04-frontend-auth-ui/04-01-PLAN.md): Create `src/pages/LoginPage.tsx` with email/password form and error handling
+- [ ] [04-02-PLAN.md](phases/04-frontend-auth-ui/04-02-PLAN.md): Create `src/components/ProtectedRoute.tsx` and update `src/App.tsx` with protected routes
 
 Key Deliverables:
 - LoginPage with form validation and loading states
@@ -89,8 +88,8 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Create seed script with test users (admin, staff, student) and update `.env` configuration
-- [ ] 05-02: End-to-end testing of complete auth flow and documentation update
+- [ ] [05-01-PLAN.md](phases/05-seed-data-integration/05-01-PLAN.md): Create seed script with test users and update `.env` configuration
+- [ ] [05-02-PLAN.md](phases/05-seed-data-integration/05-02-PLAN.md): End-to-end testing of complete auth flow and documentation update
 
 Key Deliverables:
 - Seed script with 3 test users in mock Firestore
@@ -103,11 +102,35 @@ Key Deliverables:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Backend Auth Foundation | 0/2 | Not started | - |
-| 2. Backend User Management | 0/2 | Not started | - |
-| 3. Frontend Auth State | 0/2 | Not started | - |
-| 4. Frontend Auth UI | 0/2 | Not started | - |
-| 5. Seed Data & Integration | 0/2 | Not started | - |
+| 1. Backend Auth Foundation | 1/2 | **In Progress** | 01-01 ✅ |
+| 2. Backend User Management | 0/1 | **Plans Ready** | - |
+| 3. Frontend Auth State | 0/2 | **Plans Ready** | - |
+| 4. Frontend Auth UI | 0/2 | **Plans Ready** | - |
+| 5. Seed Data & Integration | 0/2 | **Plans Ready** | - |
+
+## Plan Files
+
+All executable plans are located in `.planning/phases/`:
+
+```
+.planning/phases/
+├── 01-backend-auth-foundation/
+│   ├── 01-01-PLAN.md   # MockFirestoreClient implementation
+│   └── 01-02-PLAN.md   # auth.py with dependencies
+├── 02-backend-user-management/
+│   └── 02-01-PLAN.md   # User CRUD endpoints
+├── 03-frontend-auth-state/
+│   ├── 03-01-PLAN.md   # useAuthStore implementation
+│   └── 03-02-PLAN.md   # API client auth headers
+├── 04-frontend-auth-ui/
+│   ├── 04-01-PLAN.md   # LoginPage component
+│   └── 04-02-PLAN.md   # ProtectedRoute and App.tsx
+└── 05-seed-data-integration/
+    ├── 05-01-PLAN.md   # Seed script and .env config
+    └── 05-02-PLAN.md   # E2E testing and docs
+```
+
+Execute plans with: `/run-plan .planning/phases/01-backend-auth-foundation/01-01-PLAN.md`
 
 ## User Roles Reference
 
