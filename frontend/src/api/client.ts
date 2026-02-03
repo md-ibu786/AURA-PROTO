@@ -52,6 +52,18 @@ export class DuplicateError extends Error {
     }
 }
 
+/**
+ * Get authentication headers if token exists.
+ * @returns Headers object with Authorization if token present.
+ */
+function getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+        return { 'Authorization': `Bearer ${token}` };
+    }
+    return {};
+}
+
 // Generic fetch wrapper with error handling
 async function fetchApi<T>(
     endpoint: string,
@@ -59,13 +71,27 @@ async function fetchApi<T>(
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
 
+    const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+        ...options?.headers,
+    };
+
     const response = await fetch(url, {
         ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...options?.headers,
-        },
+        headers,
     });
+
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+        
+        if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+        }
+        
+        throw new Error('Session expired. Please log in again.');
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
@@ -92,8 +118,22 @@ async function fetchFormData<T>(
 
     const response = await fetch(url, {
         method: 'POST',
+        headers: {
+            ...getAuthHeaders(),
+        },
         body: formData,
     });
+
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('auth_user');
+
+        if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+        }
+
+        throw new Error('Session expired. Please log in again.');
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
