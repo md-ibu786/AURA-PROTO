@@ -56,8 +56,8 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [03-01-PLAN.md](phases/03-frontend-auth-state/03-01-PLAN.md): Create `src/stores/useAuthStore.ts` with AuthUser interface, state, and actions
-- [ ] [03-02-PLAN.md](phases/03-frontend-auth-state/03-02-PLAN.md): Update `src/api/client.ts` to include Bearer token in all requests
+- [x] [03-01-PLAN.md](phases/03-frontend-auth-state/03-01-PLAN.md): Create `src/stores/useAuthStore.ts` with AuthUser interface, state, and actions
+- [x] [03-02-PLAN.md](phases/03-frontend-auth-state/03-02-PLAN.md): Update `src/api/client.ts` to include Bearer token in all requests
 
 Key Deliverables:
 - AuthUser interface with id, email, role, departmentId, status
@@ -72,7 +72,7 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [04-01-PLAN.md](phases/04-frontend-auth-ui/04-01-PLAN.md): Create `src/pages/LoginPage.tsx` with email/password form and error handling
+- [x] [04-01-PLAN.md](phases/04-frontend-auth-ui/04-01-PLAN.md): Create `src/pages/LoginPage.tsx` with email/password form and error handling
 - [ ] [04-02-PLAN.md](phases/04-frontend-auth-ui/04-02-PLAN.md): Create `src/components/ProtectedRoute.tsx` and update `src/App.tsx` with protected routes
 
 Key Deliverables:
@@ -104,8 +104,8 @@ Key Deliverables:
 |-------|----------------|--------|-----------|
 | 1. Backend Auth Foundation | 2/2 | **Complete** | 01-01 ✅, 01-02 ✅ |
 | 2. Backend User Management | 1/1 | **Complete** | 02-01 ✅ |
-| 3. Frontend Auth State | 0/2 | **Plans Ready** | - |
-| 4. Frontend Auth UI | 0/2 | **Plans Ready** | - |
+| 3. Frontend Auth State | 2/2 | **Complete** | 03-01 ✅, 03-02 ✅ |
+| 4. Frontend Auth UI | 1/2 | **In Progress** | 04-01 ✅ |
 | 5. Seed Data & Integration | 0/2 | **Plans Ready** | - |
 
 ## Plan Files
