@@ -38,10 +38,11 @@
  */
 import { useState } from 'react';
 import { useExplorerStore } from '../../stores';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { SidebarTree } from '../explorer/SidebarTree';
 import { UploadDialog } from '../explorer/UploadDialog';
 import type { FileSystemNode, HierarchyType } from '../../types';
-import { FolderTree, Upload, Plus } from 'lucide-react';
+import { FolderTree, Upload, Plus, LogOut } from 'lucide-react';
 
 interface SidebarProps {
     tree: FileSystemNode[];
@@ -50,6 +51,7 @@ interface SidebarProps {
 
 export function Sidebar({ tree, isLoading }: SidebarProps) {
     const { currentPath, startCreating } = useExplorerStore();
+    const { user, logout } = useAuthStore();
     const [isUploadOpen, setIsUploadOpen] = useState(false);
 
     // Determine what we can create based on current path depth
@@ -140,6 +142,35 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
                 moduleId={moduleId}
                 moduleName={currentModule?.label || ''}
             />
+
+            {/* User info and logout at bottom */}
+            {user && (
+                <div style={{ padding: '12px', borderTop: '1px solid var(--color-border)', backgroundColor: 'rgba(255, 212, 0, 0.05)' }}>
+                    <div style={{ marginBottom: '8px' }}>
+                        <p style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>{user.displayName}</p>
+                        <p style={{ margin: 0, fontSize: '11px', color: 'var(--color-text-secondary)', textTransform: 'capitalize' }}>{user.role}</p>
+                    </div>
+                    <button
+                        onClick={() => logout()}
+                        className="btn"
+                        style={{ 
+                            width: '100%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            gap: '8px',
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            color: '#ff4444',
+                            borderColor: '#ff4444',
+                            backgroundColor: 'transparent'
+                        }}
+                    >
+                        <LogOut size={14} />
+                        Sign out
+                    </button>
+                </div>
+            )}
         </aside>
     );
 }

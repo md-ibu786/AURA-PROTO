@@ -73,7 +73,7 @@ Key Deliverables:
 
 Plans:
 - [x] [04-01-PLAN.md](phases/04-frontend-auth-ui/04-01-PLAN.md): Create `src/pages/LoginPage.tsx` with email/password form and error handling
-- [ ] [04-02-PLAN.md](phases/04-frontend-auth-ui/04-02-PLAN.md): Create `src/components/ProtectedRoute.tsx` and update `src/App.tsx` with protected routes
+- [x] [04-02-PLAN.md](phases/04-frontend-auth-ui/04-02-PLAN.md): Create `src/components/ProtectedRoute.tsx` and update `src/App.tsx` with protected routes
 
 Key Deliverables:
 - LoginPage with form validation and loading states
@@ -105,7 +105,7 @@ Key Deliverables:
 | 1. Backend Auth Foundation | 2/2 | **Complete** | 01-01 ✅, 01-02 ✅ |
 | 2. Backend User Management | 1/1 | **Complete** | 02-01 ✅ |
 | 3. Frontend Auth State | 2/2 | **Complete** | 03-01 ✅, 03-02 ✅ |
-| 4. Frontend Auth UI | 1/2 | **In Progress** | 04-01 ✅ |
+| 4. Frontend Auth UI | 2/2 | **Complete** | 04-01 ✅, 04-02 ✅ |
 | 5. Seed Data & Integration | 0/2 | **Plans Ready** | - |
 
 ## Plan Files

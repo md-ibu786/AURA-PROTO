@@ -29,17 +29,34 @@
  *    All pages should be defined as Route elements within the Routes block.
  * ============================================================================
  */
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import ExplorerPage from './pages/ExplorerPage'
+import { LoginPage } from './pages/LoginPage'
+import { ProtectedRoute } from './components/ProtectedRoute'
+import { initAuthListener } from './stores/useAuthStore'
 
 
 function App() {
+    useEffect(() => {
+        const unsubscribe = initAuthListener();
+        return () => unsubscribe();
+    }, []);
+
     return (
         <BrowserRouter>
             <Toaster position="bottom-right" richColors closeButton />
             <Routes>
-                <Route path="/*" element={<ExplorerPage />} />
+                {/* Public route */}
+                <Route path="/login" element={<LoginPage />} />
+
+                {/* Protected routes */}
+                <Route path="/*" element={
+                    <ProtectedRoute>
+                        <ExplorerPage />
+                    </ProtectedRoute>
+                } />
             </Routes>
         </BrowserRouter>
     )
