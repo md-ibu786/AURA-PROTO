@@ -71,6 +71,29 @@ npm run dev
 ```
 Frontend runs at: http://localhost:5173
 
+## Authentication
+
+The application uses a mock authentication system for local development.
+
+### Test Accounts
+
+| Role | Email | Password |
+|------|-------|----------|
+| Admin | admin@test.com | Admin123! |
+| Staff | staff@test.com | Staff123! |
+| Student | student@test.com | Student123! |
+
+### Role Permissions
+
+- **Admin**: Full access to user management, can view all departments
+- **Staff**: Can upload notes to assigned department only
+- **Student**: Read-only access to assigned department's notes
+
+### Environment Configuration
+
+Set `USE_REAL_FIREBASE=false` in `.env` for mock authentication (default).
+Set `USE_REAL_FIREBASE=true` to use real Firebase Authentication.
+
 ## E2E Testing
 
 Comprehensive end-to-end tests using Playwright are located in the `e2e/` folder.
