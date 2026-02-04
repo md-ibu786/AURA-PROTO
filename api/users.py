@@ -32,43 +32,28 @@ USAGE:
 """
 
 from fastapi import APIRouter, HTTPException, Depends, status
-from pydantic import BaseModel, EmailStr
-from typing import Optional, List, Literal
+from pydantic import BaseModel
+from typing import Optional, List
 from datetime import datetime
 
 try:
     from config import db, auth as firebase_auth
     from auth import get_current_user, require_admin, UserInfo
+    from models import CreateUserInput, FirestoreUser, UpdateUserInput
+    from validators import normalize_user_data
+    from validators import validate_user_role_constraints
 except ImportError:
     from api.config import db, auth as firebase_auth
     from api.auth import get_current_user, require_admin, UserInfo
+    from api.models import CreateUserInput, FirestoreUser, UpdateUserInput
+    from api.validators import normalize_user_data
+    from api.validators import validate_user_role_constraints
 
 
 router = APIRouter(prefix="/api", tags=["users"])
 
 
 # ========== MODELS ==========
-
-
-class UserCreate(BaseModel):
-    """Request model for creating a new user."""
-
-    email: EmailStr
-    password: str
-    display_name: str
-    role: Literal["admin", "staff", "student"]
-    department_id: Optional[str] = None  # Required for student only
-    subject_ids: Optional[List[str]] = None  # Required for staff (subject-wise access)
-
-
-class UserUpdate(BaseModel):
-    """Request model for updating a user."""
-
-    display_name: Optional[str] = None
-    role: Optional[Literal["admin", "staff", "student"]] = None
-    department_id: Optional[str] = None
-    subject_ids: Optional[List[str]] = None  # For staff subject access modification
-    status: Optional[Literal["active", "disabled"]] = None
 
 
 class UserResponse(BaseModel):
@@ -218,7 +203,10 @@ async def list_users(
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(user_data: UserCreate, admin: UserInfo = Depends(require_admin)):
+async def create_user(
+    user_data: CreateUserInput,
+    admin: UserInfo = Depends(require_admin),
+):
     """
     Create a new user. Admin only.
 
@@ -230,36 +218,33 @@ async def create_user(user_data: UserCreate, admin: UserInfo = Depends(require_a
     Returns:
         UserResponse: Created user's details
     """
-    # Validate requirements based on role
-    if user_data.role == "student" and not user_data.department_id:
+    try:
+        validate_user_role_constraints(
+            user_data.role,
+            user_data.departmentId,
+            user_data.subjectIds,
+        )
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Department ID is required for student role",
-        )
-
-    if user_data.role == "staff" and (
-        not user_data.subject_ids or len(user_data.subject_ids) == 0
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one subject ID is required for staff role",
-        )
+            detail=str(exc),
+        ) from exc
 
     # Verify department exists if provided (for students)
-    if user_data.department_id:
-        dept_doc = db.collection("departments").document(user_data.department_id).get()
+    if user_data.departmentId:
+        dept_doc = db.collection("departments").document(user_data.departmentId).get()
         if not dept_doc.exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Department {user_data.department_id} not found",
+                detail=f"Department {user_data.departmentId} not found",
             )
 
     # Verify all subject IDs exist if provided (for staff)
     subject_names = []
-    if user_data.subject_ids:
+    if user_data.subjectIds:
         from hierarchy_crud import find_doc_by_id
 
-        for subject_id in user_data.subject_ids:
+        for subject_id in user_data.subjectIds:
             subject_ref = find_doc_by_id("subjects", subject_id)
             if not subject_ref:
                 raise HTTPException(
@@ -284,30 +269,47 @@ async def create_user(user_data: UserCreate, admin: UserInfo = Depends(require_a
         firebase_user = firebase_auth.create_user(
             email=user_data.email,
             password=user_data.password,
-            display_name=user_data.display_name,
+            display_name=user_data.displayName,
         )
 
         # Store user profile in Firestore
         now = datetime.utcnow().isoformat()
-        user_doc_data = {
-            "email": user_data.email,
-            "displayName": user_data.display_name,
-            "role": user_data.role,
-            "departmentId": user_data.department_id,
-            "subjectIds": user_data.subject_ids if user_data.role == "staff" else None,
-            "status": "active",
-            "createdAt": now,
-            "updatedAt": now,
-            "password": user_data.password,  # Storing plain password for MOCK AUTH only!
-        }
+        user_doc_data = normalize_user_data(
+            {
+                "uid": firebase_user.uid,
+                "email": user_data.email,
+                "displayName": user_data.displayName,
+                "role": user_data.role,
+                "departmentId": user_data.departmentId,
+                "subjectIds": user_data.subjectIds,
+                "status": user_data.status,
+                "createdAt": now,
+                "updatedAt": now,
+                "_v": 1,
+                "password": user_data.password,  # Mock auth only.
+            }
+        )
 
-        db.collection("users").document(firebase_user.uid).set(user_doc_data)
+        firestore_user = FirestoreUser(
+            **{
+                key: value
+                for key, value in user_doc_data.items()
+                if key != "password"
+            }
+        )
+
+        db.collection("users").document(firebase_user.uid).set(
+            {
+                **firestore_user.model_dump(by_alias=True),
+                "password": user_data.password,
+            }
+        )
 
         # Get department name for response
         dept_name = None
-        if user_data.department_id:
+        if user_data.departmentId:
             dept_doc = (
-                db.collection("departments").document(user_data.department_id).get()
+                db.collection("departments").document(user_data.departmentId).get()
             )
             if dept_doc.exists:
                 dept_name = dept_doc.to_dict().get("name")
@@ -315,13 +317,13 @@ async def create_user(user_data: UserCreate, admin: UserInfo = Depends(require_a
         return UserResponse(
             id=firebase_user.uid,
             email=user_data.email,
-            display_name=user_data.display_name,
+            display_name=user_data.displayName,
             role=user_data.role,
-            department_id=user_data.department_id,
+            department_id=user_data.departmentId,
             department_name=dept_name,
-            subject_ids=user_data.subject_ids if user_data.role == "staff" else None,
+            subject_ids=user_data.subjectIds if user_data.role == "staff" else None,
             subject_names=subject_names if user_data.role == "staff" else None,
-            status="active",
+            status=user_data.status,
             created_at=now,
             updated_at=now,
         )
@@ -399,7 +401,7 @@ async def get_user(user_id: str, current_user: UserInfo = Depends(get_current_us
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: str, update_data: UserUpdate, admin: UserInfo = Depends(require_admin)
+    user_id: str, update_data: UpdateUserInput, admin: UserInfo = Depends(require_admin)
 ):
     """
     Update a user. Admin only.
@@ -415,36 +417,87 @@ async def update_user(
         )
 
     current_data = user_doc.to_dict()
+    current_role = current_data.get("role", "student")
+    current_department_id = current_data.get("departmentId")
+    current_subject_ids = current_data.get("subjectIds") or []
+
+    new_role = update_data.role or current_role
+    new_department_id = (
+        update_data.departmentId
+        if update_data.departmentId is not None
+        else current_department_id
+    )
+
+    if update_data.subjectIds is not None:
+        new_subject_ids = update_data.subjectIds
+    elif update_data.role is not None and update_data.role in ("admin", "student"):
+        new_subject_ids = []
+    else:
+        new_subject_ids = current_subject_ids
+
+    try:
+        validate_user_role_constraints(
+            new_role,
+            new_department_id,
+            new_subject_ids,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
 
     # Build update dict
     updates = {"updatedAt": datetime.utcnow().isoformat()}
 
-    if update_data.display_name is not None:
-        updates["displayName"] = update_data.display_name
+    if update_data.displayName is not None:
+        updates["displayName"] = update_data.displayName
         # Also update in Firebase Auth
         try:
-            firebase_auth.update_user(user_id, display_name=update_data.display_name)
+            firebase_auth.update_user(
+                user_id,
+                display_name=update_data.displayName,
+            )
         except Exception:
             pass  # Non-critical, continue with Firestore update
+
+    if update_data.email is not None:
+        existing_users = (
+            db.collection("users")
+            .where("email", "==", update_data.email)
+            .limit(1)
+            .stream()
+        )
+        for doc in existing_users:
+            if doc.id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A user with this email already exists",
+                )
+        updates["email"] = update_data.email
+        try:
+            firebase_auth.update_user(user_id, email=update_data.email)
+        except Exception:
+            pass
 
     if update_data.role is not None:
         updates["role"] = update_data.role
 
-    if update_data.department_id is not None:
+    if update_data.departmentId is not None:
         # Verify department exists
         dept_doc = (
-            db.collection("departments").document(update_data.department_id).get()
+            db.collection("departments").document(update_data.departmentId).get()
         )
         if not dept_doc.exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Department {update_data.department_id} not found",
+                detail=f"Department {update_data.departmentId} not found",
             )
-        updates["departmentId"] = update_data.department_id
+        updates["departmentId"] = update_data.departmentId
 
     # Handle subject_ids update for staff users
-    if update_data.subject_ids is not None:
-        if len(update_data.subject_ids) == 0:
+    if update_data.subjectIds is not None:
+        if len(update_data.subjectIds) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="At least one subject ID is required",
@@ -452,14 +505,16 @@ async def update_user(
         # Verify all subject IDs exist
         from hierarchy_crud import find_doc_by_id
 
-        for subject_id in update_data.subject_ids:
+        for subject_id in update_data.subjectIds:
             subject_ref = find_doc_by_id("subjects", subject_id)
             if not subject_ref:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Subject {subject_id} not found",
                 )
-        updates["subjectIds"] = update_data.subject_ids
+        updates["subjectIds"] = update_data.subjectIds
+    elif update_data.role is not None and update_data.role in ("admin", "student"):
+        updates["subjectIds"] = []
 
     if update_data.status is not None:
         updates["status"] = update_data.status

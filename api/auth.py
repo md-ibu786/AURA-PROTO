@@ -40,8 +40,14 @@ from pydantic import BaseModel
 
 try:
     from config import db
+    from models import CreateUserInput
+    from models import FirestoreUser
+    from models import UpdateUserInput
 except ImportError:
     from api.config import db
+    from api.models import CreateUserInput
+    from api.models import FirestoreUser
+    from api.models import UpdateUserInput
 
 
 security = HTTPBearer(auto_error=False)

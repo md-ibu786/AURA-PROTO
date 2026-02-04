@@ -81,7 +81,7 @@ Technical Notes:
 **Plans**: 3 plans
 
 Plans:
-- [ ] [02-01-PLAN.md](phases/02-firestore-schema-rules/02-01-PLAN.md): User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
+- [x] [02-01-PLAN.md](phases/02-firestore-schema-rules/02-01-PLAN.md): User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
 - [ ] [02-02-PLAN.md](phases/02-firestore-schema-rules/02-02-PLAN.md): Security rules implementation - Write `firestore.rules` with helper functions for RBAC
 - [ ] [02-03-PLAN.md](phases/02-firestore-schema-rules/02-03-PLAN.md): Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
 
@@ -338,7 +338,7 @@ Technical Notes (from research):
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
-| 2. Firestore Schema & Security Rules | 0/3 | Not started | - |
+| 2. Firestore Schema & Security Rules | 1/3 | In progress | - |
 | 3. Data Migration | 0/2 | Not started | - |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |
 | 5. Frontend Firebase SDK Integration | 0/3 | Not started | - |

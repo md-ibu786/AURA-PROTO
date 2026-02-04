@@ -187,6 +187,8 @@ playwright-report/
 # DOCUMENTATIONS
 # =============================================================================
 documentations/
+!documentations/
+!documentations/firebase-schema.md
 
 # =============================================================================
 # EXCEPTIONS - AI agent guidance files

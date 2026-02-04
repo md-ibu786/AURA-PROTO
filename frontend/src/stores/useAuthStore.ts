@@ -40,27 +40,31 @@ import {
     type User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '../api/firebaseClient';
+import type { FirestoreUser, UserRole, UserStatus } from '../types/user';
 
-// User role type
-export type UserRole = 'admin' | 'staff' | 'student';
+export type { UserRole };
 
 // User info interface
-export interface AuthUser {
+type FirestoreUserBase = Omit<
+    FirestoreUser,
+    'uid' | 'createdAt' | 'updatedAt' | 'displayName' | 'subjectIds' | '_v'
+>;
+
+export interface AuthUser extends FirestoreUserBase {
     id: string;
-    email: string;
     displayName: string | null;
-    role: UserRole;
-    departmentId: string | null;
     departmentName: string | null;
     subjectIds: string[] | null;
-    status: string;
+    status: UserStatus;
 }
+
+type FirebaseTokenProvider = Pick<FirebaseUser, 'getIdToken'>;
 
 // Auth state interface
 interface AuthState {
     // State
     user: AuthUser | null;
-    firebaseUser: FirebaseUser | null;
+    firebaseUser: FirebaseTokenProvider | null;
     isLoading: boolean;
     isInitialized: boolean;
     error: string | null;
@@ -80,7 +84,7 @@ interface AuthState {
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     setUser: (user: AuthUser | null) => void;
-    setFirebaseUser: (user: FirebaseUser | null) => void;
+    setFirebaseUser: (user: FirebaseTokenProvider | null) => void;
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     setInitialized: (initialized: boolean) => void;
@@ -188,9 +192,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             // Create dummy firebase user for refresh logic if needed
-            const dummyAuth = {
+            const dummyAuth: FirebaseTokenProvider = {
                 getIdToken: async () => token
-            } as any;
+            };
 
             set({ firebaseUser: dummyAuth });
 
