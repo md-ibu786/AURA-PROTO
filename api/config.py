@@ -28,16 +28,19 @@ USAGE:
 import os
 from pathlib import Path
 
+import dotenv
 import firebase_admin
-from dotenv import load_dotenv
-from firebase_admin import credentials, firestore, auth as firebase_auth
+from firebase_admin import auth as firebase_auth
+from firebase_admin import credentials
+from firebase_admin import firestore
 from google.cloud.firestore_v1.async_client import AsyncClient
 
 
 # Load environment variables from .env
-dotenv_path = Path(__file__).parent.parent / ".env"
-if dotenv_path.exists():
-    load_dotenv(dotenv_path)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DOTENV_PATH = PROJECT_ROOT / ".env"
+if DOTENV_PATH.exists():
+    dotenv.load_dotenv(DOTENV_PATH)
 
 # Google Cloud / Vertex AI Configuration
 VERTEX_PROJECT = os.getenv("VERTEX_PROJECT", "lucky-processor-480412-n8")
@@ -83,81 +86,106 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))
 
 # Mock Database Configuration
-USE_MOCK_DB = os.environ.get("USE_REAL_FIREBASE", "false").lower() != "true"
+USE_REAL_FIREBASE = os.getenv("USE_REAL_FIREBASE", "false").lower() == "true"
+USE_MOCK_DB = not USE_REAL_FIREBASE
 
 # Global database instance
 _db_instance = None
+_auth_instance = None
+
+
+def _resolve_credentials_path():
+    """Resolve the Firebase credentials file path.
+
+    Args:
+        None.
+
+    Returns:
+        Path: Absolute path to the service account JSON file.
+
+    Raises:
+        None.
+    """
+    env_path = os.getenv("FIREBASE_CREDENTIALS")
+    if env_path:
+        path = Path(env_path)
+        if not path.is_absolute():
+            path = PROJECT_ROOT / env_path
+        return path
+    return PROJECT_ROOT / "serviceAccountKey.json"
 
 
 def get_db():
-    """
-    Get Firestore database client (mock or real).
+    """Get Firestore database client (mock or real).
 
-    Returns MockFirestoreClient if USE_MOCK_DB is True, otherwise returns
-    real Firestore client. Uses singleton pattern to avoid re-initialization.
+    Args:
+        None.
 
     Returns:
-        Firestore client or MockFirestoreClient instance
+        object: Firestore client or MockFirestoreClient instance.
+
+    Raises:
+        FileNotFoundError: If real Firebase credentials are missing.
     """
     global _db_instance
     if _db_instance is None:
         if USE_MOCK_DB:
-            from mock_firestore import MockFirestoreClient
+            from mock_firestore import get_mock_db
 
-            _db_instance = MockFirestoreClient()
+            _db_instance = get_mock_db()
         else:
-            # Real Firebase initialization
-            _db_instance = init_firebase()
+            init_firebase()
+            _db_instance = firestore.client()
     return _db_instance
 
 
 def init_firebase():
-    """Initializes Firebase Admin SDK and returns Firestore client."""
+    """Initialize Firebase Admin SDK.
+
+    Args:
+        None.
+
+    Returns:
+        None.
+
+    Raises:
+        FileNotFoundError: If real Firebase credentials are missing.
+    """
     if not firebase_admin._apps:
-        key_path = os.environ.get("FIREBASE_CREDENTIALS")
-        if key_path and not os.path.isabs(key_path):
-            key_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                key_path,
-            )
-
-        if not key_path:
-            key_path = os.path.join(
-                os.path.dirname(os.path.dirname(__file__)),
-                "serviceAccountKey.json",
-            )
-
-        if not os.path.exists(key_path):
-            raise FileNotFoundError(
-                f"Service account key not found at {key_path}",
-            )
-
-        cred = credentials.Certificate(key_path)
-        firebase_admin.initialize_app(cred)
-
-    return firestore.client()
+        if USE_REAL_FIREBASE:
+            key_path = _resolve_credentials_path()
+            if not key_path.exists():
+                raise FileNotFoundError(
+                    f"Firebase credentials not found: {key_path}",
+                )
+            cred = credentials.Certificate(str(key_path))
+            firebase_admin.initialize_app(cred)
+            print("Firebase initialized with service account")
+        else:
+            firebase_admin.initialize_app()
 
 
 def init_async_firebase():
-    """Returns an async Firestore client for async endpoints."""
+    """Return an async Firestore client for async endpoints.
+
+    Args:
+        None.
+
+    Returns:
+        AsyncClient: Async Firestore client instance.
+
+    Raises:
+        FileNotFoundError: If real Firebase credentials are missing.
+    """
     if not firebase_admin._apps:
         init_firebase()
 
-    key_path = os.environ.get("FIREBASE_CREDENTIALS")
-    if key_path and not os.path.isabs(key_path):
-        key_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            key_path,
-        )
-    if not key_path:
-        key_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)),
-            "serviceAccountKey.json",
-        )
-
+    key_path = _resolve_credentials_path()
     from google.oauth2 import service_account
 
-    creds = service_account.Credentials.from_service_account_file(key_path)
+    creds = service_account.Credentials.from_service_account_file(
+        str(key_path),
+    )
     return AsyncClient(credentials=creds)
 
 
@@ -184,9 +212,29 @@ if not USE_MOCK_DB:
 else:
     async_db = db
 
-if USE_MOCK_DB:
-    from mock_firestore import MockAuth
 
-    auth = MockAuth()
-else:
-    auth = firebase_auth
+def get_auth():
+    """Get Firebase auth module or mock auth.
+
+    Args:
+        None.
+
+    Returns:
+        object: MockAuth instance or firebase_admin.auth module.
+
+    Raises:
+        None.
+    """
+    global _auth_instance
+    if _auth_instance is None:
+        if USE_MOCK_DB:
+            from mock_firestore import MockAuth
+
+            _auth_instance = MockAuth()
+        else:
+            init_firebase()
+            _auth_instance = firebase_auth
+    return _auth_instance
+
+
+auth = get_auth()

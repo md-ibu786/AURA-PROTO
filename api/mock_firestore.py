@@ -329,6 +329,21 @@ class MockFirestoreClient:
         return MockTransaction(self)
 
 
+def get_mock_db():
+    """Create a mock Firestore client instance.
+
+    Args:
+        None.
+
+    Returns:
+        MockFirestoreClient: New mock client instance.
+
+    Raises:
+        None.
+    """
+    return MockFirestoreClient()
+
+
 class MockPreloadedQuery:
     def __init__(self, items):
         self.items = items
