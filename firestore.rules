@@ -2,109 +2,241 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     // ========== HELPER FUNCTIONS ==========
-    
+
     // Check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Validate required string field
-    function hasValidName() {
-      return request.resource.data.name is string 
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() < 200;
+
+    // Get current user's UID
+    function currentUserId() {
+      return request.auth.uid;
     }
-    
-    // Validate code field (optional but must be string if present)
-    function hasValidCode() {
-      return !('code' in request.resource.data) 
-          || (request.resource.data.code is string 
-              && request.resource.data.code.size() < 50);
+
+    // Check Custom Claims for global role
+    function hasRole(role) {
+      return isAuthenticated() && request.auth.token.role == role;
     }
-    
+
+    function isAdmin() {
+      return hasRole('admin');
+    }
+
+    function isStaff() {
+      return hasRole('staff');
+    }
+
+    function isStudent() {
+      return hasRole('student');
+    }
+
+    // Get user document from Firestore (for granular permissions)
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(currentUserId()));
+    }
+
+    function userData() {
+      return userDoc().data;
+    }
+
+    // Check if user is in a specific department (Firestore lookup)
+    function isInDepartment(departmentId) {
+      return isAuthenticated() && userData().departmentId == departmentId;
+    }
+
+    // Check if user has access to a specific subject (Firestore lookup)
+    function hasSubjectAccess(subjectId) {
+      return isAuthenticated() && subjectId in userData().subjectIds;
+    }
+
+    // Check if document is in user's department (for read operations)
+    function isDocumentInMyDepartment(data) {
+      return isInDepartment(data.departmentId);
+    }
+
+    // ========== VALIDATION FUNCTIONS ==========
+
+    function hasValidName(data) {
+      return data.name is string
+          && data.name.size() > 0
+          && data.name.size() < 200;
+    }
+
+    function hasValidCode(data) {
+      return !('code' in data)
+          || (data.code is string && data.code.size() < 50);
+    }
+
+    function hasValidSemesterNumber(data) {
+      return ('semester_number' in data && data.semester_number is int)
+          || ('semesterNumber' in data && data.semesterNumber is int);
+    }
+
+    function hasValidModuleNumber(data) {
+      return ('module_number' in data && data.module_number is int)
+          || ('moduleNumber' in data && data.moduleNumber is int);
+    }
+
+    function isValidDepartment(data) {
+      return hasValidName(data) && hasValidCode(data);
+    }
+
+    function isValidSemester(data) {
+      return hasValidName(data) && hasValidSemesterNumber(data);
+    }
+
+    function isValidSubject(data) {
+      return hasValidName(data) && hasValidCode(data);
+    }
+
+    function isValidModule(data) {
+      return hasValidName(data) && hasValidModuleNumber(data);
+    }
+
+    function isValidNote(note) {
+      return note.keys().hasAll(['title', 'content', 'subjectId', 'departmentId'])
+          && note.title is string
+          && note.content is string
+          && note.subjectId is string
+          && note.departmentId is string;
+    }
+
+    function isValidUser(user) {
+      return user.keys().hasAll(['uid', 'email', 'role', 'status', 'createdAt', 'updatedAt', '_v'])
+          && user.uid is string
+          && user.email is string
+          && user.role in ['admin', 'staff', 'student']
+          && user.status in ['active', 'disabled']
+          && user.createdAt is string
+          && user.updatedAt is string
+          && user._v is int
+          && (!('displayName' in user) || user.displayName is string)
+          && (!('departmentId' in user) || user.departmentId is string || user.departmentId == null)
+          && (!('subjectIds' in user) || user.subjectIds is list);
+    }
+
+    function hasValidUserRoleFields(user) {
+      return (user.role == 'student'
+          && user.departmentId is string
+          && user.subjectIds is list
+          && user.subjectIds.size() == 0)
+          || (user.role == 'staff'
+          && user.subjectIds is list
+          && user.subjectIds.size() > 0)
+          || (user.role == 'admin');
+    }
+
     // ========== DEFAULT DENY ==========
-    
+
+    // Deny all access by default
     match /{document=**} {
       allow read, write: if false;
     }
-    
+
+    // ========== USERS COLLECTION ==========
+
+    match /users/{userId} {
+      // Users can read their own document, admins can read all
+      allow get: if isAdmin() || (isAuthenticated() && currentUserId() == userId);
+
+      // Admins can list all users
+      allow list: if isAdmin();
+
+      // Only admins can create/update/delete users
+      allow create: if isAdmin()
+          && isValidUser(request.resource.data)
+          && hasValidUserRoleFields(request.resource.data)
+          && request.resource.data.uid == userId;
+
+      allow update: if isAdmin()
+          && isValidUser(request.resource.data)
+          && hasValidUserRoleFields(request.resource.data)
+          && request.resource.data.uid == userId;
+
+      allow delete: if isAdmin();
+    }
+
     // ========== DEPARTMENTS ==========
-    
+
     match /departments/{departmentId} {
-      // Read: Allow all (public hierarchy for now)
-      allow read: if true;
-      
-      // Write: Require auth + valid data
-      allow create: if isAuthenticated() 
-                    && hasValidName() 
-                    && hasValidCode();
-      allow update: if isAuthenticated() 
-                    && hasValidName();
-      allow delete: if isAuthenticated();
-      
+      // Anyone authenticated can read departments
+      allow read: if isAuthenticated();
+
+      // Only admins can modify departments
+      allow create, update: if isAdmin() && isValidDepartment(request.resource.data);
+      allow delete: if isAdmin();
+
       // ========== SEMESTERS ==========
-      
+
       match /semesters/{semesterId} {
-        allow read: if true;
-        
-        allow create: if isAuthenticated() 
-                      && hasValidName()
-                      && request.resource.data.semester_number is int;
-        allow update: if isAuthenticated() && hasValidName();
-        allow delete: if isAuthenticated();
-        
+        // Anyone authenticated can read semesters
+        allow read: if isAuthenticated();
+
+        // Only admins can modify semesters
+        allow create, update: if isAdmin() && isValidSemester(request.resource.data);
+        allow delete: if isAdmin();
+
         // ========== SUBJECTS ==========
-        
+
         match /subjects/{subjectId} {
-          allow read: if true;
-          
-          allow create: if isAuthenticated() 
-                        && hasValidName() 
-                        && hasValidCode();
-          allow update: if isAuthenticated() && hasValidName();
-          allow delete: if isAuthenticated();
-          
+          // Anyone authenticated can read subjects
+          allow read: if isAuthenticated();
+
+          // Only admins can create/delete subjects
+          allow create: if isAdmin() && isValidSubject(request.resource.data);
+          allow delete: if isAdmin();
+
+          // Admins can update any subject
+          // Staff can update subjects they have access to
+          allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+              && isValidSubject(request.resource.data);
+
           // ========== MODULES ==========
-          
+
           match /modules/{moduleId} {
-            allow read: if true;
-            
-            allow create: if isAuthenticated() 
-                          && hasValidName()
-                          && request.resource.data.module_number is int;
-            allow update: if isAuthenticated() && hasValidName();
-            allow delete: if isAuthenticated();
-            
+            // Anyone authenticated can read modules
+            allow read: if isAuthenticated();
+
+            // Only admins can create/delete modules
+            allow create: if isAdmin() && isValidModule(request.resource.data);
+            allow delete: if isAdmin();
+
+            // Staff can update modules in subjects they have access to
+            allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+                && isValidModule(request.resource.data);
+
             // ========== NOTES ==========
-            
+
             match /notes/{noteId} {
-              allow read: if true;
-              
-              allow create: if isAuthenticated() 
-                            && request.resource.data.title is string;
-              allow update: if isAuthenticated();
-              allow delete: if isAuthenticated();
+              // Students can only read notes in their department
+              // Staff can read notes in subjects they have access to
+              // Admins can read all notes
+              allow read: if isAdmin()
+                  || (isStaff() && hasSubjectAccess(subjectId))
+                  || (isStudent() && isDocumentInMyDepartment(resource.data));
+
+              // Only admins and assigned staff can create notes
+              allow create: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+                  && isValidNote(request.resource.data)
+                  && request.resource.data.subjectId == subjectId
+                  && request.resource.data.departmentId == departmentId;
+
+              // Only admins and assigned staff can update notes
+              allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+                  && isValidNote(request.resource.data)
+                  && request.resource.data.subjectId == subjectId
+                  && request.resource.data.departmentId == departmentId
+                  && resource.data.subjectId == subjectId
+                  && resource.data.departmentId == departmentId;
+
+              // Only admins can delete notes
+              allow delete: if isAdmin();
             }
           }
         }
       }
-    }
-    
-    // ========== COLLECTION GROUP QUERIES ==========
-    
-    match /{path=**}/semesters/{semesterId} {
-      allow read: if true;
-    }
-    match /{path=**}/subjects/{subjectId} {
-      allow read: if true;
-    }
-    match /{path=**}/modules/{moduleId} {
-      allow read: if true;
-    }
-    match /{path=**}/notes/{noteId} {
-      allow read: if true;
     }
   }
 }

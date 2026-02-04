@@ -82,7 +82,7 @@ Technical Notes:
 
 Plans:
 - [x] [02-01-PLAN.md](phases/02-firestore-schema-rules/02-01-PLAN.md): User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
-- [ ] [02-02-PLAN.md](phases/02-firestore-schema-rules/02-02-PLAN.md): Security rules implementation - Write `firestore.rules` with helper functions for RBAC
+- [x] [02-02-PLAN.md](phases/02-firestore-schema-rules/02-02-PLAN.md): Security rules implementation - Write `firestore.rules` with helper functions for RBAC
 - [ ] [02-03-PLAN.md](phases/02-firestore-schema-rules/02-03-PLAN.md): Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
 
 Key Deliverables:
@@ -198,9 +198,9 @@ Technical Notes (from research):
 **Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: Firebase SDK setup - Install and configure Firebase SDK in frontend
-- [ ] 05-02: Auth flow implementation - Update LoginPage to use `signInWithEmailAndPassword()`
-- [ ] 05-03: Token management - Implement `onIdTokenChanged()` listener and API client interceptors
+- [x] [05-01-PLAN.md](phases/05-frontend-firebase-sdk/05-01-PLAN.md): Firebase SDK setup - Verify configuration and add App Check initialization
+- [x] [05-02-PLAN.md](phases/05-frontend-firebase-sdk/05-02-PLAN.md): Auth flow implementation - Update LoginPage to use `signInWithEmailAndPassword()`
+- [x] [05-03-PLAN.md](phases/05-frontend-firebase-sdk/05-03-PLAN.md): Token management - Implement `onIdTokenChanged()` listener and API client interceptors
 
 Key Deliverables:
 - `frontend/src/lib/firebase.ts`:
@@ -338,10 +338,10 @@ Technical Notes (from research):
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
-| 2. Firestore Schema & Security Rules | 1/3 | In progress | - |
+| 2. Firestore Schema & Security Rules | 2/3 | In progress | - |
 | 3. Data Migration | 0/2 | Not started | - |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |
-| 5. Frontend Firebase SDK Integration | 0/3 | Not started | - |
+| 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
 | 6. App Check & Security Hardening | 0/3 | Not started | - |
 | 7. Testing & Verification | 0/3 | Not started | - |
 
