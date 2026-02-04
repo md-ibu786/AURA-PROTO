@@ -28,14 +28,15 @@
 - Added `.gitignore` exceptions so `documentations/firebase-schema.md` is tracked.
 - Included `password` in `CreateUserInput` to keep admin create-user flow and mock login compatibility.
 - Guarded `api/__init__.py` imports to prevent PyMuPDF DLL errors from blocking `from api.auth import FirestoreUser` verification.
+- Reinstalled `PyMuPDF`/`PyMuPDFb` in the project venv to resolve DLL load failures and unblock `pytest`.
 
 ## Issues Encountered
-- `pytest` failed during collection due to PyMuPDF DLL load failure (`fitz` / `pymupdf`), affecting `tests/test_audio_validation.py`, `tests/test_department_duplicates.py`, and `tests/test_graph_preview.py`.
+- `pytest` initially failed during collection due to PyMuPDF DLL load failure (`fitz` / `pymupdf`), affecting `tests/test_audio_validation.py`, `tests/test_department_duplicates.py`, and `tests/test_graph_preview.py`. Reinstalling `PyMuPDF`/`PyMuPDFb` resolved the issue; `pytest` now passes.
 - Python 3.10 EOL warning from `google.api_core` surfaced during verification commands (non-blocking).
 
 ## Next Phase Readiness
 - Phase 02-01 complete and ready for `02-02-PLAN.md`.
-- Full test suite remains blocked by PyMuPDF DLL issue; resolve before relying on `pytest` results.
+- Full test suite passes after PyMuPDF reinstall; ready to proceed.
 
 ---
 *Phase: 02-firestore-schema-rules*
