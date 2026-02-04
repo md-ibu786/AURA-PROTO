@@ -179,6 +179,11 @@ test_women_empowerment.py
 test-results/
 playwright-report/
 .pytest_cache/
+# Firestore security rules tests (keep tracked)
+!tests/
+tests/*
+!tests/firestore/
+!tests/firestore/**
 # Exception: Keep E2E test documentation (plan deliverable)
 !api/tests/
 !api/tests/E2E_TEST_GUIDE.md

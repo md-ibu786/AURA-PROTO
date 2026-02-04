@@ -15,9 +15,19 @@ service cloud.firestore {
       return request.auth.uid;
     }
 
+    function hasStatusClaim() {
+      return 'status' in request.auth.token;
+    }
+
+    // Check if authenticated user is active (uses status claim if present)
+    function isActiveUser() {
+      return isAuthenticated()
+          && (!hasStatusClaim() || request.auth.token.status == 'active');
+    }
+
     // Check Custom Claims for global role
     function hasRole(role) {
-      return isAuthenticated() && request.auth.token.role == role;
+      return isActiveUser() && request.auth.token.role == role;
     }
 
     function isAdmin() {
@@ -43,17 +53,25 @@ service cloud.firestore {
 
     // Check if user is in a specific department (Firestore lookup)
     function isInDepartment(departmentId) {
-      return isAuthenticated() && userData().departmentId == departmentId;
+      return isActiveUser()
+          && userDoc().data != null
+          && userDoc().data.departmentId == departmentId;
     }
 
     // Check if user has access to a specific subject (Firestore lookup)
     function hasSubjectAccess(subjectId) {
-      return isAuthenticated() && subjectId in userData().subjectIds;
+      return isActiveUser()
+          && userDoc().data != null
+          && userDoc().data.subjectIds is list
+          && subjectId in userDoc().data.subjectIds;
     }
 
     // Check if document is in user's department (for read operations)
     function isDocumentInMyDepartment(data) {
-      return isInDepartment(data.departmentId);
+      return isActiveUser()
+          && data != null
+          && userDoc().data != null
+          && data.departmentId == userDoc().data.departmentId;
     }
 
     // ========== VALIDATION FUNCTIONS ==========
@@ -162,7 +180,7 @@ service cloud.firestore {
 
     match /departments/{departmentId} {
       // Anyone authenticated can read departments
-      allow read: if isAuthenticated();
+      allow read: if isActiveUser();
 
       // Only admins can modify departments
       allow create, update: if isAdmin() && isValidDepartment(request.resource.data);
@@ -172,7 +190,7 @@ service cloud.firestore {
 
       match /semesters/{semesterId} {
         // Anyone authenticated can read semesters
-        allow read: if isAuthenticated();
+        allow read: if isActiveUser();
 
         // Only admins can modify semesters
         allow create, update: if isAdmin() && isValidSemester(request.resource.data);
@@ -182,7 +200,7 @@ service cloud.firestore {
 
         match /subjects/{subjectId} {
           // Anyone authenticated can read subjects
-          allow read: if isAuthenticated();
+          allow read: if isActiveUser();
 
           // Only admins can create/delete subjects
           allow create: if isAdmin() && isValidSubject(request.resource.data);
@@ -197,7 +215,7 @@ service cloud.firestore {
 
           match /modules/{moduleId} {
             // Anyone authenticated can read modules
-            allow read: if isAuthenticated();
+            allow read: if isActiveUser();
 
             // Only admins can create/delete modules
             allow create: if isAdmin() && isValidModule(request.resource.data);

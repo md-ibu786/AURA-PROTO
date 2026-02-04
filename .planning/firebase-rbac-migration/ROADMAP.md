@@ -43,7 +43,7 @@ This roadmap outlines the migration from mock authentication (`mock_db.json` / `
 ## Phases
 
 - [x] **Phase 1: Infrastructure & Configuration** - Firebase project setup and credentials
-- [ ] **Phase 2: Firestore Schema & Security Rules** - Production schema and RBAC rules
+- [x] **Phase 2: Firestore Schema & Security Rules** - Production schema and RBAC rules
 - [ ] **Phase 3: Data Migration** - Seed production Firestore from mock_db.json
 - [ ] **Phase 4: Backend Auth Refactor** - Real ID token verification in FastAPI
 - [ ] **Phase 5: Frontend Firebase SDK Integration** - Real Firebase Auth in React
@@ -83,7 +83,7 @@ Technical Notes:
 Plans:
 - [x] [02-01-PLAN.md](phases/02-firestore-schema-rules/02-01-PLAN.md): User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
 - [x] [02-02-PLAN.md](phases/02-firestore-schema-rules/02-02-PLAN.md): Security rules implementation - Write `firestore.rules` with helper functions for RBAC
-- [ ] [02-03-PLAN.md](phases/02-firestore-schema-rules/02-03-PLAN.md): Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
+- [x] [02-03-PLAN.md](phases/02-firestore-schema-rules/02-03-PLAN.md): Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
 
 Key Deliverables:
 - `users` collection schema:
@@ -338,7 +338,7 @@ Technical Notes (from research):
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
-| 2. Firestore Schema & Security Rules | 2/3 | In progress | - |
+| 2. Firestore Schema & Security Rules | 3/3 | Complete | 2026-02-04 |
 | 3. Data Migration | 0/2 | Not started | - |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
