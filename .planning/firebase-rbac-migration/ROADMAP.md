@@ -58,8 +58,8 @@ This roadmap outlines the migration from mock authentication (`mock_db.json` / `
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: Firebase project setup - Create/configure project, enable Auth & Firestore, download service account key
-- [ ] 01-02: Backend configuration - Update `api/config.py` with environment-based Firebase initialization
+- [ ] [01-01-PLAN.md](phases/01-infrastructure-config/01-01-PLAN.md): Firebase project setup - Create/configure project, enable Auth & Firestore, download service account key
+- [ ] [01-02-PLAN.md](phases/01-infrastructure-config/01-02-PLAN.md): Backend configuration - Update `api/config.py` with environment-based Firebase initialization
 
 Key Deliverables:
 - Firebase project with Authentication and Firestore enabled
@@ -81,9 +81,9 @@ Technical Notes:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
-- [ ] 02-02: Security rules implementation - Write `firestore.rules` with helper functions for RBAC
-- [ ] 02-03: Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
+- [ ] [02-01-PLAN.md](phases/02-firestore-schema-rules/02-01-PLAN.md): User collection schema - Define `users/{uid}` document structure with role, departmentId, subjectIds
+- [ ] [02-02-PLAN.md](phases/02-firestore-schema-rules/02-02-PLAN.md): Security rules implementation - Write `firestore.rules` with helper functions for RBAC
+- [ ] [02-03-PLAN.md](phases/02-firestore-schema-rules/02-03-PLAN.md): Security rules testing - Unit tests using Firebase Emulator and `@firebase/rules-unit-testing`
 
 Key Deliverables:
 - `users` collection schema:
@@ -127,8 +127,8 @@ Technical Notes (from research):
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: Migration script - Create `tools/seed_firestore.py` using BulkWriter for idempotent migration
-- [ ] 03-02: Execute and verify - Run migration, verify in Firebase Console, document rollback procedure
+- [ ] [03-01-PLAN.md](phases/03-data-migration/03-01-PLAN.md): Migration script - Create `tools/seed_firestore.py` using BulkWriter for idempotent migration
+- [ ] [03-02-PLAN.md](phases/03-data-migration/03-02-PLAN.md): Execute and verify - Run migration, verify in Firebase Console, document rollback procedure
 
 Key Deliverables:
 - `tools/seed_firestore.py` with:
