@@ -58,7 +58,7 @@ This roadmap outlines the migration from mock authentication (`mock_db.json` / `
 **Plans**: 2 plans
 
 Plans:
-- [ ] [01-01-PLAN.md](phases/01-infrastructure-config/01-01-PLAN.md): Firebase project setup - Create/configure project, enable Auth & Firestore, download service account key
+- [x] [01-01-PLAN.md](phases/01-infrastructure-config/01-01-PLAN.md): Firebase project setup - Create/configure project, enable Auth & Firestore, download service account key
 - [ ] [01-02-PLAN.md](phases/01-infrastructure-config/01-02-PLAN.md): Backend configuration - Update `api/config.py` with environment-based Firebase initialization
 
 Key Deliverables:
@@ -337,7 +337,7 @@ Technical Notes (from research):
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure & Configuration | 0/2 | Not started | - |
+| 1. Infrastructure & Configuration | 1/2 | In progress | - |
 | 2. Firestore Schema & Security Rules | 0/3 | Not started | - |
 | 3. Data Migration | 0/2 | Not started | - |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |

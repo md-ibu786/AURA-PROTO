@@ -95,6 +95,9 @@ firestore-emulator/
 *.env
 config.json
 serviceAccountKey.json
+serviceAccountKey*.json
+*adminsdk*.json
+.env.firebase
 credentials.json
 *.key
 *.pem
