@@ -37,12 +37,13 @@
  * ============================================================================
  */
 import { useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useExplorerStore } from '../../stores';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { SidebarTree } from '../explorer/SidebarTree';
 import { UploadDialog } from '../explorer/UploadDialog';
 import type { FileSystemNode, HierarchyType } from '../../types';
-import { FolderTree, Upload, Plus, LogOut } from 'lucide-react';
+import { FolderTree, Upload, Plus, LogOut, Shield, LayoutGrid } from 'lucide-react';
 
 interface SidebarProps {
     tree: FileSystemNode[];
@@ -52,7 +53,11 @@ interface SidebarProps {
 export function Sidebar({ tree, isLoading }: SidebarProps) {
     const { currentPath, startCreating } = useExplorerStore();
     const { user, logout } = useAuthStore();
+    const location = useLocation();
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+
+    const isAdmin = user?.role === 'admin';
+    const isAdminPath = location.pathname.startsWith('/admin');
 
     // Determine what we can create based on current path depth
     // 0 = root (create department)
@@ -98,11 +103,31 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
             <div className="sidebar-header">
                 <div className="flex items-center gap-sm">
                     <FolderTree size={18} className="text-accent" />
-                    <span className="sidebar-title">Explorer</span>
+                    <span className="sidebar-title">AURA</span>
                 </div>
             </div>
 
             <div className="sidebar-content">
+                {isAdmin && (
+                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <Link 
+                            to="/" 
+                            className={`flex items-center gap-sm p-sm rounded-md transition-colors ${!isAdminPath ? 'bg-accent text-black font-bold' : 'hover:bg-white/5 text-secondary'}`}
+                        >
+                            <LayoutGrid size={18} />
+                            <span>Explorer</span>
+                        </Link>
+                        <Link 
+                            to="/admin" 
+                            className={`flex items-center gap-sm p-sm rounded-md transition-colors ${isAdminPath ? 'bg-accent text-black font-bold' : 'hover:bg-white/5 text-secondary'}`}
+                        >
+                            <Shield size={18} />
+                            <span>Admin Dashboard</span>
+                        </Link>
+                        <div style={{ margin: '8px 0', borderBottom: '1px solid var(--color-border)', opacity: 0.5 }} />
+                    </div>
+                )}
+
                 {isLoading ? (
                     <div className="flex items-center justify-center" style={{ padding: '24px' }}>
                         <div className="spinner" />

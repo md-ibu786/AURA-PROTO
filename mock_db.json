@@ -1,0 +1,175 @@
+{
+  "users": {
+    "mock-user-1769428084546": {
+      "email": "admin@test.com",
+      "displayName": "Admin",
+      "role": "admin",
+      "departmentId": null,
+      "status": "active",
+      "createdAt": "2026-01-26T11:48:04.547957",
+      "updatedAt": "2026-01-26T11:48:04.547957"
+    },
+    "mock-user-1769587075994": {
+      "email": "arun@test.com",
+      "displayName": "Arun",
+      "role": "staff",
+      "departmentId": "407ac4a3-329c-4aa1-9",
+      "status": "active",
+      "createdAt": "2026-01-28T07:57:55.994912",
+      "updatedAt": "2026-02-03T10:59:54.491985",
+      "password": "password",
+      "subjectIds": [
+        "6722b668-e12e-49df-b"
+      ]
+    },
+    "mock-user-1769587837581": {
+      "email": "thiru@test.com",
+      "displayName": "Thiru",
+      "role": "staff",
+      "departmentId": "d08a5267-0612-4834-a",
+      "status": "active",
+      "createdAt": "2026-01-28T08:10:37.581762",
+      "updatedAt": "2026-01-28T08:10:37.581762",
+      "password": "123456"
+    },
+    "mock-user-1769587885095": {
+      "email": "ibu@test.com",
+      "displayName": "Ibrahim",
+      "role": "student",
+      "departmentId": "407ac4a3-329c-4aa1-9",
+      "status": "active",
+      "createdAt": "2026-01-28T08:11:25.095665",
+      "updatedAt": "2026-02-02T05:57:31.762866",
+      "password": "password"
+    },
+    "mock-user-1770110301470": {
+      "email": "peter@admin.com",
+      "displayName": "Peter",
+      "role": "admin",
+      "departmentId": null,
+      "status": "active",
+      "createdAt": "2026-02-03T09:18:21.470619",
+      "updatedAt": "2026-02-03T09:18:21.470619",
+      "password": "admin@123"
+    },
+    "mock-user-1770119448575": {
+      "email": "peter@staff.com",
+      "displayName": "Peter-Staff",
+      "role": "staff",
+      "departmentId": null,
+      "subjectIds": [
+        "6722b668-e12e-49df-b",
+        "517a7cfb-a08c-490c-b"
+      ],
+      "status": "active",
+      "createdAt": "2026-02-03T11:50:48.575055",
+      "updatedAt": "2026-02-03T11:50:48.575055",
+      "password": "123456"
+    },
+    "mock-user-1770227478174": {
+      "email": "peter@staff2.com",
+      "displayName": "Peter",
+      "role": "staff",
+      "departmentId": null,
+      "subjectIds": [
+        "6722b668-e12e-49df-b"
+      ],
+      "status": "active",
+      "createdAt": "2026-02-04T17:51:18.174565",
+      "updatedAt": "2026-02-04T17:51:18.174565",
+      "password": "admin@123"
+    }
+  },
+  "departments": {
+    "407ac4a3-329c-4aa1-9": {
+      "name": "Computer Science",
+      "code": "CSE",
+      "id": "407ac4a3-329c-4aa1-9"
+    },
+    "d08a5267-0612-4834-a": {
+      "name": "Electrical Engineering",
+      "code": "ECE",
+      "id": "d08a5267-0612-4834-a"
+    },
+    "3c0dbce1-bc40-4e18-9": {
+      "name": "AIDS",
+      "code": "CS",
+      "id": "3c0dbce1-bc40-4e18-9"
+    }
+  },
+  "departments/407ac4a3-329c-4aa1-9/semesters": {
+    "29568b67-fb46-41f4-8": {
+      "name": "SEMESTER 1",
+      "semester_number": 1,
+      "department_id": "407ac4a3-329c-4aa1-9",
+      "id": "29568b67-fb46-41f4-8"
+    }
+  },
+  "departments/407ac4a3-329c-4aa1-9/semesters/29568b67-fb46-41f4-8/subjects": {
+    "517a7cfb-a08c-490c-b": {
+      "name": "OS",
+      "code": "CSD1103",
+      "semester_id": "29568b67-fb46-41f4-8",
+      "id": "517a7cfb-a08c-490c-b"
+    }
+  },
+  "departments/407ac4a3-329c-4aa1-9/semesters/29568b67-fb46-41f4-8/subjects/517a7cfb-a08c-490c-b/modules": {
+    "53350342-de9d-4d3a-a": {
+      "name": "Module 1",
+      "module_number": 1,
+      "subject_id": "517a7cfb-a08c-490c-b",
+      "id": "53350342-de9d-4d3a-a"
+    }
+  },
+  "departments/407ac4a3-329c-4aa1-9/semesters/29568b67-fb46-41f4-8/subjects/517a7cfb-a08c-490c-b/modules/53350342-de9d-4d3a-a/notes": {
+    "600db623-dd85-4a4b-8": {
+      "id": "600db623-dd85-4a4b-8",
+      "title": "AI",
+      "pdf_url": "/pdfs/AI_1770022583.pdf",
+      "created_at": "2026-02-02T14:26:23.444239",
+      "module_id": "53350342-de9d-4d3a-a"
+    }
+  },
+  "departments/d08a5267-0612-4834-a/semesters": {
+    "e42f8161-5c25-4632-a": {
+      "name": "Sem1",
+      "semester_number": 1,
+      "department_id": "d08a5267-0612-4834-a",
+      "id": "e42f8161-5c25-4632-a"
+    }
+  },
+  "departments/d08a5267-0612-4834-a/semesters/e42f8161-5c25-4632-a/subjects": {
+    "6722b668-e12e-49df-b": {
+      "name": "EV",
+      "code": "GED1102",
+      "semester_id": "e42f8161-5c25-4632-a",
+      "id": "6722b668-e12e-49df-b"
+    }
+  },
+  "departments/d08a5267-0612-4834-a/semesters/e42f8161-5c25-4632-a/subjects/6722b668-e12e-49df-b/modules": {
+    "f6bc10c2-6a8d-4fae-b": {
+      "name": "Module 1",
+      "module_number": 1,
+      "subject_id": "6722b668-e12e-49df-b",
+      "id": "f6bc10c2-6a8d-4fae-b"
+    },
+    "2ecc2eaa-f427-42ef-8": {
+      "name": "New Module",
+      "module_number": 2,
+      "subject_id": "6722b668-e12e-49df-b",
+      "id": "2ecc2eaa-f427-42ef-8"
+    },
+    "b42e9e5b-d458-4e08-9": {
+      "name": "New Module (2)",
+      "module_number": 3,
+      "subject_id": "6722b668-e12e-49df-b",
+      "id": "b42e9e5b-d458-4e08-9"
+    }
+  },
+  "departments/d08a5267-0612-4834-a/semesters/e42f8161-5c25-4632-a/subjects/6722b668-e12e-49df-b/modules/f6bc10c2-6a8d-4fae-b/notes": {},
+  "departments/d08a5267-0612-4834-a/semesters/e42f8161-5c25-4632-a/subjects/6722b668-e12e-49df-b/modules/2ecc2eaa-f427-42ef-8/notes": {},
+  "departments/d08a5267-0612-4834-a/semesters/e42f8161-5c25-4632-a/subjects/6722b668-e12e-49df-b/modules/b42e9e5b-d458-4e08-9/notes": {},
+  "departments/3c0dbce1-bc40-4e18-9/semesters": {},
+  "departments/9225b007-439e-4910-9/semesters": {},
+  "departments/91a2cef4-83cb-468f-9/semesters": {}
+}

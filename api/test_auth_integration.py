@@ -66,8 +66,8 @@ class TestLoginEndpoint:
         response = client.post(
             "/api/auth/login",
             json={
-                "email": "staff@test.com",
-                "password": "Staff123!",
+                "email": "arun@test.com",
+                "password": "password",
             },
         )
         assert response.status_code == 200
@@ -156,8 +156,8 @@ class TestRoleProtection:
         login_response = client.post(
             "/api/auth/login",
             json={
-                "email": "staff@test.com",
-                "password": "Staff123!",
+                "email": "arun@test.com",
+                "password": "password",
             },
         )
         token = login_response.json()["token"]

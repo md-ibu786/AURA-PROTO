@@ -7,6 +7,19 @@ LOCATION: tools/seed_users.py
 PURPOSE:
     Seed script to populate test users in Firestore for development.
 
+ROLE IN PROJECT:
+    Provides a repeatable way to seed mock or real Firestore users
+    for local authentication testing and development workflows.
+
+KEY COMPONENTS:
+    - get_seed_users: Returns the seed user payloads
+    - seed_mock_db: Inserts seed users into the mock Firestore client
+    - seed_firestore: Inserts seed users into real Firestore
+
+DEPENDENCIES:
+    - External: None
+    - Internal: api.config, api.mock_firestore
+
 USAGE:
     python tools/seed_users.py
 ============================================================================
@@ -67,17 +80,9 @@ def get_seed_users():
 
 def seed_mock_db():
     """Seed users into MockFirestoreClient."""
-    # Import only the mock_firestore module directly
-    import importlib.util
+    from api.mock_firestore import MockFirestoreClient
 
-    spec = importlib.util.spec_from_file_location(
-        "mock_firestore",
-        os.path.join(os.path.dirname(__file__), "..", "api", "mock_firestore.py"),
-    )
-    mock_firestore = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mock_firestore)
-
-    db = mock_firestore.MockFirestoreClient()
+    db = MockFirestoreClient()
     users = get_seed_users()
 
     print("Seeding users to mock database...")

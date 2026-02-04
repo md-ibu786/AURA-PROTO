@@ -7,4 +7,4 @@
  *
  * @see: useExplorerStore.ts - Zustand store for explorer UI state
  */
-export { useExplorerStore, type UseExplorerStore } from './useExplorerStore';
+export { useExplorerStore } from './useExplorerStore';

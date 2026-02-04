@@ -19,6 +19,18 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
             },
+            '/departments': {
+                target: 'http://127.0.0.1:8001',
+                changeOrigin: true,
+            },
+            '/semesters': {
+                target: 'http://127.0.0.1:8001',
+                changeOrigin: true,
+            },
+            '/subjects': {
+                target: 'http://127.0.0.1:8001',
+                changeOrigin: true,
+            },
             '/pdfs': {
                 target: 'http://127.0.0.1:8001',
                 changeOrigin: true,

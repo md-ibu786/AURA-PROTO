@@ -22,6 +22,8 @@
 import os
 from types import SimpleNamespace
 
+from services import genai_client
+from services.genai_client import get_genai_model
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 
 
@@ -100,6 +102,17 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         ## 4. KEY TAKEAWAYS
         (Bullet points summarizing the 3-5 most critical learning objectives achieved in this lecture.)
         """
+
+    try:
+        genai_model = get_genai_model("gemini-3-flash-preview")
+        if genai_model is not None:
+            response = genai_client.generate_content_with_thinking(
+                genai_model,
+                note_taking_prompt,
+            )
+            return response.text
+    except Exception as e:
+        return f"Note Generation Failed: {str(e)}"
 
     try:
         model = get_model(model_name="models/gemini-3-flash-preview")

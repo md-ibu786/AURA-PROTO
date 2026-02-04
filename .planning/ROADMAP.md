@@ -11,10 +11,10 @@ This roadmap outlines the implementation of a complete authentication system for
 ## Phases
 
 - [x] **Phase 1: Backend Auth Foundation** - Core auth module, mock Firestore, and config updates
-- [ ] **Phase 2: Backend User Management** - User CRUD endpoints and login API
-- [ ] **Phase 3: Frontend Auth State** - Zustand auth store with session persistence
-- [ ] **Phase 4: Frontend Auth UI** - Login page and protected routes
-- [ ] **Phase 5: Seed Data & Integration** - Test users, environment config, and E2E validation
+- [x] **Phase 2: Backend User Management** - User CRUD endpoints and login API
+- [x] **Phase 3: Frontend Auth State** - Zustand auth store with session persistence
+- [x] **Phase 4: Frontend Auth UI** - Login page and protected routes
+- [x] **Phase 5: Seed Data & Integration** - Test users, environment config, and E2E validation
 
 ## Phase Details
 
@@ -40,7 +40,7 @@ Key Deliverables:
 **Plans**: 1 plan
 
 Plans:
-- [ ] [02-01-PLAN.md](phases/02-backend-user-management/02-01-PLAN.md): Create `api/users.py` with user CRUD endpoints (list, create, update, delete, get me) and mount routers
+- [x] [02-01-PLAN.md](phases/02-backend-user-management/02-01-PLAN.md): Create `api/users.py` with user CRUD endpoints (list, create, update, delete, get me) and mount routers
 
 Key Deliverables:
 - POST `/api/auth/login` - Mock login with email/password validation

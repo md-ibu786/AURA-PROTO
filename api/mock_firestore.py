@@ -1,282 +1,475 @@
-# mock_firestore.py
-# Mock Firestore client for local authentication development without Firebase credentials
+"""
+============================================================================
+FILE: mock_firestore.py
+LOCATION: api/mock_firestore.py
+============================================================================
 
-# Provides complete mock implementations of Firestore classes (Collection, Document,
-# Query, Snapshot) and MockAuth for token verification. Enables local development
-# and testing of auth flows without requiring real Firebase project setup.
+PURPOSE:
+    Mock implementations for Firebase Firestore and Authentication services.
+    Provides in-memory implementations of Firestore-like collections, documents,
+    queries, and transactions for testing without connecting to real Firebase.
 
-# @see: api/config.py - Database initialization
-# @see: api/auth.py - Uses MockAuth for token verification
-# @note: Sync implementation only - async would add unnecessary complexity for local dev
+ROLE IN PROJECT:
+    - Enables offline/unit testing of code that depends on Firestore
+    - Provides mock data persistence using a JSON file (mock_db.json)
+    - Supports both sync and async iteration patterns
+    - Mimics Firebase Auth for user management testing
 
-from typing import Any, Optional, Dict, List, Iterator
-import uuid
-from datetime import datetime
+KEY COMPONENTS:
+    - MockFirestoreClient: Main client class for mock Firestore operations
+    - MockCollectionReference: Implements collection.query methods
+    - MockDocumentReference: Implements document CRUD operations
+    - MockDocumentSnapshot: Represents document state with to_dict()
+    - MockQuery: Supports where(), order_by(), limit() operations
+    - MockTransaction: Implements transactional operations
+    - MockAuth: Mock Firebase Authentication service
+    - MockUserRecord: User data container for auth mocking
+
+DEPENDENCIES:
+    - External: None (pure Python implementation)
+    - Internal: None (self-contained module)
+
+USAGE:
+    from mock_firestore import MockFirestoreClient
+
+    client = MockFirestoreClient()
+    collection = client.collection('users')
+    doc = collection.document('user-1')
+    doc.set({'name': 'John', 'age': 30})
+
+============================================================================
+"""
+import json
+import os
+import time
+from typing import Any, Dict, List, Optional, Generator, AsyncGenerator
 
 
-# Global in-memory database
-MOCK_DB: Dict[str, Dict[str, Any]] = {}
+class MockAsyncIterator:
+    """Wrapper to support both sync and async iteration over a list of items."""
 
+    def __init__(self, items):
+        self.items = items
+        self.index = 0
 
-class MockDocumentSnapshot:
-    """Wrapper for document data returned by queries and get() operations."""
-    
-    def __init__(self, doc_id: str, data: Optional[Dict[str, Any]]):
-        self._id = doc_id
-        self._data = data
-    
-    @property
-    def exists(self) -> bool:
-        """Returns True if document exists."""
-        return self._data is not None
-    
-    @property
-    def id(self) -> str:
-        """Returns document ID."""
-        return self._id
-    
-    def to_dict(self) -> Optional[Dict[str, Any]]:
-        """Returns document data as dictionary."""
-        return self._data
-    
-    def get(self, field: str) -> Any:
-        """Get specific field value from document."""
-        if self._data is None:
-            return None
-        return self._data.get(field)
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self.index >= len(self.items):
+            raise StopIteration
+        item = self.items[self.index]
+        self.index += 1
+        return item
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        try:
+            return self.__next__()
+        except StopIteration:
+            raise StopAsyncIteration
 
 
 class MockDocumentReference:
-    """Document reference with CRUD operations."""
-    
-    def __init__(self, collection_name: str, doc_id: str):
-        self._collection_name = collection_name
-        self._doc_id = doc_id
-    
+    def __init__(self, collection_parent, document_id, data=None):
+        self.parent = collection_parent
+        self.id = document_id
+        # Don't store data in self._data if it's a reference to the DB dict.
+        # Instead, fetch it dynamically or store a local copy?
+        # To support mutable operations that reflect in DB, we need to access parent._docs directly.
+        pass
+
     @property
-    def id(self) -> str:
-        """Returns document ID."""
-        return self._doc_id
-    
-    def get(self) -> MockDocumentSnapshot:
-        """Fetch document from MOCK_DB."""
-        if self._collection_name not in MOCK_DB:
-            return MockDocumentSnapshot(self._doc_id, None)
-        
-        data = MOCK_DB[self._collection_name].get(self._doc_id)
-        return MockDocumentSnapshot(self._doc_id, data)
-    
-    def set(self, data: Dict[str, Any], merge: bool = False) -> None:
-        """Store document in MOCK_DB."""
-        if self._collection_name not in MOCK_DB:
-            MOCK_DB[self._collection_name] = {}
-        
-        if merge and self._doc_id in MOCK_DB[self._collection_name]:
-            # Merge with existing data
-            existing = MOCK_DB[self._collection_name][self._doc_id]
-            existing.update(data)
+    def _data(self):
+        # Dynamic access to backend storage
+        return self.parent._docs.get(self.id)
+
+    @property
+    def path(self):
+        return f"{self.parent.path}/{self.id}"
+
+    def get(self, transaction=None):
+        data = self._data
+        return MockDocumentSnapshot(self, data, exists=bool(data is not None))
+
+    def set(self, data: Dict[str, Any], merge=False):
+        if merge:
+            if self.id not in self.parent._docs:
+                self.parent._docs[self.id] = {}
+            self.parent._docs[self.id].update(data)
         else:
-            # Replace entirely
-            MOCK_DB[self._collection_name][self._doc_id] = data.copy()
-    
-    def update(self, data: Dict[str, Any]) -> None:
-        """Update existing document (merge operation)."""
-        if self._collection_name not in MOCK_DB:
-            MOCK_DB[self._collection_name] = {}
-        
-        if self._doc_id in MOCK_DB[self._collection_name]:
-            MOCK_DB[self._collection_name][self._doc_id].update(data)
-        else:
-            # Create new if doesn't exist
-            MOCK_DB[self._collection_name][self._doc_id] = data.copy()
-    
-    def delete(self) -> None:
-        """Remove document from MOCK_DB."""
-        if self._collection_name in MOCK_DB:
-            MOCK_DB[self._collection_name].pop(self._doc_id, None)
+            self.parent._docs[self.id] = data
+        self.parent._save()
+
+    def update(self, data: Dict[str, Any]):
+        if self.id not in self.parent._docs:
+            raise Exception(f"Document {self.path} does not exist")
+        self.parent._docs[self.id].update(data)
+        self.parent._save()
+
+    def delete(self):
+        if self.id in self.parent._docs:
+            del self.parent._docs[self.id]
+        self.parent._save()
+
+    def collection(self, collection_name):
+        full_path = f"{self.path}/{collection_name}"
+        return self.parent.client.collection(full_path)
+
+    def collections(self):
+        """Return all subcollections of this document."""
+        prefix = f"{self.path}/"
+        subcollections = []
+        for path in self.parent.client._db_data.keys():
+            if path.startswith(prefix) and path != prefix:
+                # Extract the collection name (first part after the prefix)
+                remaining = path[len(prefix) :]
+                if "/" not in remaining:  # It's a direct subcollection
+                    subcollections.append(self.parent.client.collection(path))
+        return subcollections
+
+    @property
+    def reference(self):
+        return self
+
+
+class MockDocumentSnapshot:
+    def __init__(self, ref, data, exists=True):
+        self._ref = ref
+        self.id = ref.id
+        self._data = data if data is not None else {}
+        self.exists = exists
+
+    def to_dict(self):
+        return self._data
+
+    def get(self, field_path):
+        if not self.exists or not self._data:
+            return None
+
+        parts = field_path.split(".")
+        curr = self._data
+        for part in parts:
+            if isinstance(curr, dict) and part in curr:
+                curr = curr[part]
+            else:
+                return None
+        return curr
+
+    @property
+    def reference(self):
+        return self._ref
+
+
+class MockCollectionReference:
+    def __init__(self, client, path):
+        self.client = client
+        self.path = path
+        self.id = path.split("/")[-1]
+
+        if path not in self.client._db_data:
+            self.client._db_data[path] = {}
+        self._docs = self.client._db_data[path]
+
+    def document(self, document_id=None):
+        if not document_id:
+            import uuid
+
+            document_id = str(uuid.uuid4())[:20]
+
+        # KEY FIX: Do NOT create empty entry in _docs here
+        return MockDocumentReference(self, document_id)
+
+    def add(self, data: Dict[str, Any]):
+        doc_ref = self.document()
+        doc_ref.set(data)
+        return None, doc_ref
+
+    def where(self, field, op, value):
+        return MockQuery(self, filters=[(field, op, value)])
+
+    def limit(self, count):
+        return MockQuery(self, limit=count)
+
+    def order_by(self, field, direction="ASCENDING"):
+        return MockQuery(self, order_by=(field, direction))
+
+    def stream(self):
+        items = []
+        for doc_id, data in self._docs.items():
+            # Only include if data is not None
+            # Also, strictly speaking, empty dict IS a document in Firestore,
+            # but for our "Ghost" bug, we probably want to treat it as valid.
+            # The bug was creating keys with empty dicts for IDs that shouldn't exist.
+            # If we fix document(), those keys won't be created anymore.
+            # But we should also filter out existing ghosts if possible?
+            # Let's just trust valid entries.
+            if data is not None:
+                ref = self.document(doc_id)
+                items.append(MockDocumentSnapshot(ref, data, exists=True))
+        return MockAsyncIterator(items)
+
+    def _save(self):
+        self.client._save_db()
 
 
 class MockQuery:
-    """Query builder with where() filtering and limit() support."""
-    
-    def __init__(self, collection_name: str, filters: Optional[List] = None, limit_count: Optional[int] = None):
-        self._collection_name = collection_name
-        self._filters = filters or []
-        self._limit_count = limit_count
-    
-    def where(self, field: str, op: str, value: Any) -> "MockQuery":
-        """Add filter condition to query."""
-        new_filters = self._filters.copy()
-        new_filters.append((field, op, value))
-        return MockQuery(self._collection_name, new_filters, self._limit_count)
-    
-    def limit(self, n: int) -> "MockQuery":
-        """Limit number of results."""
-        return MockQuery(self._collection_name, self._filters, n)
-    
-    def _match_filters(self, doc_data: Dict[str, Any]) -> bool:
-        """Check if document matches all filter conditions."""
-        for field, op, value in self._filters:
-            field_value = doc_data.get(field)
-            
-            if op == "==":
-                if field_value != value:
-                    return False
-            elif op == "!=":
-                if field_value == value:
-                    return False
-            elif op == "in":
-                if field_value not in value:
-                    return False
-            # Add more operators as needed (>, <, >=, <=, etc.)
-        
-        return True
-    
-    def stream(self) -> Iterator[MockDocumentSnapshot]:
-        """Yield matching documents as snapshots."""
-        if self._collection_name not in MOCK_DB:
-            return
-        
-        count = 0
-        for doc_id, doc_data in MOCK_DB[self._collection_name].items():
-            if self._match_filters(doc_data):
-                yield MockDocumentSnapshot(doc_id, doc_data)
-                count += 1
-                
-                if self._limit_count and count >= self._limit_count:
-                    break
-    
-    def get(self) -> List[MockDocumentSnapshot]:
-        """Return list of matching documents."""
-        return list(self.stream())
+    def __init__(self, collection, filters=None, limit=None, order_by=None):
+        self.collection = collection
+        self.filters = filters or []
+        self.limit_val = limit
+        self.order_by_val = order_by  # Tuple (field, direction)
 
+    def where(self, field, op, value):
+        self.filters.append((field, op, value))
+        return self
 
-class MockCollection:
-    """Collection reference with document access and query building."""
-    
-    def __init__(self, collection_name: str):
-        self._collection_name = collection_name
-    
-    def document(self, doc_id: Optional[str] = None) -> MockDocumentReference:
-        """Get document reference by ID, or create new with auto-generated ID."""
-        if doc_id is None:
-            doc_id = str(uuid.uuid4())
-        return MockDocumentReference(self._collection_name, doc_id)
-    
-    def where(self, field: str, op: str, value: Any) -> MockQuery:
-        """Create query with filter."""
-        query = MockQuery(self._collection_name)
-        return query.where(field, op, value)
-    
-    def stream(self) -> Iterator[MockDocumentSnapshot]:
-        """Yield all documents in collection."""
-        if self._collection_name not in MOCK_DB:
-            return
-        
-        for doc_id, doc_data in MOCK_DB[self._collection_name].items():
-            yield MockDocumentSnapshot(doc_id, doc_data)
-    
-    def add(self, data: Dict[str, Any]) -> MockDocumentReference:
-        """Create document with auto-generated ID."""
-        doc_id = str(uuid.uuid4())
-        doc_ref = self.document(doc_id)
-        doc_ref.set(data)
-        return doc_ref
+    def limit(self, count):
+        self.limit_val = count
+        return self
+
+    def order_by(self, field, direction="ASCENDING"):
+        self.order_by_val = (field, direction)
+        return self
+
+    def stream(self):
+        results = []
+        for doc_id, data in self.collection._docs.items():
+            match = True
+            for field, op, value in self.filters:
+                # Handle dot notation?
+                val = data.get(field)
+                if op == "==":
+                    if val != value:
+                        match = False
+                elif op == ">":
+                    if not (val is not None and val > value):
+                        match = False
+                elif op == ">=":
+                    if not (val is not None and val >= value):
+                        match = False
+                elif op == "<":
+                    if not (val is not None and val < value):
+                        match = False
+                elif op == "<=":
+                    if not (val is not None and val <= value):
+                        match = False
+                elif op == "array_contains":
+                    if not (isinstance(val, list) and value in val):
+                        match = False
+                elif op == "in":
+                    if not (value and val in value):
+                        match = False
+
+            if match:
+                ref = self.collection.document(doc_id)
+                results.append(MockDocumentSnapshot(ref, data, exists=True))
+
+        # Apply Sorting
+        if self.order_by_val:
+            field, direction = self.order_by_val
+            reverse = direction == "DESCENDING"
+
+            def sort_key(doc):
+                val = doc._data.get(field)
+                # Handle None values safely
+                if val is None:
+                    return "" if not reverse else "zzzz"
+                return str(val)  # Simple string sort for mock
+
+            results.sort(key=sort_key, reverse=reverse)
+
+        if self.limit_val:
+            results = results[: self.limit_val]
+
+        return MockAsyncIterator(results)
 
 
 class MockFirestoreClient:
-    """Main Firestore client mock."""
-    
-    def __init__(self):
-        """Initialize client and seed initial data."""
-        _seed_initial_data()
-    
-    def collection(self, name: str) -> MockCollection:
-        """Get collection reference by name."""
-        return self._get_or_create_collection(name)
-    
-    def _get_or_create_collection(self, name: str) -> MockCollection:
-        """Internal helper to ensure collection exists."""
-        if name not in MOCK_DB:
-            MOCK_DB[name] = {}
-        return MockCollection(name)
+    def __init__(self, db_file="mock_db.json"):
+        self.db_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), db_file)
+        self._db_data = {}
+        self.reload()
+
+    def reload(self):
+        if os.path.exists(self.db_file):
+            try:
+                with open(self.db_file, "r") as f:
+                    self._db_data = json.load(f)
+            except:
+                self._db_data = {}
+        else:
+            self._db_data = {}
+
+    def _save_db(self):
+        with open(self.db_file, "w") as f:
+            json.dump(self._db_data, f, indent=2, default=str)
+
+    def collection(self, name):
+        return MockCollectionReference(self, name)
+
+    def collection_group(self, collection_id):
+        # Scan ALL paths for keys ending in collection_id
+        # This is expensive but correct for a mock
+        all_matches = []
+        for path, docs in self._db_data.items():
+            if path.split("/")[-1] == collection_id:
+                coll_parent = self.collection(path)
+                for doc_id, data in docs.items():
+                    ref = coll_parent.document(doc_id)
+                    all_matches.append(MockDocumentSnapshot(ref, data, exists=True))
+
+        # Return a MockQuery-like object that has these results pre-loaded?
+        # Or a special Chainable object
+        return MockPreloadedQuery(all_matches)
+
+    def transaction(self):
+        return MockTransaction(self)
+
+
+class MockPreloadedQuery:
+    def __init__(self, items):
+        self.items = items
+
+    def where(self, field, op, value):
+        # Filter existing items
+        filtered = []
+        for doc in self.items:
+            data = doc._data
+            val = data.get(field)
+            if op == "==":
+                if val == value:
+                    filtered.append(doc)
+        return MockPreloadedQuery(filtered)
+
+    def stream(self):
+        return MockAsyncIterator(self.items)
+
+
+class MockTransaction:
+    def __init__(self, client):
+        self.client = client
+        self._read_only = False  # Needed by real firestore transactional decorator
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    def get(self, ref):
+        return ref.get()
+
+    def set(self, ref, data):
+        ref.set(data)
+
+    def update(self, ref, data):
+        ref.update(data)
+
+    def delete(self, ref):
+        ref.delete()
+
+
+def mock_transactional(func):
+    def wrapper(*args, **kwargs):
+        # Just run it, our mock doesn't do real ACID transactions
+        # We need to construct a dummy transaction object to pass if the func expects one
+        return func(MockTransaction(None), *args, **kwargs)
+
+    return wrapper
+
+
+class MockUserRecord:
+    def __init__(self, uid, email, display_name=None, password=None, disabled=False):
+        self.uid = uid
+        self.email = email
+        self.display_name = display_name
+        self._password = password
+        self.disabled = disabled
+
+
+class MockAuthError(Exception):
+    pass
+
+
+class MockEmailAlreadyExistsError(MockAuthError):
+    pass
+
+
+class MockUserNotFoundError(MockAuthError):
+    pass
 
 
 class MockAuth:
-    """Mock Firebase Auth for token verification."""
-    
-    @staticmethod
-    def verify_id_token(token: str, clock_skew_seconds: int = 10) -> Dict[str, Any]:
-        """
-        Parse mock token format: mock-token-{role}-{uid}
-        
-        Example: "mock-token-admin-001" -> {uid: "001", role: "admin", ...}
-        """
-        if not token.startswith("mock-token-"):
-            raise ValueError("Invalid mock token format. Expected: mock-token-{role}-{uid}")
-        
-        parts = token.split("-")
-        if len(parts) < 4:
-            raise ValueError("Invalid mock token format. Expected: mock-token-{role}-{uid}")
-        
-        role = parts[2]  # "admin", "staff", or "student"
-        uid = "-".join(parts[3:])  # Join remaining parts as UID
-        
-        return {
-            "uid": uid,
-            "email": f"{role}@test.com",
-            "name": f"Mock {role.capitalize()}",
-            "role": role,
-        }
+    # Mimic exception classes on the instance/class level so users can import them via auth.EmailAlreadyExistsError
+    EmailAlreadyExistsError = MockEmailAlreadyExistsError
+    UserNotFoundError = MockUserNotFoundError
 
+    def __init__(self):
+        self._users = {}  # uid -> MockUserRecord
 
-def _seed_initial_data():
-    """Pre-populate mock database with test users."""
-    if "users" not in MOCK_DB:
-        MOCK_DB["users"] = {}
-    
-    # Only seed if empty
-    if MOCK_DB["users"]:
-        return
-    
-    seed_users = [
-        {
-            "id": "mock-admin-001",
-            "email": "admin@test.com",
-            "displayName": "Test Admin",
-            "role": "admin",
-            "departmentId": None,
-            "subjectIds": None,
-            "status": "active",
-            "password": "Admin123!",
-            "createdAt": "2026-01-01T00:00:00.000Z",
-            "updatedAt": "2026-01-01T00:00:00.000Z"
-        },
-        {
-            "id": "mock-staff-001",
-            "email": "staff@test.com",
-            "displayName": "Test Staff",
-            "role": "staff",
-            "departmentId": "dept-cs-001",
-            "subjectIds": ["subject-001"],
-            "status": "active",
-            "password": "Staff123!",
-            "createdAt": "2026-01-01T00:00:00.000Z",
-            "updatedAt": "2026-01-01T00:00:00.000Z"
-        },
-        {
-            "id": "mock-student-001",
-            "email": "student@test.com",
-            "displayName": "Test Student",
-            "role": "student",
-            "departmentId": "dept-cs-001",
-            "subjectIds": None,
-            "status": "active",
-            "password": "Student123!",
-            "createdAt": "2026-01-01T00:00:00.000Z",
-            "updatedAt": "2026-01-01T00:00:00.000Z"
-        }
-    ]
-    
-    for user in seed_users:
-        MOCK_DB["users"][user["id"]] = user
+    def create_user(
+        self,
+        email=None,
+        password=None,
+        display_name=None,
+        email_verified=False,
+        disabled=False,
+        **kwargs,
+    ):
+        if not email:
+            raise ValueError("Email required")
+        # Check duplicates
+        for u in self._users.values():
+            if u.email == email:
+                raise self.EmailAlreadyExistsError("Email already exists")
+
+        import time
+
+        uid = f"mock-user-{int(time.time() * 1000)}"
+        user = MockUserRecord(uid, email, display_name, password, disabled)
+        self._users[uid] = user
+        return user
+
+    def get_user(self, uid):
+        if uid not in self._users:
+            raise self.UserNotFoundError("User not found")
+        return self._users[uid]
+
+    def get_user_by_email(self, email):
+        for u in self._users.values():
+            if u.email == email:
+                return u
+        raise self.UserNotFoundError("User not found")
+
+    def update_user(self, uid, **kwargs):
+        if uid not in self._users:
+            raise self.UserNotFoundError("User not found")
+        user = self._users[uid]
+        if "display_name" in kwargs:
+            user.display_name = kwargs["display_name"]
+        if "disabled" in kwargs:
+            user.disabled = kwargs["disabled"]
+        if "email" in kwargs:
+            user.email = kwargs["email"]
+        return user
+
+    def delete_user(self, uid):
+        if uid in self._users:
+            del self._users[uid]
+        # If not found, ignore (idempotent)? or verify behaviors.
+        # Real Firebase raises UserNotFoundError usually.
+        # But for mock, let's keep it simple.
+
+    def verify_id_token(self, token, check_revoked=False, clock_skew_seconds=0):
+        # Allow checking tokens if needed
+        if token.startswith("mock-token-"):
+            # Parse it
+            parts = token.split("-")
+            return {
+                "uid": parts[3] if len(parts) > 3 else "uid",
+                "email": "test@test.com",
+            }
+        raise Exception("Invalid mock token")

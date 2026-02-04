@@ -1,21 +1,36 @@
-# config.py
-# Centralized configuration for AI services and Firestore access
+"""
+============================================================================
+FILE: config.py
+LOCATION: api/config.py
+============================================================================
 
-# Longer description (2-4 lines):
-# - Loads .env values and exposes constants for Vertex AI, Neo4j, Redis,
-#   and Celery settings used across the API and services layer.
-# - Initializes Firebase Admin SDK and provides Firestore clients so
-#   task modules can import db/async_db consistently.
+PURPOSE:
+    Centralized configuration for AI services and Firestore access.
 
-# @see: AURA-NOTES-MANAGER/.env - Environment variable values
-# @note: Defaults support local development without secrets
+ROLE IN PROJECT:
+    Loads environment variables and initializes Firestore clients for the
+    API layer, supporting mock and real Firebase usage.
+
+KEY COMPONENTS:
+    - get_db: Returns mock or real Firestore client
+    - init_firebase: Initializes Firebase Admin SDK
+    - init_async_firebase: Initializes async Firestore client
+
+DEPENDENCIES:
+    - External: firebase_admin, google-cloud-firestore, python-dotenv
+    - Internal: mock_firestore (optional)
+
+USAGE:
+    from config import db, async_db
+============================================================================
+"""
 
 import os
 from pathlib import Path
 
 import firebase_admin
 from dotenv import load_dotenv
-from firebase_admin import credentials, firestore
+from firebase_admin import credentials, firestore, auth as firebase_auth
 from google.cloud.firestore_v1.async_client import AsyncClient
 
 
@@ -150,6 +165,15 @@ def init_async_firebase():
 # Use get_db() to support mock database toggle
 db = get_db()
 
+# If using mock DB, monkeypatch firestore.transactional to avoid errors
+if USE_MOCK_DB:
+    try:
+        from google.cloud import firestore as gcloud_firestore
+        from mock_firestore import mock_transactional
+        gcloud_firestore.transactional = mock_transactional
+    except ImportError:
+        pass
+
 # Initialize async_db only if using real Firebase
 if not USE_MOCK_DB:
     try:
@@ -158,5 +182,11 @@ if not USE_MOCK_DB:
         # Fallback to sync client if async initialization fails
         async_db = db
 else:
-    # Use mock client for async operations
     async_db = db
+
+if USE_MOCK_DB:
+    from mock_firestore import MockAuth
+
+    auth = MockAuth()
+else:
+    auth = firebase_auth

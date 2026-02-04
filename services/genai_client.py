@@ -11,21 +11,59 @@
 from __future__ import annotations
 
 import os
+import sys
 from typing import Any
 
-from services.vertex_ai_client import GenerationConfig, generate_content, get_model
-
+from services.vertex_ai_client import GenerationConfig, generate_content
 
 _TEST_MODE = os.getenv("AURA_TEST_MODE", "").lower() == "true"
-GENAI_AVAILABLE = True
+
+if _TEST_MODE:
+    genai = None
+    GENAI_AVAILABLE = False
+elif (
+    ("google.genai" in sys.modules and sys.modules["google.genai"] is None)
+    or (
+        "google.generativeai" in sys.modules
+        and sys.modules["google.generativeai"] is None
+    )
+):
+    genai = None
+    GENAI_AVAILABLE = False
+else:
+    try:
+        from google import genai as genai
+        if genai is None:
+            raise ImportError("google.genai not available")
+        GENAI_AVAILABLE = True
+    except Exception:
+        try:
+            import google.generativeai as genai
+            if genai is None:
+                raise ImportError("google.generativeai not available")
+            GENAI_AVAILABLE = True
+        except Exception:
+            genai = None
+            GENAI_AVAILABLE = False
 
 
 def get_genai_model(model_name: str) -> Any | None:
-    if not GENAI_AVAILABLE:
+    if not GENAI_AVAILABLE or genai is None:
         return None
 
     try:
-        return get_model(model_name)
+        api_key = (
+            os.getenv("GOOGLE_API_KEY")
+            or os.getenv("GOOGLE_GENAI_API_KEY")
+            or os.getenv("GOOGLE_GENERATIVEAI_API_KEY")
+            or os.getenv("GENAI_API_KEY")
+        )
+        if hasattr(genai, "configure"):
+            if api_key:
+                genai.configure(api_key=api_key)
+            else:
+                genai.configure()
+        return genai.GenerativeModel(model_name)
     except Exception:
         return None
 
@@ -33,6 +71,9 @@ def get_genai_model(model_name: str) -> Any | None:
 def generate_content_with_thinking(model: Any, prompt: str) -> Any:
     if model is None:
         raise RuntimeError("GenAI model is not available")
+
+    if hasattr(model, "generate_content"):
+        return model.generate_content(prompt)
 
     return generate_content(
         model,

@@ -23,8 +23,7 @@ import {
     Database
 } from 'lucide-react';
 import type { FileSystemNode } from '../../types';
-import { deleteNoteCascade, deleteKGBatch } from '../../api/explorerApi';
-import { useKGProcessing } from '../../features/kg/hooks/useKGProcessing';
+import { deleteNoteCascade } from '../../api/explorerApi';
 
 export const SelectionActionBar: React.FC = () => {
     const {

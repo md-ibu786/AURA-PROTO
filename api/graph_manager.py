@@ -582,7 +582,14 @@ class GraphManager:
             DETACH DELETE c
             """
             with self.driver.session() as session:
-                session.run(delete_chunks_query, {"doc_id": doc_id})
+                result = session.run(delete_chunks_query, {"doc_id": doc_id})
+                try:
+                    for row in result.data():
+                        entity_ids = row.get("connected_entity_ids", [])
+                        if entity_ids:
+                            connected_entity_ids.extend(entity_ids)
+                except Exception:
+                    pass
             logger.debug(f"Deleted chunks for document {doc_id}")
 
             # Step 5: Delete the document node itself (MUST be separate query!)
@@ -623,8 +630,8 @@ class GraphManager:
             # (not connected to any Document or Chunk)
             cleanup_query = """
             MATCH (e)
-            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-            AND e.id IN $entity_ids
+            WHERE e.id IN $entity_ids
+            AND (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
             AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
             AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
             WITH e, e.id as deleted_id

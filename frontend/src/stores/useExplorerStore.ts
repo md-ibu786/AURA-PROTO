@@ -49,7 +49,7 @@
  * ============================================================================
  */
 import { create } from 'zustand';
-import type { FileSystemNode, HierarchyType, FileSystemNodeMeta } from '../types';
+import type { FileSystemNode, HierarchyType } from '../types';
 
 export type ViewMode = 'grid' | 'list';
 
@@ -59,13 +59,6 @@ interface ClipboardState {
 }
 
 interface ProcessDialogState {
-    open: boolean;
-    fileIds: string[];
-    moduleId: string;
-    skippedCount: number;  // Count of already-processed docs that were filtered out
-}
-
-interface DeleteDialogState {
     open: boolean;
     fileIds: string[];
     moduleId: string;
@@ -114,15 +107,8 @@ interface ExplorerState {
     setKGPolling: (moduleId: string | null, isPolling: boolean) => void;
 
     processDialog: ProcessDialogState;
-    openProcessDialog: (fileIds: string[], moduleId: string, skippedCount?: number) => void;
+    openProcessDialog: (fileIds: string[], moduleId: string) => void;
     closeProcessDialog: () => void;
-
-    // KG Delete State
-    deleteMode: boolean;
-    setDeleteMode: (enabled: boolean) => void;
-    kgDeleteDialog: DeleteDialogState;
-    openKGDeleteDialog: (fileIds: string[], moduleId: string) => void;
-    closeKGDeleteDialog: () => void;
 
     // Selection actions
     select: (id: string) => void;
@@ -141,18 +127,6 @@ interface ExplorerState {
     nodeToDelete: { id: string; type: HierarchyType; label: string } | null;
     openDeleteDialog: (node: { id: string; type: HierarchyType; label: string }) => void;
     closeDeleteDialog: () => void;
-
-    // Bulk Delete
-    bulkDeleteDialogOpen: boolean;
-    nodesToDelete: { id: string; type: HierarchyType; label: string }[];
-    openBulkDeleteDialog: (nodes: { id: string; type: HierarchyType; label: string }[]) => void;
-    closeBulkDeleteDialog: () => void;
-
-    // Bulk Download
-    bulkDownloadDialogOpen: boolean;
-    nodesToDownload: { id: string; type: HierarchyType; label: string; meta?: FileSystemNodeMeta }[];
-    openBulkDownloadDialog: (nodes: { id: string; type: HierarchyType; label: string; meta?: FileSystemNodeMeta }[]) => void;
-    closeBulkDownloadDialog: () => void;
 
     // View actions
     setViewMode: (mode: ViewMode) => void;
@@ -183,9 +157,10 @@ interface ExplorerState {
     warningTimeoutId: NodeJS.Timeout | null;
     openWarningDialog: (type: 'duplicate' | 'error', message: string, entityName?: string) => void;
     closeWarningDialog: () => void;
-}
 
-export type UseExplorerStore = ReturnType<typeof useExplorerStore>;
+    // Reset store
+    reset: () => void;
+}
 
 export const useExplorerStore = create<ExplorerState>((set, get) => ({
     // Initial state
@@ -210,34 +185,20 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
 
     // KG State
     kgPolling: { moduleId: null, isPolling: false },
-    processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 },
-
-    // KG Delete State
-    deleteMode: false,
-    kgDeleteDialog: { open: false, fileIds: [], moduleId: '' },
+    processDialog: { open: false, fileIds: [], moduleId: '' },
 
     setSelectionMode: (enabled) => set({ selectionMode: enabled }),
-
-    setDeleteMode: (enabled) => set({ deleteMode: enabled }),
 
     setKGPolling: (moduleId, isPolling) => set({
         kgPolling: { moduleId, isPolling }
     }),
 
-    openProcessDialog: (fileIds, moduleId, skippedCount = 0) => set({
-        processDialog: { open: true, fileIds, moduleId, skippedCount }
+    openProcessDialog: (fileIds, moduleId) => set({
+        processDialog: { open: true, fileIds, moduleId }
     }),
 
     closeProcessDialog: () => set({
-        processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 }
-    }),
-
-    openKGDeleteDialog: (fileIds, moduleId) => set({
-        kgDeleteDialog: { open: true, fileIds, moduleId }
-    }),
-
-    closeKGDeleteDialog: () => set({
-        kgDeleteDialog: { open: false, fileIds: [], moduleId: '' }
+        processDialog: { open: false, fileIds: [], moduleId: '' }
     }),
 
     // Navigation
@@ -293,9 +254,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     select: (id) => set({
         selectedIds: new Set([id]),
         lastSelectedId: id,
-        selectionMode: true
     }),
-
 
     toggleSelect: (id) => {
         const { selectedIds } = get();
@@ -308,14 +267,13 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         set({
             selectedIds: newSelected,
             lastSelectedId: id,
-            selectionMode: newSelected.size > 0
         });
     },
 
     rangeSelect: (id, allIds) => {
         const { lastSelectedId, selectedIds } = get();
         if (!lastSelectedId) {
-            set({ selectedIds: new Set([id]), lastSelectedId: id, selectionMode: true });
+            set({ selectedIds: new Set([id]), lastSelectedId: id });
             return;
         }
 
@@ -323,32 +281,27 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         const endIdx = allIds.indexOf(id);
 
         if (startIdx === -1 || endIdx === -1) {
-            set({ selectedIds: new Set([id]), lastSelectedId: id, selectionMode: true });
+            set({ selectedIds: new Set([id]), lastSelectedId: id });
             return;
         }
 
         const [from, to] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
         const rangeIds = allIds.slice(from, to + 1);
 
-        const newSelected = new Set([...selectedIds, ...rangeIds]);
         set({
-            selectedIds: newSelected,
-            selectionMode: true
+            selectedIds: new Set([...selectedIds, ...rangeIds]),
         });
     },
 
     clearSelection: () => set({
         selectedIds: new Set(),
         lastSelectedId: null,
-        selectionMode: false
     }),
 
     selectAll: (ids) => set({
         selectedIds: new Set(ids),
         lastSelectedId: ids[ids.length - 1] ?? null,
-        selectionMode: ids.length > 0
     }),
-
 
     // Tree
     expand: (id) => {
@@ -387,32 +340,6 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     closeDeleteDialog: () => set({
         deleteDialogOpen: false,
         nodeToDelete: null
-    }),
-
-    bulkDeleteDialogOpen: false,
-    nodesToDelete: [],
-    bulkDownloadDialogOpen: false,
-    nodesToDownload: [],
-    openBulkDeleteDialog: (nodes) => set({
-        bulkDeleteDialogOpen: true,
-        nodesToDelete: nodes,
-        contextMenuPosition: null,
-        contextMenuNodeId: null
-    }),
-    closeBulkDeleteDialog: () => set({
-        bulkDeleteDialogOpen: false,
-        nodesToDelete: []
-    }),
-
-    openBulkDownloadDialog: (nodes) => set({
-        bulkDownloadDialogOpen: true,
-        nodesToDownload: nodes,
-        contextMenuPosition: null,
-        contextMenuNodeId: null
-    }),
-    closeBulkDownloadDialog: () => set({
-        bulkDownloadDialogOpen: false,
-        nodesToDownload: []
     }),
 
     // View
@@ -478,4 +405,27 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
             warningTimeoutId: null
         });
     },
+
+    reset: () => set({
+        currentPath: [],
+        activeNodeId: null,
+        selectedIds: new Set(),
+        lastSelectedId: null,
+        expandedIds: new Set(),
+        viewMode: 'grid',
+        searchQuery: '',
+        clipboard: { nodeIds: [], mode: null },
+        contextMenuPosition: null,
+        contextMenuNodeId: null,
+        renamingNodeId: null,
+        creatingNodeType: null,
+        creatingParentId: null,
+        warningDialog: { isOpen: false, type: 'error', message: '' },
+        warningTimeoutId: null,
+        selectionMode: false,
+        kgPolling: { moduleId: null, isPolling: false },
+        processDialog: { open: false, fileIds: [], moduleId: '' },
+        deleteDialogOpen: false,
+        nodeToDelete: null
+    }),
 }));

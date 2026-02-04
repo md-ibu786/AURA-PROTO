@@ -4,7 +4,7 @@
 
 ### File Location
 ```
-D:\Peter\AURA Proto review 1\AURA-PROJ\AURA-NOTES-MANAGER\tests\test_kg_router_delete.py
+D:\Peter\AURA Twin Proj\AURA-PROJ\AURA-NOTES-MANAGER\tests\test_kg_router_delete.py
 ```
 
 ### Statistics

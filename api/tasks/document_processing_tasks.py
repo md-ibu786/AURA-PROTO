@@ -183,10 +183,16 @@ def update_document_status(
 
 # Import Redis and Celery settings from centralized config
 # This ensures operators can configure these settings in a single place (api/config.py)
+from urllib.parse import urlparse
+
 try:
     from config import REDIS_URL, CELERY_RESULT_EXPIRES
 except ImportError:
     from api.config import REDIS_URL, CELERY_RESULT_EXPIRES
+
+parsed_redis_url = urlparse(REDIS_URL)
+REDIS_HOST = parsed_redis_url.hostname or "127.0.0.1"
+REDIS_PORT = parsed_redis_url.port or 6379
 
 # Log Redis config for debugging
 logger.info(f"Celery Redis config: URL='{REDIS_URL}', result_expires={CELERY_RESULT_EXPIRES}s")

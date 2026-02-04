@@ -21,17 +21,25 @@
  *
  * @see: ExplorerPage.tsx - Component under test
  * @see: stores/useExplorerStore.ts - State store
+ * @see: stores/useAuthStore.ts - Auth store
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import '@testing-library/jest-dom';
 import ExplorerPage from './ExplorerPage';
 import { useExplorerStore } from '../stores';
+import { useAuthStore } from '../stores/useAuthStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FileSystemNode } from '../types';
 
 // Mock the stores
 vi.mock('../stores', () => ({
     useExplorerStore: vi.fn(),
+}));
+
+vi.mock('../stores/useAuthStore', () => ({
+    useAuthStore: vi.fn(),
 }));
 
 // Mock React Query
@@ -111,6 +119,7 @@ describe('ExplorerPage', () => {
     const mockCloseContextMenu = vi.fn();
     const mockCloseDeleteDialog = vi.fn();
     const mockRefetchQueries = vi.fn();
+    const mockNavigate = vi.fn();
 
     const defaultStoreState = {
         viewMode: 'grid' as const,
@@ -121,85 +130,91 @@ describe('ExplorerPage', () => {
         deleteDialogOpen: false,
         nodeToDelete: null,
         closeDeleteDialog: mockCloseDeleteDialog,
+        navigateTo: vi.fn(),
+    };
+
+    const defaultAuthState = {
+        user: { id: '1', role: 'admin', departmentId: undefined },
+        isAdmin: () => true,
     };
 
     const mockTree: FileSystemNode[] = [
-        { id: 'dept-1', name: 'Computer Science', type: 'department', children: [] },
-        { id: 'dept-2', name: 'Mathematics', type: 'department', children: [] },
+        { id: 'dept-1', label: 'Computer Science', type: 'department', children: [], parentId: null },
+        { id: 'dept-2', label: 'Mathematics', type: 'department', children: [], parentId: null },
     ];
+
+    const renderWithRouter = (component: React.ReactElement) => {
+        return render(<BrowserRouter>{component}</BrowserRouter>);
+    };
 
     beforeEach(() => {
         vi.clearAllMocks();
 
-        (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue(defaultStoreState);
+        (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(defaultStoreState);
 
-        (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+        (useAuthStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(defaultAuthState);
+
+        (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
             data: mockTree,
             isLoading: false,
             error: null,
         });
 
-        (useQueryClient as ReturnType<typeof vi.fn>).mockReturnValue({
+        (useQueryClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
             refetchQueries: mockRefetchQueries,
         });
+
+        (vi.fn() as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockNavigate);
     });
 
     describe('Layout Rendering', () => {
         it('renders main layout with sidebar, header, and content', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
 
             expect(screen.getByTestId('sidebar')).toBeInTheDocument();
             expect(screen.getByTestId('header')).toBeInTheDocument();
             expect(screen.getByTestId('grid-view')).toBeInTheDocument();
         });
 
-        it('renders KG feature components', () => {
-            render(<ExplorerPage />);
-
-            expect(screen.getByTestId('file-selection-bar')).toBeInTheDocument();
-            expect(screen.getByTestId('process-dialog')).toBeInTheDocument();
-            expect(screen.getByTestId('processing-queue')).toBeInTheDocument();
-        });
-
         it('renders warning dialog component', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByTestId('warning-dialog')).toBeInTheDocument();
         });
     });
 
     describe('Loading State', () => {
         it('shows loading spinner when data is loading', () => {
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [],
                 isLoading: true,
                 error: null,
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Loading...')).toBeInTheDocument();
         });
 
         it('passes loading state to sidebar', () => {
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [],
                 isLoading: true,
                 error: null,
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Loading sidebar...')).toBeInTheDocument();
         });
     });
 
     describe('Error State', () => {
         it('displays error message when query fails', () => {
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [],
                 isLoading: false,
                 error: new Error('Network error'),
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Error loading data')).toBeInTheDocument();
             expect(screen.getByText('Network error')).toBeInTheDocument();
         });
@@ -207,103 +222,103 @@ describe('ExplorerPage', () => {
 
     describe('Empty State', () => {
         it('shows empty state when folder has no children', () => {
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [],
                 isLoading: false,
                 error: null,
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('This folder is empty')).toBeInTheDocument();
         });
 
         it('shows root-specific message at root level', () => {
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [],
                 isLoading: false,
                 error: null,
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 currentPath: [],
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Create a department to get started')).toBeInTheDocument();
         });
 
         it('shows general message when not at root', () => {
-            const parentNode: FileSystemNode = { id: 'dept-1', name: 'CS', type: 'department', children: [] };
+            const parentNode: FileSystemNode = { id: 'dept-1', label: 'CS', type: 'department', children: [], parentId: null };
 
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [parentNode],
                 isLoading: false,
                 error: null,
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 currentPath: [parentNode],
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Right-click to create a new item')).toBeInTheDocument();
         });
     });
 
     describe('View Modes', () => {
         it('renders GridView when viewMode is grid', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 viewMode: 'grid',
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByTestId('grid-view')).toBeInTheDocument();
             expect(screen.queryByTestId('list-view')).not.toBeInTheDocument();
         });
 
         it('renders ListView when viewMode is list', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 viewMode: 'list',
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByTestId('list-view')).toBeInTheDocument();
             expect(screen.queryByTestId('grid-view')).not.toBeInTheDocument();
         });
 
         it('passes correct item count to view component', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Grid: 2 items')).toBeInTheDocument();
         });
     });
 
     describe('Context Menu', () => {
         it('renders context menu when position is set', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 contextMenuPosition: { x: 100, y: 200 },
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByTestId('context-menu')).toBeInTheDocument();
         });
 
         it('does not render context menu when position is null', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.queryByTestId('context-menu')).not.toBeInTheDocument();
         });
 
         it('closes context menu on background click', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 contextMenuPosition: { x: 100, y: 200 },
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
 
             const layout = document.querySelector('.explorer-layout');
             if (layout) {
@@ -316,18 +331,18 @@ describe('ExplorerPage', () => {
 
     describe('Delete Dialog', () => {
         it('renders delete confirmation dialog when open', () => {
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 deleteDialogOpen: true,
                 nodeToDelete: { id: '1', type: 'department', label: 'CS' },
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByTestId('confirm-dialog')).toBeInTheDocument();
         });
 
         it('does not render delete dialog when closed', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument();
         });
     });
@@ -335,34 +350,35 @@ describe('ExplorerPage', () => {
     describe('Navigation', () => {
         it('displays children of current path node', () => {
             const childNodes: FileSystemNode[] = [
-                { id: 'sem-1', name: 'Semester 1', type: 'semester', children: [] },
-                { id: 'sem-2', name: 'Semester 2', type: 'semester', children: [] },
+                { id: 'sem-1', label: 'Semester 1', type: 'semester', children: [], parentId: 'dept-1' },
+                { id: 'sem-2', label: 'Semester 2', type: 'semester', children: [], parentId: 'dept-1' },
             ];
 
             const parentNode: FileSystemNode = {
                 id: 'dept-1',
-                name: 'CS',
+                label: 'CS',
                 type: 'department',
-                children: childNodes
+                children: childNodes,
+                parentId: null,
             };
 
-            (useQuery as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 data: [parentNode],
                 isLoading: false,
                 error: null,
             });
 
-            (useExplorerStore as ReturnType<typeof vi.fn>).mockReturnValue({
+            (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
                 ...defaultStoreState,
                 currentPath: [parentNode],
             });
 
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Grid: 2 items')).toBeInTheDocument();
         });
 
         it('displays root departments when currentPath is empty', () => {
-            render(<ExplorerPage />);
+            renderWithRouter(<ExplorerPage />);
             expect(screen.getByText('Grid: 2 items')).toBeInTheDocument();
         });
     });

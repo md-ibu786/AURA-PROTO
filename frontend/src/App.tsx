@@ -34,6 +34,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
 import ExplorerPage from './pages/ExplorerPage'
 import { LoginPage } from './pages/LoginPage'
+import AdminDashboard from './pages/AdminDashboard'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { initAuthListener } from './stores/useAuthStore'
 
@@ -52,6 +53,12 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
 
                 {/* Protected routes */}
+                <Route path="/admin" element={
+                    <ProtectedRoute requiredRole="admin">
+                        <AdminDashboard />
+                    </ProtectedRoute>
+                } />
+
                 <Route path="/*" element={
                     <ProtectedRoute>
                         <ExplorerPage />

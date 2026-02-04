@@ -23,9 +23,15 @@ if _root_dir not in sys.path:
     sys.path.insert(0, _root_dir)
 
 # Test configuration
-REDIS_REQUIRED = True
-NEO4J_REQUIRED = True
+REDIS_REQUIRED = os.getenv("AURA_E2E_REQUIRED", "false").lower() == "true"
+NEO4J_REQUIRED = os.getenv("AURA_E2E_REQUIRED", "false").lower() == "true"
 TEST_MODE = os.getenv("AURA_TEST_MODE", "false").lower() == "true"
+
+if TEST_MODE or not (REDIS_REQUIRED or NEO4J_REQUIRED):
+    pytest.skip(
+        "E2E dependencies not required for local runs",
+        allow_module_level=True,
+    )
 
 
 @pytest.fixture
