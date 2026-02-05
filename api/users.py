@@ -38,13 +38,13 @@ from datetime import datetime
 
 try:
     from config import db, auth as firebase_auth
-    from auth import get_current_user, require_admin, UserInfo
+    from auth import get_current_user, require_admin
     from models import CreateUserInput, FirestoreUser, UpdateUserInput
     from validators import normalize_user_data
     from validators import validate_user_role_constraints
 except ImportError:
     from api.config import db, auth as firebase_auth
-    from api.auth import get_current_user, require_admin, UserInfo
+    from api.auth import get_current_user, require_admin
     from api.models import CreateUserInput, FirestoreUser, UpdateUserInput
     from api.validators import normalize_user_data
     from api.validators import validate_user_role_constraints
@@ -95,7 +95,7 @@ class UserResponse(BaseModel):
 
 
 @router.get("/auth/me", response_model=UserResponse)
-async def get_me(user: UserInfo = Depends(get_current_user)):
+async def get_me(user: FirestoreUser = Depends(get_current_user)):
     """
     Get the current authenticated user's profile.
 
@@ -108,8 +108,10 @@ async def get_me(user: UserInfo = Depends(get_current_user)):
 
     # Get department name if assigned
     department_name = None
-    if user.department_id:
-        dept_doc = db.collection("departments").document(user.department_id).get()
+    if user.departmentId:
+        dept_doc = (
+            db.collection("departments").document(user.departmentId).get()
+        )
         if dept_doc.exists:
             department_name = dept_doc.to_dict().get("name")
 
@@ -129,9 +131,9 @@ async def get_me(user: UserInfo = Depends(get_current_user)):
     return UserResponse(
         id=user.uid,
         email=user.email,
-        display_name=user.display_name,
+        display_name=user.displayName,
         role=user.role,
-        department_id=user.department_id,
+        department_id=user.departmentId,
         department_name=department_name,
         subject_ids=subject_ids if user.role == "staff" else None,
         subject_names=subject_names,
@@ -145,7 +147,7 @@ async def get_me(user: UserInfo = Depends(get_current_user)):
 async def list_users(
     role: Optional[str] = None,
     department_id: Optional[str] = None,
-    admin: UserInfo = Depends(require_admin),
+    admin: FirestoreUser = Depends(require_admin),
 ):
     """
     List all users. Admin only.
@@ -224,7 +226,7 @@ async def list_users(
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: CreateUserInput,
-    admin: UserInfo = Depends(require_admin),
+    admin: FirestoreUser = Depends(require_admin),
 ):
     """
     Create a new user. Admin only.
@@ -365,7 +367,10 @@ async def create_user(
 
 
 @router.get("/users/{user_id}", response_model=UserResponse)
-async def get_user(user_id: str, current_user: UserInfo = Depends(get_current_user)):
+async def get_user(
+    user_id: str,
+    current_user: FirestoreUser = Depends(get_current_user),
+):
     """
     Get user by ID.
 
@@ -425,7 +430,9 @@ async def get_user(user_id: str, current_user: UserInfo = Depends(get_current_us
 
 @router.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(
-    user_id: str, update_data: UpdateUserInput, admin: UserInfo = Depends(require_admin)
+    user_id: str,
+    update_data: UpdateUserInput,
+    admin: FirestoreUser = Depends(require_admin),
 ):
     """
     Update a user. Admin only.
@@ -622,7 +629,7 @@ def get_all_subjects():
 
 
 @router.get("/subjects/all")
-async def list_all_subjects(admin: UserInfo = Depends(require_admin)):
+async def list_all_subjects(admin: FirestoreUser = Depends(require_admin)):
     """
     Get all subjects across all departments. Admin only.
 
@@ -635,7 +642,8 @@ async def list_all_subjects(admin: UserInfo = Depends(require_admin)):
 
 @router.get("/departments/{department_id}/subjects")
 async def get_subjects_by_department(
-    department_id: str, admin: UserInfo = Depends(require_admin)
+    department_id: str,
+    admin: FirestoreUser = Depends(require_admin),
 ):
     """
     Get all subjects for a specific department. Admin only.
@@ -679,7 +687,10 @@ async def get_subjects_by_department(
 
 
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_user(user_id: str, admin: UserInfo = Depends(require_admin)):
+async def delete_user(
+    user_id: str,
+    admin: FirestoreUser = Depends(require_admin),
+):
     """
     Delete a user. Admin only.
 
