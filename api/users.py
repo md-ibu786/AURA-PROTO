@@ -307,23 +307,13 @@ async def create_user(
                 "createdAt": now,
                 "updatedAt": now,
                 "_v": 1,
-                "password": user_data.password,  # Mock auth only.
             }
         )
 
-        firestore_user = FirestoreUser(
-            **{
-                key: value
-                for key, value in user_doc_data.items()
-                if key != "password"
-            }
-        )
+        firestore_user = FirestoreUser(**user_doc_data)
 
         db.collection("users").document(firebase_user.uid).set(
-            {
-                **firestore_user.model_dump(by_alias=True),
-                "password": user_data.password,
-            }
+            firestore_user.model_dump(by_alias=True)
         )
 
         _merge_custom_claims(

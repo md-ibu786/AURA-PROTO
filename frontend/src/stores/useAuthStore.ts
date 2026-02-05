@@ -36,7 +36,7 @@ import { create } from 'zustand';
 import {
     signInWithEmailAndPassword,
     signOut,
-    onAuthStateChanged,
+    onIdTokenChanged,
     type User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '../api/firebaseClient';
@@ -150,56 +150,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
 
         try {
-            // MOCK LOGIN via Backend Endpoint
-            console.log("Using BACKEND MOCK LOGIN for", email);
+            const credentials = await signInWithEmailAndPassword(
+                auth,
+                email,
+                password
+            );
+            const firebaseUser = credentials.user;
 
-            // Call the new mock login endpoint
-            const res = await fetch(`${API_BASE}/auth/login`, {
+            set({ firebaseUser });
+
+            const idToken = await firebaseUser.getIdToken();
+            const syncResponse = await fetch(`${API_BASE}/auth/sync`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`,
+                },
+                body: JSON.stringify({
+                    displayName: firebaseUser.displayName ?? '',
+                }),
             });
 
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || "Login failed");
+            if (!syncResponse.ok) {
+                const err = await syncResponse.json().catch(() => ({
+                    detail: 'Login failed',
+                }));
+                throw new Error(err.detail || 'Login failed');
             }
 
-            const data = await res.json();
-            const { token, user: userData } = data;
-
-            // Map backend user to AuthUser
-            const authUser: AuthUser = {
-                id: userData.id,
-                email: userData.email,
-                displayName: userData.displayName || 'User',
-                role: userData.role,
-                departmentId: userData.departmentId,
-                departmentName: null,
-                subjectIds: userData.subjectIds || null,
-                status: 'active'
-            };
-
-            // Store in LocalStorage
-            localStorage.setItem('mock_token', token);
-            localStorage.setItem('mock_user', JSON.stringify(authUser));
-
-            set({
-                user: authUser,
-                firebaseUser: null,
-                isLoading: false,
-                error: null,
-            });
-
-            // Create dummy firebase user for refresh logic if needed
-            const dummyAuth: FirebaseTokenProvider = {
-                getIdToken: async () => token
-            };
-
-            set({ firebaseUser: dummyAuth });
-
-            // Trigger refresh to ensure fresh state (optional, but good practice)
             await get().refreshUser();
+            set({ isLoading: false, error: null });
 
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Login failed';
@@ -215,11 +195,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         set({ isLoading: true });
         try {
-            // Clear Mock Data
-            localStorage.removeItem('mock_token');
-            localStorage.removeItem('mock_user');
-
-            await signOut(auth); // Keep calling this in case mixed mode, but it won't hurt
+            await signOut(auth);
 
             set({
                 user: null,
@@ -250,7 +226,45 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
 
             if (!response.ok) {
-                // User might not be registered in the system
+                if (response.status === 401) {
+                    const syncResponse = await fetch(`${API_BASE}/auth/sync`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${idToken}`,
+                        },
+                        body: JSON.stringify({}),
+                    });
+
+                    if (syncResponse.ok) {
+                        const retryResponse = await fetch(`${API_BASE}/auth/me`, {
+                            headers: {
+                                'Authorization': `Bearer ${idToken}`,
+                            },
+                        });
+
+                        if (retryResponse.ok) {
+                            const retryUserData = await retryResponse.json();
+                            const retryUser: AuthUser = {
+                                id: retryUserData.id,
+                                email: retryUserData.email,
+                                displayName: retryUserData.display_name,
+                                role: retryUserData.role,
+                                departmentId: retryUserData.department_id,
+                                departmentName: retryUserData.department_name,
+                                subjectIds: retryUserData.subject_ids || null,
+                                status: retryUserData.status,
+                            };
+
+                            set({
+                                user: retryUser,
+                                isLoading: false,
+                            });
+                            return;
+                        }
+                    }
+                }
+
                 set({ user: null, isLoading: false });
                 return;
             }
@@ -267,11 +281,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 subjectIds: userData.subject_ids || null,
                 status: userData.status,
             };
-
-            // Sync to localStorage if we are in mock mode
-            if (localStorage.getItem('mock_token')) {
-                localStorage.setItem('mock_user', JSON.stringify(newUser));
-            }
 
             set({
                 user: newUser,
@@ -290,10 +299,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setInitialized: (initialized) => set({ isInitialized: initialized }),
 
     getIdToken: async () => {
-        // MOCK AUTH IMPLEMENTATION
-        const mockToken = localStorage.getItem('mock_token');
-        if (mockToken) return mockToken;
-
         const { firebaseUser } = get();
         if (!firebaseUser) return null;
         return firebaseUser.getIdToken();
@@ -305,44 +310,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export function initAuthListener() {
     const store = useAuthStore.getState();
 
-    // MOCK AUTH INITIALIZATION
-    const mockToken = localStorage.getItem('mock_token');
-    const mockUserStr = localStorage.getItem('mock_user');
-
-    if (mockToken && mockUserStr) {
-        try {
-            const mockUser = JSON.parse(mockUserStr);
-            store.setUser(mockUser);
-            store.setFirebaseUser(null);
-            store.setInitialized(true);
-            console.log("Mock session restored, refreshing profile...");
-            // Ensure profile is up to date (gets departmentId correctly)
-            store.refreshUser();
-            return () => { }; // No real subscription to unsubscribe
-        } catch (e) {
-            console.error("Failed to restore mock session", e);
-            localStorage.removeItem('mock_token');
-            localStorage.removeItem('mock_user');
-        }
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-        // Only run real firebase logic if we are NOT in mock mode (cleaned up above)
+    const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
             store.setFirebaseUser(firebaseUser);
             await store.refreshUser();
         } else {
-            // Note: If we had a mock session, we wouldn't reach here due to early return above?
-            // Actually, locally we might want to support both or fallback.
-            // But since 'onAuthStateChanged' fires async, we must be careful not to overwrite our synchronous mock restore.
-            // If we are strictly "mock mode", we can ignore this.
-
-            // If we didn't find a mock token safely, we rely on firebase.
-            if (!localStorage.getItem('mock_token')) {
-                store.setUser(null);
-                store.setFirebaseUser(null);
-                store.setLoading(false);
-            }
+            store.setUser(null);
+            store.setFirebaseUser(null);
+            store.setLoading(false);
         }
 
         store.setInitialized(true);

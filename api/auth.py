@@ -34,20 +34,17 @@ USAGE:
 """
 
 import os
-from typing import Optional
 
-import firebase_admin
 from firebase_admin import auth
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel
 
 try:
-    from config import db, get_auth, get_db
-    from models import CreateUserInput, FirestoreUser, UpdateUserInput
+    from config import get_auth, get_db
+    from models import FirestoreUser
 except ImportError:
-    from api.config import db, get_auth, get_db
-    from api.models import CreateUserInput, FirestoreUser, UpdateUserInput
+    from api.config import get_auth, get_db
+    from api.models import FirestoreUser
 
 
 security = HTTPBearer()
@@ -66,7 +63,10 @@ async def verify_firebase_token(token: str) -> dict:
     Raises:
         HTTPException: If token is invalid or expired
     """
-    if os.getenv("USE_REAL_FIREBASE", "false").lower() != "true":
+    use_real_firebase = os.getenv("USE_REAL_FIREBASE", "false").lower() == "true"
+    is_testing = os.getenv("TESTING", "false").lower() == "true"
+
+    if is_testing and not use_real_firebase:
         return _verify_mock_token(token)
 
     try:
@@ -100,7 +100,7 @@ async def verify_firebase_token(token: str) -> dict:
 
 
 def _verify_mock_token(token: str) -> dict:
-    """Legacy mock token verification (kept for backward compatibility)."""
+    """Mock token verification for test-only usage."""
     if token.startswith("mock-token-"):
         parts = token.split("-")
         if len(parts) >= 4:
@@ -309,99 +309,3 @@ def can_create_note_in_subject(
     """
     return has_subject_access(user, subject_id)
 
-
-class LoginRequest(BaseModel):
-    email: str
-    password: str
-
-from fastapi import APIRouter
-
-router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-@router.post("/login")
-async def login(creds: LoginRequest):
-    """
-    Mock Login Endpoint.
-    Verifies email and password against Firestore 'users' collection.
-    Returns a mock token if successful.
-    """
-    users_ref = db.collection("users")
-    query = users_ref.where("email", "==", creds.email).limit(1)
-    results = query.stream()
-    
-    user_doc = None
-    for doc in results:
-        user_doc = doc
-        break
-    
-    if not user_doc:
-        if creds.email == "admin@test.com" and creds.password == "Admin123!":
-             return {
-                "token": "mock-token-admin-mock-user-1769428084546",
-                "user": {
-                    "email": "admin@test.com",
-                    "role": "admin",
-                    "displayName": "Test Admin",
-                    "id": "mock-user-1769428084546",
-                    "departmentId": None
-                }
-            }
-        
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
-        
-    user_data = user_doc.to_dict()
-    
-    if user_data.get("status") == "disabled":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account has been disabled. Contact administrator."
-        )
-    
-    stored_password = user_data.get("password")
-    
-    valid = False
-    
-    if stored_password:
-        if stored_password == creds.password:
-            valid = True
-    else:
-        if creds.email == "admin@test.com" and creds.password == "Admin123!":
-            valid = True
-        elif creds.email == "arun@test.com" and creds.password == "password":
-            valid = True
-        elif creds.email == "ibu@test.com" and creds.password == "password":
-            valid = True
-        elif creds.email == "ram@test.com" and creds.password == "password":
-            valid = True
-            
-    if not valid:
-         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password"
-        )
-        
-    uid = user_doc.id
-    role = user_data.get("role", "student")
-    token = f"mock-token-{role}-{uid}"
-    
-    dept_id = user_data.get("departmentId")
-    if not dept_id and creds.email == "arun@test.com":
-         dept_id = "407ac4a3-329c-4aa1-9"
-    elif not dept_id and creds.email == "ibu@test.com":
-         dept_id = "407ac4a3-329c-4aa1-9"
-    elif not dept_id and creds.email == "ram@test.com":
-         dept_id = "d08a5267-0612-4834-a"
-    
-    return {
-        "token": token,
-        "user": {
-            "id": uid,
-            "email": user_data.get("email"),
-            "role": role,
-            "displayName": user_data.get("displayName"),
-            "departmentId": dept_id
-        }
-    }

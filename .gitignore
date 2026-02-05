@@ -194,6 +194,7 @@ tests/*
 documentations/
 !documentations/
 !documentations/firebase-schema.md
+!documentations/api-authentication.md
 
 # =============================================================================
 # EXCEPTIONS - AI agent guidance files
