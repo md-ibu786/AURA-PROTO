@@ -53,6 +53,25 @@ except ImportError:
 router = APIRouter(prefix="/api", tags=["users"])
 
 
+# ========== HELPERS ==========
+
+
+def _merge_custom_claims(user_id: str, updates: dict[str, str]) -> None:
+    """Merge updates into existing Firebase custom claims."""
+    if not updates:
+        return
+    safe_updates = {key: value for key, value in updates.items() if value}
+    if not safe_updates:
+        return
+    try:
+        user_record = firebase_auth.get_user(user_id)
+        claims = user_record.custom_claims or {}
+        claims.update(safe_updates)
+        firebase_auth.set_custom_user_claims(user_id, claims)
+    except Exception:
+        pass
+
+
 # ========== MODELS ==========
 
 
@@ -305,6 +324,11 @@ async def create_user(
             }
         )
 
+        _merge_custom_claims(
+            firebase_user.uid,
+            {"role": user_data.role, "status": user_data.status},
+        )
+
         # Get department name for response
         dept_name = None
         if user_data.departmentId:
@@ -529,6 +553,13 @@ async def update_user(
                 firebase_auth.update_user(user_id, disabled=False)
             except Exception:
                 pass
+
+    claim_updates = {}
+    if update_data.role is not None:
+        claim_updates["role"] = update_data.role
+    if update_data.status is not None:
+        claim_updates["status"] = update_data.status
+    _merge_custom_claims(user_id, claim_updates)
 
     # Apply updates
     user_doc_ref.update(updates)

@@ -265,7 +265,13 @@ def create_note_endpoint(payload: CreateNoteRequest):
     except Exception:
         from api.notes import create_note_record
 
-    note = create_note_record(payload.module_id, payload.title, payload.pdf_url)
+    note = create_note_record(
+        payload.module_id,
+        payload.title,
+        payload.pdf_url,
+        subject_id=payload.subject_id,
+        department_id=payload.department_id,
+    )
     if not note:
         raise HTTPException(status_code=500, detail="Failed to create note")
     return note

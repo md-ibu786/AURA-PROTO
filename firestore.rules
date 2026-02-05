@@ -19,10 +19,14 @@ service cloud.firestore {
       return 'status' in request.auth.token;
     }
 
-    // Check if authenticated user is active (uses status claim if present)
+    // Check if authenticated user is active.
+    // Prefer custom claim when present; otherwise fall back to Firestore user status.
     function isActiveUser() {
       return isAuthenticated()
-          && (!hasStatusClaim() || request.auth.token.status == 'active');
+          && ((hasStatusClaim() && request.auth.token.status == 'active')
+              || (!hasStatusClaim()
+                  && userDoc().data != null
+                  && userDoc().data.status == 'active'));
     }
 
     // Check Custom Claims for global role
@@ -114,11 +118,14 @@ service cloud.firestore {
     }
 
     function isValidNote(note) {
-      return note.keys().hasAll(['title', 'content', 'subjectId', 'departmentId'])
+      return note.keys().hasAll(['title', 'module_id', 'created_at'])
           && note.title is string
-          && note.content is string
-          && note.subjectId is string
-          && note.departmentId is string;
+          && note.module_id is string
+          && note.created_at is string
+          && (!('pdf_url' in note) || note.pdf_url is string)
+          && (!('content' in note) || note.content is string)
+          && (!('subjectId' in note) || note.subjectId is string)
+          && (!('departmentId' in note) || note.departmentId is string);
     }
 
     function isValidUser(user) {
@@ -233,21 +240,30 @@ service cloud.firestore {
               // Admins can read all notes
               allow read: if isAdmin()
                   || (isStaff() && hasSubjectAccess(subjectId))
-                  || (isStudent() && isDocumentInMyDepartment(resource.data));
+                  || (isStudent() && isInDepartment(departmentId));
 
               // Only admins and assigned staff can create notes
               allow create: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
                   && isValidNote(request.resource.data)
-                  && request.resource.data.subjectId == subjectId
-                  && request.resource.data.departmentId == departmentId;
+                  && request.resource.data.module_id == moduleId
+                  && (!('subjectId' in request.resource.data)
+                      || request.resource.data.subjectId == subjectId)
+                  && (!('departmentId' in request.resource.data)
+                      || request.resource.data.departmentId == departmentId);
 
               // Only admins and assigned staff can update notes
               allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
                   && isValidNote(request.resource.data)
-                  && request.resource.data.subjectId == subjectId
-                  && request.resource.data.departmentId == departmentId
-                  && resource.data.subjectId == subjectId
-                  && resource.data.departmentId == departmentId;
+                  && request.resource.data.module_id == moduleId
+                  && resource.data.module_id == moduleId
+                  && (!('subjectId' in request.resource.data)
+                      || request.resource.data.subjectId == subjectId)
+                  && (!('departmentId' in request.resource.data)
+                      || request.resource.data.departmentId == departmentId)
+                  && (!('subjectId' in resource.data)
+                      || resource.data.subjectId == subjectId)
+                  && (!('departmentId' in resource.data)
+                      || resource.data.departmentId == departmentId);
 
               // Only admins can delete notes
               allow delete: if isAdmin();
