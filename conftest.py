@@ -10,3 +10,4 @@ import os
 
 os.environ.setdefault("AURA_TEST_MODE", "true")
 os.environ.setdefault("REDIS_ENABLED", "false")
+os.environ.setdefault("TESTING", "true")
