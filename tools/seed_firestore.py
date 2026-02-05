@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -89,6 +90,8 @@ class FirestoreMigrator:
             "errors": 0,
             "skipped": 0,
         }
+        self._pending_writes: Dict[str, str] = {}
+        self._stats_lock = threading.Lock()
 
     def initialize_firebase(self) -> None:
         """Initialize Firebase Admin SDK."""
@@ -329,6 +332,32 @@ class FirestoreMigrator:
 
         return True
 
+    def _queue_pending_write(self, doc_path: str, stat_key: str) -> None:
+        """Track a pending write so stats can update on completion."""
+        with self._stats_lock:
+            self._pending_writes[doc_path] = stat_key
+
+    def _increment_stat(self, stat_key: str) -> None:
+        """Increment a stat counter in a thread-safe way."""
+        with self._stats_lock:
+            self.stats[stat_key] += 1
+
+    def _record_write_success(self, doc_path: str) -> bool:
+        """Update stats for a successful write."""
+        with self._stats_lock:
+            stat_key = self._pending_writes.pop(doc_path, None)
+            if not stat_key:
+                return False
+            self.stats[stat_key] += 1
+            return True
+
+    def _record_write_failure(self, doc_path: Optional[str]) -> None:
+        """Update stats for a failed write."""
+        with self._stats_lock:
+            if doc_path:
+                self._pending_writes.pop(doc_path, None)
+            self.stats["errors"] += 1
+
     def migrate_collection(
         self,
         collection_path: str,
@@ -358,13 +387,14 @@ class FirestoreMigrator:
                 )
 
                 if exists and existing and not self.should_update(existing):
-                    self.stats["skipped"] += 1
+                    self._increment_stat("skipped")
                     continue
 
                 transformed["_v"] = MIGRATION_SETTINGS["schema_version"]
                 transformed["_migrated_at"] = datetime.utcnow().isoformat()
                 transformed["_migration_source"] = "mock_db.json"
 
+                stat_key = "updated" if exists else "created"
                 if self.dry_run:
                     action = "update" if exists else "create"
                     logger.info(
@@ -373,17 +403,14 @@ class FirestoreMigrator:
                         collection_path,
                         doc_id,
                     )
+                    self._increment_stat(stat_key)
                 else:
                     assert self.db is not None
                     doc_ref = self.db.collection(collection_path).document(
                         doc_id
                     )
                     bulk_writer.set(doc_ref, transformed, merge=True)
-
-                if exists:
-                    self.stats["updated"] += 1
-                else:
-                    self.stats["created"] += 1
+                    self._queue_pending_write(doc_ref.path, stat_key)
 
                 if index % 100 == 0:
                     logger.info(
@@ -400,7 +427,7 @@ class FirestoreMigrator:
                     doc_id,
                     exc,
                 )
-                self.stats["errors"] += 1
+                self._increment_stat("errors")
 
     def _collection_entries(
         self,
@@ -540,11 +567,46 @@ class FirestoreMigrator:
             if hasattr(bulk_writer, "_max_batch_size"):
                 bulk_writer._max_batch_size = MIGRATION_SETTINGS["batch_size"]
 
-            def on_write_error(error: Any) -> bool:
-                logger.error("Write failed: %s", error)
-                failed_attempts = getattr(error, "failed_attempts", 0)
-                return failed_attempts < MIGRATION_SETTINGS["max_retries"]
+            def on_write_result(
+                reference: Any,
+                _result: Any,
+                _bulk_writer_ref: Any,
+            ) -> None:
+                doc_path = getattr(reference, "path", None)
+                if not doc_path:
+                    logger.warning(
+                        "Write success missing document path: %s",
+                        reference,
+                    )
+                    return
+                if not self._record_write_success(doc_path):
+                    logger.warning(
+                        "Write success for untracked document: %s",
+                        doc_path,
+                    )
 
+            def on_write_error(
+                error: Any,
+                _bulk_writer_ref: Any,
+            ) -> bool:
+                logger.error("Write failed: %s", error)
+                failed_attempts = getattr(error, "failed_attempts", None)
+                if failed_attempts is None:
+                    failed_attempts = getattr(error, "attempts", 0)
+                should_retry = (
+                    failed_attempts < MIGRATION_SETTINGS["max_retries"]
+                )
+                if not should_retry:
+                    doc_path = None
+                    operation = getattr(error, "operation", None)
+                    if operation is not None:
+                        reference = getattr(operation, "reference", None)
+                        if reference is not None:
+                            doc_path = getattr(reference, "path", None)
+                    self._record_write_failure(doc_path)
+                return should_retry
+
+            bulk_writer.on_write_result(on_write_result)
             bulk_writer.on_write_error(on_write_error)
 
             for entry in entries:
