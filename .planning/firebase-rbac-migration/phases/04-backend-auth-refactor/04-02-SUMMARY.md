@@ -14,6 +14,8 @@ user lifecycle endpoints, and full test coverage**
 - `api/auth_sync.py` - Auth/Firestore sync endpoints and admin lifecycle APIs
 - `api/main.py` - Mount auth_sync router in the main FastAPI app
 - `tests/test_auth_sync.py` - Unit tests for sync and admin endpoints
+- `.planning/firebase-rbac-migration/phases/04-backend-auth-refactor/04-02-PLAN.md`
+  - Execution context path updated for local skills location
 
 ## Decisions Made
 None - followed plan as specified.
@@ -42,15 +44,23 @@ None - followed plan as specified.
 - **Verification:** `pytest tests/test_auth_sync.py -v`
 - **Commit:** feat(04-02)
 
+**3. [Rule 3 - Blocking] Fixed execution_context path in plan**
+- **Found during:** Plan execution setup
+- **Issue:** Execution context referenced a non-existent local skills path.
+- **Fix:** Updated execution_context to the local `~/.config/opencode` path.
+- **Files modified:** `.planning/firebase-rbac-migration/phases/04-backend-auth-refactor/04-02-PLAN.md`
+- **Verification:** Plan context resolves correctly for future runs.
+- **Commit:** docs(04-02)
+
 ### Deferred Enhancements
 
 None.
 
 ---
 
-**Total deviations:** 2 auto-fixed (missing critical), 0 deferred
-**Impact on plan:** Both changes were required for correct and secure sync
-behavior. No scope creep beyond endpoint correctness.
+**Total deviations:** 3 auto-fixed (2 missing critical, 1 blocking), 0 deferred
+**Impact on plan:** Changes were required for correct, secure, and
+reproducible execution. No scope creep beyond endpoint correctness.
 
 ## Issues Encountered
 - Tests initially failed due to patching the wrong auth_sync module instance.
