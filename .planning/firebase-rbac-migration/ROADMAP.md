@@ -158,7 +158,7 @@ Technical Notes (from research):
 
 Plans:
 - [x] [04-01-PLAN.md](phases/04-backend-auth-refactor/04-01-PLAN.md): Token verification refactor - Update `api/auth.py` to use real `verify_id_token()`
-- [ ] [04-02-PLAN.md](phases/04-backend-auth-refactor/04-02-PLAN.md): User sync endpoint - Create endpoint to sync Firebase Auth user to Firestore on first login
+- [x] [04-02-PLAN.md](phases/04-backend-auth-refactor/04-02-PLAN.md): User sync endpoint - Create endpoint to sync Firebase Auth user to Firestore on first login
 - [ ] [04-03-PLAN.md](phases/04-backend-auth-refactor/04-03-PLAN.md): Remove mock login - Delete `POST /api/auth/login` and update user creation to use Firebase Auth
 
 Key Deliverables:
@@ -340,7 +340,7 @@ Technical Notes (from research):
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
 | 2. Firestore Schema & Security Rules | 3/3 | Complete | 2026-02-04 |
 | 3. Data Migration | 2/2 | Complete | 2026-02-05 |
-| 4. Backend Auth Refactor | 1/3 | In progress | - |
+| 4. Backend Auth Refactor | 2/3 | In progress | - |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
 | 6. App Check & Security Hardening | 3/3 | Planned | - |
 | 7. Testing & Verification | 3/3 | Planned | - |
