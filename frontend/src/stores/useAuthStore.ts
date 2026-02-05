@@ -88,7 +88,7 @@ interface AuthState {
     setLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     setInitialized: (initialized: boolean) => void;
-    getIdToken: () => Promise<string | null>;
+    getIdToken: (forceRefresh?: boolean) => Promise<string | null>;
 }
 
 // API base URL
@@ -365,10 +365,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setError: (error) => set({ error }),
     setInitialized: (initialized) => set({ isInitialized: initialized }),
 
-    getIdToken: async () => {
+    getIdToken: async (forceRefresh = false) => {
+        if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+             return localStorage.getItem('mock_token') || 'mock-token-admin';
+        }
         const { firebaseUser } = get();
         if (!firebaseUser) return null;
-        return firebaseUser.getIdToken();
+        return firebaseUser.getIdToken(forceRefresh);
     },
 }));
 

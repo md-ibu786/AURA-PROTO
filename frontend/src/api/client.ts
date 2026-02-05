@@ -40,6 +40,8 @@
  * ============================================================================
  */
 
+import { useAuthStore } from '../stores/useAuthStore';
+
 const API_BASE = '/api';
 
 export class DuplicateError extends Error {
@@ -52,20 +54,54 @@ export class DuplicateError extends Error {
     }
 }
 
+async function getAuthHeader(): Promise<Record<string, string>> {
+    try {
+        const token = await useAuthStore.getState().getIdToken();
+        if (token) {
+            return { 'Authorization': `Bearer ${token}` };
+        }
+    } catch (e) {
+        console.warn('Failed to get auth token', e);
+    }
+    return {};
+}
+
 // Generic fetch wrapper with error handling
 async function fetchApi<T>(
     endpoint: string,
     options?: RequestInit
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
+    const authHeaders = await getAuthHeader();
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
+            ...authHeaders,
             ...options?.headers,
         },
     });
+
+    // 401 Retry Logic
+    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
+        try {
+             // Force refresh token
+             const newToken = await useAuthStore.getState().getIdToken(true);
+             if (newToken) {
+                 response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${newToken}`,
+                        ...options?.headers,
+                    },
+                 });
+             }
+        } catch (e) {
+            console.error('Token refresh failed', e);
+        }
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
@@ -89,11 +125,33 @@ async function fetchFormData<T>(
     formData: FormData
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
+    const authHeaders = await getAuthHeader();
 
-    const response = await fetch(url, {
+    let response = await fetch(url, {
         method: 'POST',
+        headers: {
+            ...authHeaders,
+        },
         body: formData,
     });
+
+    // 401 Retry Logic
+    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
+        try {
+             const newToken = await useAuthStore.getState().getIdToken(true);
+             if (newToken) {
+                 response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${newToken}`,
+                    },
+                    body: formData,
+                 });
+             }
+        } catch (e) {
+            console.error('Token refresh failed', e);
+        }
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
