@@ -46,7 +46,7 @@ import os
 # Load .env from project root (one level up from api/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(project_root, ".env")
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 # Fix relative GOOGLE_APPLICATION_CREDENTIALS path to absolute
 gac = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
@@ -182,13 +182,13 @@ def list_semesters(department_id: str):
 
 
 @app.get("/semesters/{semester_id}/subjects")
-def list_subjects(semester_id: str):
-    return {"subjects": get_subjects_by_semester(semester_id)}
+def list_subjects(semester_id: str, department_id: str | None = None):
+    return {"subjects": get_subjects_by_semester(semester_id, department_id=department_id)}
 
 
 @app.get("/subjects/{subject_id}/modules")
-def list_modules(subject_id: str):
-    return {"modules": get_modules_by_subject(subject_id)}
+def list_modules(subject_id: str, department_id: str | None = None, semester_id: str | None = None):
+    return {"modules": get_modules_by_subject(subject_id, department_id=department_id, semester_id=semester_id)}
 
 
 @app.get("/")

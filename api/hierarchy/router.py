@@ -122,9 +122,8 @@ def get_subjects(
     Department ID is passed for context/validation but filtering uses semester_id.
     Used as the third step in hierarchy drill-down.
     """
-    # Note: get_subjects_by_semester only needs semester_id
-    # department_id is passed for API consistency but not used in query
-    raw_subjects = get_subjects_by_semester(semester_id)
+    # Note: get_subjects_by_semester now supports optional department_id for direct path access
+    raw_subjects = get_subjects_by_semester(semester_id, department_id=department_id)
     
     if not raw_subjects:
         return SubjectListResponse(items=[], total=0)
@@ -155,9 +154,8 @@ def get_modules(
     Department ID and Semester ID are passed for context/validation.
     Used as the final step in hierarchy drill-down.
     """
-    # Note: get_modules_by_subject only needs subject_id
-    # department_id and semester_id are passed for API consistency
-    raw_modules = get_modules_by_subject(subject_id)
+    # Note: get_modules_by_subject now supports optional context for direct path access
+    raw_modules = get_modules_by_subject(subject_id, department_id=department_id, semester_id=semester_id)
     
     if not raw_modules:
         return ModuleListResponse(items=[], total=0)

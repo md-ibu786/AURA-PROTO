@@ -64,7 +64,14 @@ def get_semesters_by_department(department_id: str) -> List[Dict[str, Any]]:
     docs = ref.collection('semesters').order_by('semester_number').stream()
     return [{'id': doc.id, 'label': f"{doc.get('semester_number')} - {doc.get('name')}", 'type': 'semester', **doc.to_dict()} for doc in docs]
 
-def get_subjects_by_semester(semester_id: str) -> List[Dict[str, Any]]:
+def get_subjects_by_semester(semester_id: str, department_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    # Firestore: subcollection 'subjects'
+    # If department_id is provided, use direct path for efficiency and to avoid index requirements
+    if department_id:
+        semester_ref = db.collection('departments').document(department_id).collection('semesters').document(semester_id)
+        subjects = semester_ref.collection('subjects').order_by('name').stream()
+        return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
+
     # Need to find the semester doc to get its subjects subcollection.
     # Since we can't easily find parent from just ID, we assume known path or use Collection Group if ID is unique.
     # But `hierarchy.py` helpers are typically "drill down".
@@ -80,7 +87,14 @@ def get_subjects_by_semester(semester_id: str) -> List[Dict[str, Any]]:
     subjects = semester_ref.collection('subjects').order_by('name').stream()
     return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
 
-def get_modules_by_subject(subject_id: str) -> List[Dict[str, Any]]:
+def get_modules_by_subject(subject_id: str, department_id: Optional[str] = None, semester_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    if department_id and semester_id:
+        subject_ref = db.collection('departments').document(department_id)\
+            .collection('semesters').document(semester_id)\
+            .collection('subjects').document(subject_id)
+        modules = subject_ref.collection('modules').order_by('module_number').stream()
+        return [{'id': doc.id, 'label': f"Module {doc.get('module_number')} - {doc.get('name')}", 'type': 'module', **doc.to_dict()} for doc in modules]
+
     docs = list(db.collection_group('subjects').where('id', '==', subject_id).stream())
     if not docs:
         return []
