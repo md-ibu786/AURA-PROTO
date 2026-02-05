@@ -22,20 +22,16 @@
  */
 
 import { useState, type FormEvent } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 
 export function LoginPage() {
     const navigate = useNavigate();
-    const location = useLocation();
     const { login, isLoading, error } = useAuthStore();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [localError, setLocalError] = useState<string | null>(null);
-
-    // Get redirect path from location state, or default based on role
-    const from = (location.state as { from?: string })?.from || '/';
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();

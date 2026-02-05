@@ -71,24 +71,28 @@ async def verify_firebase_token(token: str) -> dict:
 
     try:
         auth_client = get_auth()
-        decoded_token = auth_client.verify_id_token(token)
+        # Allow 10 seconds of clock skew to prevent "Token used too early" errors
+        decoded_token = auth_client.verify_id_token(token, clock_skew_seconds=10)
         return decoded_token
-    except auth.InvalidIdTokenError:
+    except auth.InvalidIdTokenError as exc:
+        print(f"DEBUG: Invalid token error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail=f"Invalid authentication token: {str(exc)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except auth.ExpiredIdTokenError:
+    except auth.ExpiredIdTokenError as exc:
+        print(f"DEBUG: Expired token error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token has expired",
+            detail=f"Authentication token has expired: {str(exc)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except auth.RevokedIdTokenError:
+    except auth.RevokedIdTokenError as exc:
+        print(f"DEBUG: Revoked token error: {exc}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication token has been revoked",
+            detail=f"Authentication token has been revoked: {str(exc)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as exc:

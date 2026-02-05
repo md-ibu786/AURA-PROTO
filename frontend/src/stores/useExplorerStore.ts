@@ -62,6 +62,23 @@ interface ProcessDialogState {
     open: boolean;
     fileIds: string[];
     moduleId: string;
+    skippedCount: number;
+}
+
+interface BulkDownloadDialogState {
+    open: boolean;
+    files: Array<{
+        id: string;
+        type: HierarchyType;
+        label: string;
+        meta?: any;
+    }>;
+}
+
+interface KGDeleteDialogState {
+    open: boolean;
+    fileIds: string[];
+    moduleId: string;
 }
 
 interface ExplorerState {
@@ -101,14 +118,28 @@ interface ExplorerState {
     // Selection Mode
     selectionMode: boolean;
     setSelectionMode: (enabled: boolean) => void;
+    
+    // Delete Mode (subset of Selection Mode)
+    deleteMode: boolean;
+    setDeleteMode: (enabled: boolean) => void;
 
     // KG Process State
     kgPolling: { moduleId: string | null; isPolling: boolean };
     setKGPolling: (moduleId: string | null, isPolling: boolean) => void;
 
     processDialog: ProcessDialogState;
-    openProcessDialog: (fileIds: string[], moduleId: string) => void;
+    openProcessDialog: (fileIds: string[], moduleId: string, skippedCount?: number) => void;
     closeProcessDialog: () => void;
+
+    // Bulk Download Dialog
+    bulkDownloadDialog: BulkDownloadDialogState;
+    openBulkDownloadDialog: (files: BulkDownloadDialogState['files']) => void;
+    closeBulkDownloadDialog: () => void;
+
+    // KG Delete Dialog
+    kgDeleteDialog: KGDeleteDialogState;
+    openKGDeleteDialog: (fileIds: string[], moduleId: string) => void;
+    closeKGDeleteDialog: () => void;
 
     // Selection actions
     select: (id: string) => void;
@@ -182,23 +213,43 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
 
     // Selection Mode
     selectionMode: false,
+    deleteMode: false,
 
     // KG State
     kgPolling: { moduleId: null, isPolling: false },
-    processDialog: { open: false, fileIds: [], moduleId: '' },
+    processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 },
+    bulkDownloadDialog: { open: false, files: [] },
+    kgDeleteDialog: { open: false, fileIds: [], moduleId: '' },
 
     setSelectionMode: (enabled) => set({ selectionMode: enabled }),
+    setDeleteMode: (enabled) => set({ deleteMode: enabled }),
 
     setKGPolling: (moduleId, isPolling) => set({
         kgPolling: { moduleId, isPolling }
     }),
 
-    openProcessDialog: (fileIds, moduleId) => set({
-        processDialog: { open: true, fileIds, moduleId }
+    openProcessDialog: (fileIds, moduleId, skippedCount = 0) => set({
+        processDialog: { open: true, fileIds, moduleId, skippedCount }
     }),
 
     closeProcessDialog: () => set({
-        processDialog: { open: false, fileIds: [], moduleId: '' }
+        processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 }
+    }),
+
+    openBulkDownloadDialog: (files) => set({
+        bulkDownloadDialog: { open: true, files }
+    }),
+
+    closeBulkDownloadDialog: () => set({
+        bulkDownloadDialog: { open: false, files: [] }
+    }),
+
+    openKGDeleteDialog: (fileIds, moduleId) => set({
+        kgDeleteDialog: { open: true, fileIds, moduleId }
+    }),
+
+    closeKGDeleteDialog: () => set({
+        kgDeleteDialog: { open: false, fileIds: [], moduleId: '' }
     }),
 
     // Navigation
@@ -423,8 +474,11 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         warningDialog: { isOpen: false, type: 'error', message: '' },
         warningTimeoutId: null,
         selectionMode: false,
+        deleteMode: false,
         kgPolling: { moduleId: null, isPolling: false },
-        processDialog: { open: false, fileIds: [], moduleId: '' },
+        processDialog: { open: false, fileIds: [], moduleId: '', skippedCount: 0 },
+        bulkDownloadDialog: { open: false, files: [] },
+        kgDeleteDialog: { open: false, fileIds: [], moduleId: '' },
         deleteDialogOpen: false,
         nodeToDelete: null
     }),

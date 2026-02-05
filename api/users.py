@@ -166,61 +166,79 @@ async def list_users(
     if department_id:
         query = query.where("departmentId", "==", department_id)
 
-    docs = query.stream()
-    users = []
+    try:
+        docs = query.stream()
+        users = []
 
-    # Cache department names and subject names for efficiency
-    dept_cache = {}
-    subject_cache = {}
+        # Cache department names and subject names for efficiency
+        dept_cache = {}
+        subject_cache = {}
 
-    for doc in docs:
-        data = doc.to_dict()
-        dept_id = data.get("departmentId")
-        dept_name = None
-        user_role = data.get("role", "student")
+        for doc in docs:
+            try:
+                data = doc.to_dict()
+                dept_id = data.get("departmentId")
+                dept_name = None
+                user_role = data.get("role", "student")
 
-        if dept_id:
-            if dept_id not in dept_cache:
-                dept_doc = db.collection("departments").document(dept_id).get()
-                dept_cache[dept_id] = (
-                    dept_doc.to_dict().get("name") if dept_doc.exists else None
+                if dept_id:
+                    if dept_id not in dept_cache:
+                        try:
+                            dept_doc = db.collection("departments").document(dept_id).get()
+                            dept_cache[dept_id] = (
+                                dept_doc.to_dict().get("name") if dept_doc.exists else None
+                            )
+                        except Exception:
+                            dept_cache[dept_id] = "Unknown Department"
+                    dept_name = dept_cache[dept_id]
+
+                # Get subject info for staff users
+                subject_ids = data.get("subjectIds")
+                subject_names = None
+                if user_role == "staff" and subject_ids:
+                    from hierarchy_crud import find_doc_by_id
+
+                    subject_names = []
+                    for subj_id in subject_ids:
+                        if subj_id not in subject_cache:
+                            try:
+                                subj_ref = find_doc_by_id("subjects", subj_id)
+                                if subj_ref:
+                                    subj_data = subj_ref.get().to_dict()
+                                    subject_cache[subj_id] = subj_data.get("name", "Unknown")
+                                else:
+                                    subject_cache[subj_id] = "Unknown"
+                            except Exception:
+                                subject_cache[subj_id] = "Error Loading Subject"
+                        subject_names.append(subject_cache[subj_id])
+
+                users.append(
+                    UserResponse(
+                        id=doc.id,
+                        email=data.get("email", ""),
+                        display_name=data.get("displayName"),
+                        role=user_role,
+                        department_id=dept_id,
+                        department_name=dept_name,
+                        subject_ids=subject_ids if user_role == "staff" else None,
+                        subject_names=subject_names,
+                        status=data.get("status", "active"),
+                        created_at=data.get("createdAt"),
+                        updated_at=data.get("updatedAt"),
+                    )
                 )
-            dept_name = dept_cache[dept_id]
+            except Exception as e:
+                print(f"Error processing user {doc.id}: {e}")
+                # Continue processing other users instead of failing the whole request
+                continue
 
-        # Get subject info for staff users
-        subject_ids = data.get("subjectIds")
-        subject_names = None
-        if user_role == "staff" and subject_ids:
-            from hierarchy_crud import find_doc_by_id
-
-            subject_names = []
-            for subj_id in subject_ids:
-                if subj_id not in subject_cache:
-                    subj_ref = find_doc_by_id("subjects", subj_id)
-                    if subj_ref:
-                        subj_data = subj_ref.get().to_dict()
-                        subject_cache[subj_id] = subj_data.get("name", "Unknown")
-                    else:
-                        subject_cache[subj_id] = "Unknown"
-                subject_names.append(subject_cache[subj_id])
-
-        users.append(
-            UserResponse(
-                id=doc.id,
-                email=data.get("email", ""),
-                display_name=data.get("displayName"),
-                role=user_role,
-                department_id=dept_id,
-                department_name=dept_name,
-                subject_ids=subject_ids if user_role == "staff" else None,
-                subject_names=subject_names,
-                status=data.get("status", "active"),
-                created_at=data.get("createdAt"),
-                updated_at=data.get("updatedAt"),
-            )
+        return users
+    except Exception as e:
+        print(f"Fatal error in list_users: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch users: {str(e)}",
         )
-
-    return users
 
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

@@ -40,7 +40,7 @@ from google.cloud.firestore_v1.async_client import AsyncClient
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOTENV_PATH = PROJECT_ROOT / ".env"
 if DOTENV_PATH.exists():
-    dotenv.load_dotenv(DOTENV_PATH)
+    dotenv.load_dotenv(DOTENV_PATH, override=True)
 
 # Google Cloud / Vertex AI Configuration
 VERTEX_PROJECT = os.getenv("VERTEX_PROJECT", "lucky-processor-480412-n8")
