@@ -23,6 +23,7 @@ USAGE:
     python tools/seed_firestore.py --collection users
     python tools/seed_firestore.py --collection departments/{id}/semesters
     python tools/seed_firestore.py --reset
+    python tools/seed_firestore.py --credentials serviceAccountKey-auth.json
 ============================================================================
 """
 from __future__ import annotations
@@ -37,6 +38,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.api_core import exceptions
 
 from migration_config import (
     COLLECTIONS_WITH_ID_FIELD,
@@ -73,9 +75,14 @@ class CollectionEntry:
 class FirestoreMigrator:
     """Handles migration from mock_db.json to Firestore."""
 
-    def __init__(self, dry_run: bool = False) -> None:
+    def __init__(
+        self,
+        dry_run: bool = False,
+        credentials_path: Optional[Path] = None,
+    ) -> None:
         self.dry_run = dry_run
         self.db: Optional[firestore.Client] = None
+        self.credentials_path = credentials_path or DEFAULT_CREDENTIALS_PATH
         self.stats = {
             "created": 0,
             "updated": 0,
@@ -85,15 +92,14 @@ class FirestoreMigrator:
 
     def initialize_firebase(self) -> None:
         """Initialize Firebase Admin SDK."""
-        cred_path = DEFAULT_CREDENTIALS_PATH
-        if not cred_path.exists():
+        if not self.credentials_path.exists():
             raise FileNotFoundError(
                 "Service account key not found: "
-                f"{DEFAULT_CREDENTIALS_PATH}"
+                f"{self.credentials_path}"
             )
 
         if not firebase_admin._apps:
-            cred = credentials.Certificate(str(cred_path))
+            cred = credentials.Certificate(str(self.credentials_path))
             firebase_admin.initialize_app(cred)
 
         self.db = firestore.client()
@@ -159,16 +165,25 @@ class FirestoreMigrator:
     def get_last_successful_migration(self) -> Optional[str]:
         """Return timestamp of last successful migration, if any."""
         assert self.db is not None
-        docs = (
-            self.db.collection("_migrations")
-            .where("status", "==", "completed")
-            .order_by("completed_at", direction=firestore.Query.DESCENDING)
-            .limit(1)
-            .stream()
-        )
-        for doc in docs:
-            data = doc.to_dict()
-            return data.get("completed_at")
+        try:
+            docs = (
+                self.db.collection("_migrations")
+                .where("status", "==", "completed")
+                .order_by(
+                    "completed_at",
+                    direction=firestore.Query.DESCENDING,
+                )
+                .limit(1)
+                .stream()
+            )
+            for doc in docs:
+                data = doc.to_dict()
+                return data.get("completed_at")
+        except exceptions.FailedPrecondition as exc:
+            logger.warning(
+                "Skipping migration lookup due to missing index: %s",
+                exc,
+            )
         return None
 
     def transform_document(
@@ -581,6 +596,10 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Delete existing data before migration (DANGEROUS)",
     )
+    parser.add_argument(
+        "--credentials",
+        help="Path to service account key JSON",
+    )
     return parser
 
 
@@ -589,7 +608,13 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    migrator = FirestoreMigrator(dry_run=args.dry_run)
+    credentials_path = (
+        Path(args.credentials) if args.credentials else None
+    )
+    migrator = FirestoreMigrator(
+        dry_run=args.dry_run,
+        credentials_path=credentials_path,
+    )
     migrator.run(
         target_collection=args.collection,
         reset=args.reset,

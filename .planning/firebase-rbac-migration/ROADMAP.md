@@ -44,7 +44,7 @@ This roadmap outlines the migration from mock authentication (`mock_db.json` / `
 
 - [x] **Phase 1: Infrastructure & Configuration** - Firebase project setup and credentials
 - [x] **Phase 2: Firestore Schema & Security Rules** - Production schema and RBAC rules
-- [ ] **Phase 3: Data Migration** - Seed production Firestore from mock_db.json
+- [x] **Phase 3: Data Migration** - Seed production Firestore from mock_db.json
 - [ ] **Phase 4: Backend Auth Refactor** - Real ID token verification in FastAPI
 - [ ] **Phase 5: Frontend Firebase SDK Integration** - Real Firebase Auth in React
 - [ ] **Phase 6: App Check & Security Hardening** - Production security measures
@@ -128,7 +128,7 @@ Technical Notes (from research):
 
 Plans:
 - [x] [03-01-PLAN.md](phases/03-data-migration/03-01-PLAN.md): Migration script - Create `tools/seed_firestore.py` using BulkWriter for idempotent migration
-- [ ] [03-02-PLAN.md](phases/03-data-migration/03-02-PLAN.md): Execute and verify - Run migration, verify in Firebase Console, document rollback procedure
+- [x] [03-02-PLAN.md](phases/03-data-migration/03-02-PLAN.md): Execute and verify - Run migration, verify in Firebase Console, document rollback procedure
 
 Key Deliverables:
 - `tools/seed_firestore.py` with:
@@ -339,7 +339,7 @@ Technical Notes (from research):
 |-------|----------------|--------|-----------|
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
 | 2. Firestore Schema & Security Rules | 3/3 | Complete | 2026-02-04 |
-| 3. Data Migration | 1/2 | In progress | - |
+| 3. Data Migration | 2/2 | Complete | 2026-02-05 |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
 | 6. App Check & Security Hardening | 3/3 | Planned | - |
