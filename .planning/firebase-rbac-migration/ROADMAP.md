@@ -127,7 +127,7 @@ Technical Notes (from research):
 **Plans**: 2 plans
 
 Plans:
-- [ ] [03-01-PLAN.md](phases/03-data-migration/03-01-PLAN.md): Migration script - Create `tools/seed_firestore.py` using BulkWriter for idempotent migration
+- [x] [03-01-PLAN.md](phases/03-data-migration/03-01-PLAN.md): Migration script - Create `tools/seed_firestore.py` using BulkWriter for idempotent migration
 - [ ] [03-02-PLAN.md](phases/03-data-migration/03-02-PLAN.md): Execute and verify - Run migration, verify in Firebase Console, document rollback procedure
 
 Key Deliverables:
@@ -250,9 +250,9 @@ Technical Notes (from research):
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01: Frontend App Check - Initialize App Check with reCAPTCHA Enterprise provider
-- [ ] 06-02: Backend App Check verification - Add FastAPI dependency to verify `X-Firebase-AppCheck` header
-- [ ] 06-03: Security hardening - API key restrictions, domain restrictions, security headers
+- [x] [06-01-PLAN.md](phases/06-app-check-security/06-01-PLAN.md): Frontend App Check - Initialize App Check with ReCaptcha Enterprise provider
+- [x] [06-02-PLAN.md](phases/06-app-check-security/06-02-PLAN.md): Backend App Check verification - Add FastAPI dependency to verify X-Firebase-AppCheck header
+- [x] [06-03-PLAN.md](phases/06-app-check-security/06-03-PLAN.md): Security hardening - API key restrictions, domain restrictions, security headers
 
 Key Deliverables:
 - Frontend App Check setup:
@@ -296,9 +296,9 @@ Technical Notes (from research):
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Backend RBAC unit tests - Test decorators, dependencies, and permission checks
-- [ ] 07-02: Security rules unit tests - Complete test coverage with Firebase Emulator
-- [ ] 07-03: End-to-end integration tests - Full flow testing with real Firebase (staging project)
+- [x] [07-01-PLAN.md](phases/07-testing-verification/07-01-PLAN.md): Backend RBAC unit tests - Test decorators, dependencies, and permission checks
+- [x] [07-02-PLAN.md](phases/07-testing-verification/07-02-PLAN.md): Security rules unit tests - Complete test coverage with Firebase Emulator
+- [x] [07-03-PLAN.md](phases/07-testing-verification/07-03-PLAN.md): End-to-end integration tests - Full flow testing with real Firebase
 
 Key Deliverables:
 - `tests/test_rbac.py`:
@@ -339,11 +339,11 @@ Technical Notes (from research):
 |-------|----------------|--------|-----------|
 | 1. Infrastructure & Configuration | 2/2 | Complete | 2026-02-04 |
 | 2. Firestore Schema & Security Rules | 3/3 | Complete | 2026-02-04 |
-| 3. Data Migration | 0/2 | Not started | - |
+| 3. Data Migration | 1/2 | In progress | - |
 | 4. Backend Auth Refactor | 0/3 | Not started | - |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
-| 6. App Check & Security Hardening | 0/3 | Not started | - |
-| 7. Testing & Verification | 0/3 | Not started | - |
+| 6. App Check & Security Hardening | 3/3 | Planned | - |
+| 7. Testing & Verification | 3/3 | Planned | - |
 
 ## Plan Files
 
