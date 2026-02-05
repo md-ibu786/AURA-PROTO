@@ -12,6 +12,7 @@
 - `api/users.py` - Switched dependencies to FirestoreUser and updated usage
 - `tests/test_auth_integration.py` - Integration tests for auth verification and RBAC helpers
 - `.planning/firebase-rbac-migration/ROADMAP.md` - Phase 4 progress updated
+- `.planning/firebase-rbac-migration/phases/04-backend-auth-refactor/04-01-PLAN.md` - Execution context path updated
 - `.planning/firebase-rbac-migration/phases/04-backend-auth-refactor/04-01-SUMMARY.md` - Plan summary
 
 ## Decisions Made
@@ -19,7 +20,8 @@ None - followed plan as specified.
 
 ## Deviations from Plan
 
-None - plan executed exactly as written.
+- Updated `04-01-PLAN.md` execution_context paths to match the local
+  `~/.config/opencode` skills location so the workflow references resolve.
 
 ## Issues Encountered
 None.
