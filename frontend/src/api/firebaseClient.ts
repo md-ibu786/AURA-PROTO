@@ -27,6 +27,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
 // Firebase configuration from environment variables
 // These should match your Firebase project settings
@@ -45,4 +46,21 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Auth
 const auth = getAuth(app);
 
-export { app, auth };
+// Initialize App Check
+// Wrapped in try-catch to prevent crashes during development if not configured
+let appCheck;
+try {
+    if (typeof window !== 'undefined') {
+        const siteKey = import.meta.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY;
+        if (siteKey && siteKey !== 'placeholder_site_key') {
+            appCheck = initializeAppCheck(app, {
+                provider: new ReCaptchaEnterpriseProvider(siteKey),
+                isTokenAutoRefreshEnabled: true
+            });
+        }
+    }
+} catch (error) {
+    console.warn('Firebase App Check initialization failed:', error);
+}
+
+export { app, auth, appCheck };

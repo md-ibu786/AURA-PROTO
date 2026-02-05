@@ -149,6 +149,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
 
+        if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+            try {
+                // Simulate network delay
+                await new Promise(resolve => setTimeout(resolve, 800));
+
+                if (password === 'error') {
+                     throw new Error('Mock invalid credentials');
+                }
+
+                const mockUser: AuthUser = {
+                    id: 'mock-user-123',
+                    email,
+                    displayName: 'Mock User',
+                    role: 'admin',
+                    departmentId: null,
+                    departmentName: null,
+                    subjectIds: null,
+                    status: 'active'
+                };
+
+                set({ user: mockUser, isLoading: false, error: null });
+                return;
+            } catch (error) {
+                 set({ isLoading: false, error: 'Invalid mock credentials' });
+                 throw error;
+            }
+        }
+
         try {
             const credentials = await signInWithEmailAndPassword(
                 auth,
@@ -181,8 +209,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             await get().refreshUser();
             set({ isLoading: false, error: null });
 
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Login failed';
+        } catch (error: any) {
+            let errorMessage = 'Login failed';
+
+            if (error?.code) {
+                switch (error.code) {
+                    case 'auth/invalid-email':
+                        errorMessage = 'Invalid email address';
+                        break;
+                    case 'auth/user-disabled':
+                        errorMessage = 'Account has been disabled';
+                        break;
+                    case 'auth/user-not-found':
+                        errorMessage = 'No account found with this email';
+                        break;
+                    case 'auth/wrong-password':
+                        errorMessage = 'Incorrect password';
+                        break;
+                    case 'auth/too-many-requests':
+                        errorMessage = 'Too many attempts. Try again later';
+                        break;
+                    case 'auth/network-request-failed':
+                        errorMessage = 'Network error. Check connection';
+                        break;
+                    default:
+                        errorMessage = error.message || 'Login failed';
+                }
+            } else if (error instanceof Error) {
+                errorMessage = error.message;
+            }
+
             set({
                 user: null,
                 isLoading: false,
@@ -194,6 +250,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     logout: async () => {
         set({ isLoading: true });
+        
+        if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+            set({
+                user: null,
+                firebaseUser: null,
+                isLoading: false,
+                error: null
+            });
+            return;
+        }
+
         try {
             await signOut(auth);
 
@@ -309,6 +376,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 // This should be called once when the app starts
 export function initAuthListener() {
     const store = useAuthStore.getState();
+
+    if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        store.setInitialized(true);
+        return () => {};
+    }
 
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
