@@ -342,7 +342,7 @@ Technical Notes (from research):
 | 3. Data Migration | 2/2 | Complete | 2026-02-05 |
 | 4. Backend Auth Refactor | 3/3 | Complete | 2026-02-05 |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
-| 6. App Check & Security Hardening | 3/3 | Planned | - |
+| 6. App Check & Security Hardening | 3/3 | Complete | 2026-02-05 |
 | 7. Testing & Verification | 3/3 | Planned | - |
 
 ## Plan Files

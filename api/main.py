@@ -112,28 +112,99 @@ from api.routers.schema import router as schema_router
 # Import Graph Preview API router (RC-02)
 from api.routers.graph_preview import router as graph_preview_router
 
-app = FastAPI(title="AURA-PROTO", version="1.0.0")
+# =============================================================================
+# SECURITY CONFIGURATION
+# =============================================================================
+
+# Production mode detection - enables/disables security features based on environment
+IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+# CORS configuration - support both environment variable and defaults for development
+# Format: comma-separated list of origins, e.g.:
+#   DEVELOPMENT: http://localhost:5173
+#   PRODUCTION: https://yourdomain.com,https://www.yourdomain.com
+def _get_allowed_origins() -> list:
+    """Get allowed CORS origins from environment or use defaults."""
+    env_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
+    if env_origins:
+        return [origin.strip() for origin in env_origins.split(",")]
+    # Default development origins
+    return [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:3000",
+    ]
+
+ALLOWED_ORIGINS = _get_allowed_origins()
 
 # Rate limiting configuration
-
-# Rate limiting configuration
-limiter = Limiter(key_func=get_remote_address)
+# Auth endpoints: 5 requests per minute to prevent brute force attacks
+# General API: 100 requests per minute
+limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS configuration for React frontend
-origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://127.0.0.1:3000",
-]
+app = FastAPI(title="AURA-PROTO", version="1.0.0")
+
+
+# =============================================================================
+# SECURITY HEADERS MIDDLEWARE
+# =============================================================================
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add OWASP-recommended security headers to all responses.
+
+    Headers added:
+    - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
+    - X-Frame-Options: DENY - Prevents clickjacking via iframe embedding
+    - X-XSS-Protection: 1; mode=block - Legacy XSS protection for older browsers
+    - Strict-Transport-Security: Enforces HTTPS connections
+    - Referrer-Policy: Controls referrer information sent to other sites
+    - Content-Security-Policy: Restricts resource loading to trusted sources
+    """
+    response = await call_next(request)
+
+    # Only add security headers for successful responses
+    if response.status_code < 400:
+        # Set security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # HSTS: Only set in production to avoid development issues
+        if IS_PRODUCTION:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        # Referrer Policy: Strict when cross-origin
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+        # CSP: Basic policy - adjust for production based on needs
+        # In production, you may need to customize this for your CDN/assets
+        if IS_PRODUCTION:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self'; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "font-src 'self'; "
+                "connect-src 'self' https://*.googleapis.com https://*.firebaseio.com; "
+                "frame-ancestors 'none';"
+            )
+
+    return response
+
+
+# =============================================================================
+# CORS MIDDLEWARE
+# =============================================================================
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
