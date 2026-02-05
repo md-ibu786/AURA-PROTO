@@ -11,6 +11,11 @@
 import process from 'process';
 import { defineConfig, devices } from '@playwright/test';
 
+// Default to mock auth for E2E tests unless explicitly set
+if (!process.env.VITE_USE_MOCK_AUTH) {
+    process.env.VITE_USE_MOCK_AUTH = 'true';
+}
+
 /**
  * Playwright E2E test configuration for AURA-NOTES-MANAGER frontend.
  * @see https://playwright.dev/docs/test-configuration
@@ -49,6 +54,9 @@ export default defineConfig({
 
     /* Video recording */
     video: 'retain-on-failure',
+
+    /* Ignore HTTPS errors for local development */
+    ignoreHTTPSErrors: true,
   },
 
   /* Configure projects for major browsers */
@@ -65,6 +73,11 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
     },
+    /* Auth setup project - runs before other tests */
+    {
+      name: 'auth-setup',
+      testMatch: /auth\.setup\.ts/,
+    },
   ],
 
   /* Run your local dev server before starting the tests */
@@ -73,6 +86,9 @@ export default defineConfig({
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
+    env: {
+      VITE_USE_MOCK_AUTH: 'true',
+    },
   },
 
   /* Global timeout for each test */
@@ -82,4 +98,13 @@ export default defineConfig({
   expect: {
     timeout: 5 * 1000,
   },
+
+  /* Hook configuration */
+  globalSetup: undefined,
+
+  /* Shard configuration */
+  shard: undefined,
+
+  /* Maximum number of test failures before stopping */
+  maxFailures: process.env.CI ? 10 : undefined,
 });

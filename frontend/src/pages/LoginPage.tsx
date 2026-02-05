@@ -21,13 +21,28 @@
  * ============================================================================
  */
 
-import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 
 export function LoginPage() {
     const navigate = useNavigate();
-    const { login, isLoading, error } = useAuthStore();
+    const location = useLocation();
+    const { login, isLoading, error, user } = useAuthStore();
+
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (user) {
+            const from = (location.state as { from?: string })?.from;
+            if (from) {
+                navigate(from, { replace: true });
+            } else if (user.role === 'admin') {
+                navigate('/admin', { replace: true });
+            } else {
+                navigate('/', { replace: true });
+            }
+        }
+    }, [user, navigate, location.state]);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');

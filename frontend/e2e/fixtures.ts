@@ -1,16 +1,322 @@
-// fixtures.ts
-// fixtures.ts
-// Playwright fixtures and API mocks for AURA-NOTES-MANAGER.
-
-// Longer description (2-4 lines):
-// - Provides mock data generators and route interceptors for deterministic tests.
-// - Includes CRUD/status mocks and shared wait helpers for loading states.
-// - Aligns mock payloads with FileSystemNode types for consistency.
-
-// @see: AURA-NOTES-MANAGER/frontend/playwright.config.ts
-// @note: Mock data aligns with FileSystemNode types in src/types
+/**
+ * ============================================================================
+ * FILE: fixtures.ts
+ * LOCATION: frontend/e2e/fixtures.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Playwright fixtures and API mocks for AURA-NOTES-MANAGER E2E tests.
+ *
+ * ROLE IN PROJECT:
+ *    Provides mock data generators, route interceptors, and auth utilities.
+ *    Includes CRUD/status mocks, shared wait helpers, and role-based login.
+ *    Aligns mock payloads with FileSystemNode types for consistency.
+ *
+ * KEY COMPONENTS:
+ *    - Auth utilities: loginAsRole, clearAuth, waitForAuth, isAuthenticated
+ *    - Mock data: mockExplorerTree, mockDepartment, mockSemester, etc.
+ *    - API mocks: mockTreeResponse, mockCrudResponses, mockKGProcessingResponses
+ *    - Test fixtures: explorerPage, adminPage, staffPage, studentPage
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: Matches FileSystemNode types from src/types
+ *
+ * USAGE:
+ *    import { test, expect, loginAsRole, clearAuth } from './fixtures';
+ * ============================================================================
+ */
 
 import { test as base, expect, Page, Route } from '@playwright/test';
+
+// ============================================================================
+// AUTH UTILITIES
+// ============================================================================
+
+// Role type definition
+export type UserRole = 'admin' | 'staff' | 'student';
+
+// Test user credentials (loaded from environment variables)
+interface TestUser {
+    email: string;
+    password: string;
+    role: UserRole;
+    displayName: string;
+}
+
+// Test user configuration
+const testUsers: Record<UserRole, TestUser> = {
+    admin: {
+        email: process.env.E2E_ADMIN_EMAIL || 'admin@aura.edu',
+        password: process.env.E2E_ADMIN_PASSWORD || 'admin123',
+        role: 'admin',
+        displayName: 'Admin User',
+    },
+    staff: {
+        email: process.env.E2E_STAFF_EMAIL || 'staff@aura.edu',
+        password: process.env.E2E_STAFF_PASSWORD || 'staff123',
+        role: 'staff',
+        displayName: 'Staff User',
+    },
+    student: {
+        email: process.env.E2E_STUDENT_EMAIL || 'student@aura.edu',
+        password: process.env.E2E_STUDENT_PASSWORD || 'student123',
+        role: 'student',
+        displayName: 'Student User',
+    },
+};
+
+/**
+ * Mock user data for testing without real Firebase auth.
+ * Used when VITE_USE_MOCK_AUTH=true.
+ */
+export const mockUserData: Record<UserRole, object> = {
+    admin: {
+        id: 'mock-admin-001',
+        email: 'admin@aura.edu',
+        displayName: 'Admin User',
+        role: 'admin',
+        departmentId: null,
+        departmentName: null,
+        subjectIds: [],
+        status: 'active',
+    },
+    staff: {
+        id: 'mock-staff-001',
+        email: 'staff@aura.edu',
+        displayName: 'Staff User',
+        role: 'staff',
+        departmentId: 'dept-cs',
+        departmentName: 'Computer Science',
+        subjectIds: ['subj-1', 'subj-2'],
+        status: 'active',
+    },
+    student: {
+        id: 'mock-student-001',
+        email: 'student@aura.edu',
+        displayName: 'Student User',
+        role: 'student',
+        departmentId: 'dept-cs',
+        departmentName: 'Computer Science',
+        subjectIds: [],
+        status: 'active',
+    },
+};
+
+/**
+ * Check if mock authentication is enabled.
+ */
+export function useMockAuth(): boolean {
+    return process.env.VITE_USE_MOCK_AUTH === 'true';
+}
+
+/**
+ * Login as a specific role.
+ * Uses mock authentication if VITE_USE_MOCK_AUTH is set.
+ */
+export async function loginAsRole(
+    page: Page,
+    role: UserRole,
+    options?: { email?: string; password?: string }
+): Promise<void> {
+    const user = testUsers[role];
+    const email = options?.email || user.email;
+    const password = options?.password || user.password;
+
+    // Navigate to login page
+    await page.goto('/login');
+    await page.waitForLoadState('domcontentloaded');
+
+    if (useMockAuth()) {
+        // Mock authentication path
+        await page.evaluate(
+            ({ role }) => {
+                // Set mock token
+                localStorage.setItem('mock_token', `mock-token-${role}-${Date.now()}`);
+
+                // Set mock user in localStorage
+                const mockUser = {
+                    id: `mock-${role}-001`,
+                    email: `${role}@aura.edu`,
+                    displayName: `${role.charAt(0).toUpperCase() + role.slice(1)} User`,
+                    role,
+                    departmentId: role === 'admin' ? null : 'dept-1',
+                    departmentName: role === 'admin' ? null : 'Computer Science',
+                    subjectIds: role === 'staff' ? ['subj-1', 'subj-2'] : [],
+                    status: 'active',
+                };
+                localStorage.setItem('mock_user', JSON.stringify(mockUser));
+            },
+            { role }
+        );
+
+        // Navigate to the app to trigger auth initialization with stored mock user
+        await page.goto('/');
+        await page.waitForLoadState('domcontentloaded');
+
+        // Wait for auth to initialize and any redirects to settle
+        await waitForAuth(page);
+        await page.waitForLoadState('networkidle');
+    } else {
+        // Real Firebase authentication path
+        const emailInput = page.locator('#email');
+        const passwordInput = page.locator('#password');
+        const loginButton = page.locator('button[type="submit"]');
+
+        await expect(emailInput).toBeVisible({ timeout: 10000 });
+        await emailInput.fill(email);
+        await passwordInput.fill(password);
+
+        // Submit login form
+        await loginButton.click();
+
+        // Wait for navigation or error
+        await page.waitForLoadState('networkidle');
+
+        // Check for error message
+        const errorMessage = page.locator('.error-message');
+        if (await errorMessage.isVisible().catch(() => false)) {
+            throw new Error(`Login failed: ${await errorMessage.textContent()}`);
+        }
+    }
+}
+
+/**
+ * Clear authentication state.
+ * Safely navigates to the app first to avoid SecurityError on about:blank.
+ */
+export async function clearAuth(page: Page): Promise<void> {
+    // Ensure we're on the app origin before accessing localStorage
+    const currentUrl = page.url();
+    if (currentUrl === 'about:blank' || !currentUrl.startsWith('http')) {
+        await page.goto('/login');
+        await page.waitForLoadState('domcontentloaded');
+    }
+
+    if (useMockAuth()) {
+        // Clear mock auth data from localStorage
+        try {
+            await page.evaluate(() => {
+                localStorage.removeItem('mock_token');
+                localStorage.removeItem('mock_user');
+            });
+        } catch {
+            // localStorage may not be accessible - navigate first then retry
+            await page.goto('/login');
+            await page.waitForLoadState('domcontentloaded');
+            await page.evaluate(() => {
+                localStorage.removeItem('mock_token');
+                localStorage.removeItem('mock_user');
+            });
+        }
+    } else {
+        // Try to logout via the UI (sidebar "Sign out" button)
+        try {
+            const logoutButton = page.locator('button:has-text("Sign out"), button:has-text("Logout")');
+            if (await logoutButton.first().isVisible().catch(() => false)) {
+                await logoutButton.first().click();
+                await page.waitForLoadState('networkidle');
+            }
+        } catch {
+            // Ignore logout errors - user might already be logged out
+        }
+    }
+
+    // Clear storage and reload
+    await page.context().clearCookies();
+    await page.reload();
+    await page.waitForLoadState('domcontentloaded');
+}
+
+/**
+ * Wait for authentication state to initialize.
+ */
+export async function waitForAuth(page: Page): Promise<void> {
+    // Wait for page to be fully loaded
+    await page.waitForLoadState('domcontentloaded');
+
+    // Wait for any loading indicators to disappear
+    const loadingSelector = '[data-loading="true"], .spinner, .loading';
+    try {
+        await page.waitForFunction((selector) => {
+            const elements = document.querySelectorAll(selector);
+            return Array.from(elements).every((el) => !el.isConnected || getComputedStyle(el).display === 'none');
+        }, loadingSelector, { timeout: 10000 });
+    } catch {
+        // Loading state might not exist - that's OK
+    }
+
+    // Wait for network to be idle
+    await page.waitForLoadState('networkidle');
+}
+
+/**
+ * Check if user is currently authenticated.
+ */
+export async function isAuthenticated(page: Page): Promise<boolean> {
+    // Check for mock auth
+    try {
+        const mockUser = await page.evaluate(() => {
+            try {
+                const user = localStorage.getItem('mock_user');
+                return user ? JSON.parse(user) : null;
+            } catch {
+                return null;
+            }
+        });
+
+        if (mockUser) {
+            return true;
+        }
+    } catch {
+        // localStorage not accessible (about:blank) - not authenticated
+        return false;
+    }
+
+    // Check for Firebase auth state (Sidebar "Sign out" button)
+    const logoutButton = page.locator('button:has-text("Sign out"), button:has-text("Logout")');
+    const userMenu = page.locator('[data-testid="user-menu"], .user-menu');
+
+    return (await logoutButton.isVisible().catch(() => false)) ||
+           (await userMenu.isVisible().catch(() => false));
+}
+
+/**
+ * Get current authenticated user info.
+ */
+export async function getCurrentUser(page: Page): Promise<object | null> {
+    // Check mock auth first
+    try {
+        const mockUser = await page.evaluate(() => {
+            try {
+                const user = localStorage.getItem('mock_user');
+                return user ? JSON.parse(user) : null;
+            } catch {
+                return null;
+            }
+        });
+
+        if (mockUser) {
+            return mockUser;
+        }
+    } catch {
+        // localStorage not accessible
+        return null;
+    }
+
+    // Try to get user from UI
+    const userDisplayName = page.locator('[data-testid="user-name"], .user-name, .user-display-name');
+    if (await userDisplayName.isVisible().catch(() => false)) {
+        const name = await userDisplayName.textContent();
+        return { displayName: name };
+    }
+
+    return null;
+}
+
+// ============================================================================
+// MOCK DATA GENERATORS
+// ============================================================================
 
 /**
  * FileSystemNode types matching the application's type definitions.
@@ -163,6 +469,10 @@ export function mockExplorerTree(): MockNode[] {
     ]),
   ];
 }
+
+// ============================================================================
+// API MOCKS
+// ============================================================================
 
 /**
  * Helper to mock the explorer tree API response.
@@ -398,13 +708,13 @@ export async function mockKGProcessingResponses(page: Page): Promise<void> {
 export async function waitForLoading(page: Page): Promise<void> {
   // Wait for any spinners to disappear
   const spinner = page.locator('.spinner, [data-loading="true"], [aria-busy="true"]');
-  
+
   // First check if spinner exists
   const spinnerCount = await spinner.count();
   if (spinnerCount > 0) {
     await expect(spinner.first()).not.toBeVisible({ timeout: 10000 });
   }
-  
+
   // Also wait for network to be idle
   await page.waitForLoadState('networkidle');
 }
@@ -419,23 +729,76 @@ export async function waitForApiResponse(
   await page.waitForResponse(urlPattern, { timeout: 10000 });
 }
 
+// ============================================================================
+// TEST FIXTURES
+// ============================================================================
+
 /**
- * Extended test fixture with pre-configured mocks.
+ * Extended test fixture with pre-configured mocks and auth helpers.
  */
 export const test = base.extend<{
   explorerPage: Page;
+  authenticatedPage: Page;
+  adminPage: Page;
+  staffPage: Page;
+  studentPage: Page;
 }>({
+  // Explorer page fixture - base for all tests
   explorerPage: async ({ page }, use) => {
     // Set up default mocks
     await mockTreeResponse(page);
     await mockCrudResponses(page);
-    
+
     // Navigate to the app
     await page.goto('/');
     await waitForLoading(page);
-    
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+
     await use(page);
+  },
+
+  // Authenticated page fixture - starts logged in as admin
+  authenticatedPage: async ({ page }, use) => {
+    if (useMockAuth()) {
+      await loginAsRole(page, 'admin');
+    }
+
+    await use(page);
+
+    // Cleanup
+    await clearAuth(page);
+  },
+
+  // Admin page fixture
+  adminPage: async ({ page }, use) => {
+    if (useMockAuth()) {
+      await loginAsRole(page, 'admin');
+    }
+
+    await use(page);
+
+    await clearAuth(page);
+  },
+
+  // Staff page fixture
+  staffPage: async ({ page }, use) => {
+    if (useMockAuth()) {
+      await loginAsRole(page, 'staff');
+    }
+
+    await use(page);
+
+    await clearAuth(page);
+  },
+
+  // Student page fixture
+  studentPage: async ({ page }, use) => {
+    if (useMockAuth()) {
+      await loginAsRole(page, 'student');
+    }
+
+    await use(page);
+
+    await clearAuth(page);
   },
 });
 

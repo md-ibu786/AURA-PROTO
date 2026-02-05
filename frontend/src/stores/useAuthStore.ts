@@ -152,22 +152,49 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
             try {
                 // Simulate network delay
-                await new Promise(resolve => setTimeout(resolve, 800));
+                await new Promise(resolve => setTimeout(resolve, 300));
 
                 if (password === 'error') {
                      throw new Error('Mock invalid credentials');
                 }
 
+                // Derive role from email pattern
+                let role: UserRole = 'admin';
+                let departmentId: string | null = null;
+                let departmentName: string | null = null;
+                let subjectIds: string[] | null = null;
+                let displayName = 'Mock User';
+
+                if (email.includes('staff')) {
+                    role = 'staff';
+                    departmentId = 'dept-cs';
+                    departmentName = 'Computer Science';
+                    subjectIds = ['subj-1', 'subj-2'];
+                    displayName = 'Staff User';
+                } else if (email.includes('student')) {
+                    role = 'student';
+                    departmentId = 'dept-cs';
+                    departmentName = 'Computer Science';
+                    subjectIds = [];
+                    displayName = 'Student User';
+                } else {
+                    displayName = 'Admin User';
+                }
+
                 const mockUser: AuthUser = {
-                    id: 'mock-user-123',
+                    id: `mock-${role}-001`,
                     email,
-                    displayName: 'Mock User',
-                    role: 'admin',
-                    departmentId: null,
-                    departmentName: null,
-                    subjectIds: null,
+                    displayName,
+                    role,
+                    departmentId,
+                    departmentName,
+                    subjectIds,
                     status: 'active'
                 };
+
+                // Persist to localStorage for session restoration
+                localStorage.setItem('mock_user', JSON.stringify(mockUser));
+                localStorage.setItem('mock_token', `mock-token-${role}-${Date.now()}`);
 
                 set({ user: mockUser, isLoading: false, error: null });
                 return;
@@ -264,6 +291,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true });
         
         if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+            // Clear localStorage mock state
+            localStorage.removeItem('mock_user');
+            localStorage.removeItem('mock_token');
             set({
                 user: null,
                 firebaseUser: null,
@@ -393,6 +423,16 @@ export function initAuthListener() {
     const store = useAuthStore.getState();
 
     if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        // Restore mock user from localStorage if available
+        try {
+            const savedUser = localStorage.getItem('mock_user');
+            if (savedUser) {
+                const parsedUser = JSON.parse(savedUser) as AuthUser;
+                store.setUser(parsedUser);
+            }
+        } catch {
+            // Ignore JSON parse errors
+        }
         store.setLoading(false);
         store.setInitialized(true);
         return () => {};
