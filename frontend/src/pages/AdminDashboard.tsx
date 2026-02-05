@@ -24,7 +24,7 @@
  * ============================================================================
  */
 
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
 import '../styles/index.css';
@@ -136,21 +136,7 @@ export function AdminDashboard() {
     const [roleFilter, setRoleFilter] = useState<string>('');
     const [departmentFilter, setDepartmentFilter] = useState<string>('');
 
-    // Fetch users and departments on mount
-    useEffect(() => {
-        fetchData();
-    }, [roleFilter, departmentFilter]);
-
-    // Fetch semesters when selected department changes
-    useEffect(() => {
-        if (selectedDeptId) {
-            fetchSemesters(selectedDeptId);
-        } else {
-            setSemesters([]);
-        }
-    }, [selectedDeptId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         setError(null);
 
@@ -201,9 +187,9 @@ export function AdminDashboard() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [departmentFilter, getIdToken, roleFilter]);
 
-    const fetchSemesters = async (deptId: string) => {
+    const fetchSemesters = useCallback(async (deptId: string) => {
         try {
             const res = await fetch(`/departments/${deptId}/semesters`);
             if (res.ok) {
@@ -213,7 +199,21 @@ export function AdminDashboard() {
         } catch (err) {
             console.error('Failed to fetch semesters', err);
         }
-    };
+    }, []);
+
+    // Fetch users and departments on mount
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Fetch semesters when selected department changes
+    useEffect(() => {
+        if (selectedDeptId) {
+            fetchSemesters(selectedDeptId);
+        } else {
+            setSemesters([]);
+        }
+    }, [fetchSemesters, selectedDeptId]);
 
     const handleCreateUser = async (e: FormEvent) => {
         e.preventDefault();

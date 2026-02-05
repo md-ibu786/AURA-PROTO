@@ -30,17 +30,19 @@ USAGE:
 from datetime import datetime
 from typing import Optional, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 try:
     from config import get_auth, get_db
     from auth import FirestoreUser, require_admin, verify_firebase_token
+    from limiter import limiter
     from validators import validate_user_role_constraints
 except ImportError:
     from api.config import get_auth, get_db
     from api.auth import FirestoreUser, require_admin, verify_firebase_token
+    from api.limiter import limiter
     from api.validators import validate_user_role_constraints
 
 
@@ -148,8 +150,10 @@ async def get_current_auth_user(
 
 
 @router.post("/api/auth/sync", response_model=SyncUserResponse)
+@limiter.limit("5/minute")
 async def sync_user(
-    request: Optional[SyncUserRequest] = None,
+    request: Request,
+    payload: Optional[SyncUserRequest] = None,
     current_user: dict = Depends(get_current_auth_user),
 ) -> SyncUserResponse:
     """
@@ -197,18 +201,18 @@ async def sync_user(
             )
 
     display_name = ""
-    if request and request.displayName is not None:
-        display_name = request.displayName
+    if payload and payload.displayName is not None:
+        display_name = payload.displayName
     elif getattr(auth_user, "display_name", None):
         display_name = auth_user.display_name or ""
 
     subject_ids = []
-    if request and request.subjectIds is not None:
-        subject_ids = request.subjectIds
+    if payload and payload.subjectIds is not None:
+        subject_ids = payload.subjectIds
 
     department_id = None
-    if request:
-        department_id = request.departmentId
+    if payload:
+        department_id = payload.departmentId
 
     try:
         validate_user_role_constraints(role, department_id, subject_ids)

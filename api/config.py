@@ -74,6 +74,10 @@ EMBEDDING_MODEL = os.getenv(
 # Test Mode (set to True to skip actual API calls)
 AURA_TEST_MODE = os.getenv("AURA_TEST_MODE", "false").lower() == "true"
 
+# Deployment environment (development/staging/production)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
 # Neo4j Configuration
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://127.0.0.1:7687")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")

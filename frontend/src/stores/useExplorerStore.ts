@@ -49,7 +49,7 @@
  * ============================================================================
  */
 import { create } from 'zustand';
-import type { FileSystemNode, HierarchyType } from '../types';
+import type { FileSystemNode, FileSystemNodeMeta, HierarchyType } from '../types';
 
 export type ViewMode = 'grid' | 'list';
 
@@ -71,7 +71,7 @@ interface BulkDownloadDialogState {
         id: string;
         type: HierarchyType;
         label: string;
-        meta?: any;
+        meta?: FileSystemNodeMeta;
     }>;
 }
 

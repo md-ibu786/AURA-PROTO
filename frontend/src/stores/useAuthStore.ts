@@ -209,11 +209,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             await get().refreshUser();
             set({ isLoading: false, error: null });
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             let errorMessage = 'Login failed';
 
-            if (error?.code) {
-                switch (error.code) {
+            const errorRecord = typeof error === 'object' && error !== null
+                ? (error as Record<string, unknown>)
+                : null;
+            const errorCode = errorRecord && typeof errorRecord.code === 'string'
+                ? errorRecord.code
+                : null;
+            const errorText = errorRecord && typeof errorRecord.message === 'string'
+                ? errorRecord.message
+                : error instanceof Error
+                    ? error.message
+                    : null;
+
+            if (errorCode) {
+                switch (errorCode) {
                     case 'auth/invalid-email':
                         errorMessage = 'Invalid email address';
                         break;
@@ -233,10 +245,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                         errorMessage = 'Network error. Check connection';
                         break;
                     default:
-                        errorMessage = error.message || 'Login failed';
+                        errorMessage = errorText || 'Login failed';
                 }
-            } else if (error instanceof Error) {
-                errorMessage = error.message;
+            } else if (errorText) {
+                errorMessage = errorText;
             }
 
             set({
@@ -381,6 +393,7 @@ export function initAuthListener() {
     const store = useAuthStore.getState();
 
     if (import.meta.env.VITE_USE_MOCK_AUTH === 'true') {
+        store.setLoading(false);
         store.setInitialized(true);
         return () => {};
     }

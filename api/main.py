@@ -41,6 +41,7 @@ USAGE:
 
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv
+import logging
 import os
 
 # Load .env from project root (one level up from api/)
@@ -57,14 +58,22 @@ if gac and not os.path.isabs(gac):
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 import sys
 from pathlib import Path
 
 # Add project root to path so 'api' module can be imported
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+logger = logging.getLogger(__name__)
+
+try:
+    from limiter import limiter
+except ImportError:
+    from api.limiter import limiter
 
 import importlib.util
 
@@ -127,7 +136,14 @@ def _get_allowed_origins() -> list:
     """Get allowed CORS origins from environment or use defaults."""
     env_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
     if env_origins:
-        return [origin.strip() for origin in env_origins.split(",")]
+        origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        if IS_PRODUCTION and any(origin == "*" or "*" in origin for origin in origins):
+            logger.warning(
+                "ALLOWED_ORIGINS contains wildcard '*' in production; "
+                "remove '*' to avoid insecure CORS configuration.",
+            )
+            origins = [origin for origin in origins if "*" not in origin]
+        return origins
     # Default development origins
     return [
         "http://localhost:5173",
@@ -139,52 +155,37 @@ def _get_allowed_origins() -> list:
     ]
 
 ALLOWED_ORIGINS = _get_allowed_origins()
+logger.info("Resolved ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
+
+app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
 # Rate limiting configuration
 # Auth endpoints: 5 requests per minute to prevent brute force attacks
 # General API: 100 requests per minute
-limiter = Limiter(key_func=get_remote_address, default_limits=["5/minute"])
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-app = FastAPI(title="AURA-PROTO", version="1.0.0")
 
 
 # =============================================================================
 # SECURITY HEADERS MIDDLEWARE
 # =============================================================================
 
-@app.middleware("http")
-async def security_headers_middleware(request: Request, call_next):
-    """Add OWASP-recommended security headers to all responses.
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add OWASP-recommended security headers to all responses."""
 
-    Headers added:
-    - X-Content-Type-Options: nosniff - Prevents MIME type sniffing
-    - X-Frame-Options: DENY - Prevents clickjacking via iframe embedding
-    - X-XSS-Protection: 1; mode=block - Legacy XSS protection for older browsers
-    - Strict-Transport-Security: Enforces HTTPS connections
-    - Referrer-Policy: Controls referrer information sent to other sites
-    - Content-Security-Policy: Restricts resource loading to trusted sources
-    """
-    response = await call_next(request)
+    async def dispatch(self, request: Request, call_next):
+        """Attach security headers to every response."""
+        response = await call_next(request)
 
-    # Only add security headers for successful responses
-    if response.status_code < 400:
-        # Set security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-
-        # HSTS: Only set in production to avoid development issues
-        if IS_PRODUCTION:
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-
-        # Referrer Policy: Strict when cross-origin
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-        # CSP: Basic policy - adjust for production based on needs
-        # In production, you may need to customize this for your CDN/assets
         if IS_PRODUCTION:
+            response.headers[
+                "Strict-Transport-Security"
+            ] = "max-age=31536000; includeSubDomains"
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self'; "
@@ -195,7 +196,11 @@ async def security_headers_middleware(request: Request, call_next):
                 "frame-ancestors 'none';"
             )
 
-    return response
+        return response
+
+
+# Apply SlowAPI middleware first so CORS and security headers wrap 429 responses.
+app.add_middleware(SlowAPIMiddleware)
 
 
 # =============================================================================
@@ -209,6 +214,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security headers last so they run before CORS on requests.
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(crud_router)
 app.include_router(explorer_router)
