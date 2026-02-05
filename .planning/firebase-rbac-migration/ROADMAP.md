@@ -298,7 +298,7 @@ Technical Notes (from research):
 Plans:
 - [x] [07-01-PLAN.md](phases/07-testing-verification/07-01-PLAN.md): Backend RBAC unit tests - Test decorators, dependencies, and permission checks
 - [x] [07-02-PLAN.md](phases/07-testing-verification/07-02-PLAN.md): Security rules unit tests - Complete test coverage with Firebase Emulator
-- [x] [07-03-PLAN.md](phases/07-testing-verification/07-03-PLAN.md): End-to-end integration tests - Full flow testing with real Firebase
+- [ ] [07-03-PLAN.md](phases/07-testing-verification/07-03-PLAN.md): End-to-end integration tests - Full flow testing with real Firebase
 
 Key Deliverables:
 - `tests/test_rbac.py`:
@@ -343,7 +343,7 @@ Technical Notes (from research):
 | 4. Backend Auth Refactor | 3/3 | Complete | 2026-02-05 |
 | 5. Frontend Firebase SDK Integration | 3/3 | Complete | 2026-02-05 |
 | 6. App Check & Security Hardening | 3/3 | Complete | 2026-02-05 |
-| 7. Testing & Verification | 3/3 | Planned | - |
+| 7. Testing & Verification | 2/3 | In progress | - |
 
 ## Plan Files
 

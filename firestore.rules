@@ -224,12 +224,15 @@ service cloud.firestore {
             // Anyone authenticated can read modules
             allow read: if isActiveUser();
 
-            // Only admins can create/delete modules
-            allow create: if isAdmin() && isValidModule(request.resource.data);
+            // Staff can create modules in subjects they have access to
+            allow create: if isStaff()
+                && hasSubjectAccess(subjectId)
+                && isValidModule(request.resource.data);
             allow delete: if isAdmin();
 
             // Staff can update modules in subjects they have access to
-            allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+            allow update: if isStaff()
+                && hasSubjectAccess(subjectId)
                 && isValidModule(request.resource.data);
 
             // ========== NOTES ==========
@@ -242,8 +245,9 @@ service cloud.firestore {
                   || (isStaff() && hasSubjectAccess(subjectId))
                   || (isStudent() && isInDepartment(departmentId));
 
-              // Only admins and assigned staff can create notes
-              allow create: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+              // Only assigned staff can create notes
+              allow create: if isStaff()
+                  && hasSubjectAccess(subjectId)
                   && isValidNote(request.resource.data)
                   && request.resource.data.module_id == moduleId
                   && (!('subjectId' in request.resource.data)
@@ -251,8 +255,9 @@ service cloud.firestore {
                   && (!('departmentId' in request.resource.data)
                       || request.resource.data.departmentId == departmentId);
 
-              // Only admins and assigned staff can update notes
-              allow update: if (isAdmin() || (isStaff() && hasSubjectAccess(subjectId)))
+              // Only assigned staff can update notes
+              allow update: if isStaff()
+                  && hasSubjectAccess(subjectId)
                   && isValidNote(request.resource.data)
                   && request.resource.data.module_id == moduleId
                   && resource.data.module_id == moduleId
