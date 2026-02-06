@@ -5,38 +5,26 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Right-click context menu for file explorer items. Provides quick
- *    actions like Open, Rename, Delete, and Create Child based on the
- *    selected node type.
+ *    Right-click context menu for explorer items with quick actions.
  *
  * ROLE IN PROJECT:
- *    Primary action menu for interacting with hierarchy nodes. Appears
- *    on right-click in both SidebarTree and GridView/ListView.
+ *    Provides node-level actions (open, rename, create, delete) and enforces
+ *    role-based permissions outside of module notes view.
  *
- * MENU ACTIONS:
- *    - Open: Navigate into folder or open PDF for notes
- *    - Download PDF: (notes only) Download the PDF file
- *    - New [Child Type]: Create child entity (e.g., New Semester inside Department)
- *    - Rename: Trigger inline rename mode
- *    - Delete: Open confirm delete dialog
- *
- * CHILD TYPE MAPPING:
- *    - department → New Semester
- *    - semester → New Subject
- *    - subject → New Module
- *    - module → New Note (redirects to upload dialog)
- *    - note → null (no children)
+ * KEY COMPONENTS:
+ *    - ContextMenu: Renders the action list for the active node.
+ *    - childTypes: Maps hierarchy node types to allowed child types.
  *
  * DEPENDENCIES:
  *    - External: lucide-react, @tanstack/react-query
- *    - Internal: stores/useExplorerStore, types
+ *    - Internal: stores/useExplorerStore, stores/useAuthStore, types
  *
  * USAGE:
  *    {contextMenuPosition && <ContextMenu />}
- *    Renders as a positioned overlay based on click coordinates.
  * ============================================================================
  */
 import { useExplorerStore } from '../../stores';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     FolderOpen,
@@ -69,6 +57,10 @@ export function ContextMenu() {
         openDeleteDialog
     } = useExplorerStore();
 
+    const { user } = useAuthStore();
+    const isAdmin = user?.role === 'admin';
+    const isStaff = user?.role === 'staff';
+
     const queryClient = useQueryClient();
 
     if (!contextMenuPosition || !contextMenuNodeId) return null;
@@ -90,12 +82,66 @@ export function ContextMenu() {
 
     if (!node) return null;
 
+    // Check if we're inside a module (viewing notes)
+    // When inside a module, the bottom action bar handles all actions
+    const isInsideModule = currentPath.length > 0 &&
+        currentPath[currentPath.length - 1].type === 'module';
+
+    // Don't show context menu at all when inside a module (notes directory)
+    // All actions are handled by the bottom SelectionActionBar
+    if (isInsideModule) {
+        closeContextMenu();
+        return null;
+    }
+
     const childType = childTypes[node.type];
     const isNote = node.type === 'note';
 
+    // Permission checks based on RBAC:
+    // - Admin: Can create/edit/delete departments, semesters, subjects
+    // - Staff: Can create/edit/delete modules and notes (in their subjects)
+    // - Student: Read-only for all
+    const canCreateChild = () => {
+        if (!childType) return false;
+        // Admin can create depts, semesters, subjects
+        if (isAdmin && ['department', 'semester', 'subject'].includes(node.type)) {
+            return true;
+        }
+        // Staff can create modules
+        if (isStaff && node.type === 'subject') {
+            return true;
+        }
+        return false;
+    };
+
+    const canRename = () => {
+        // Admin can rename depts, semesters, subjects
+        if (isAdmin && ['department', 'semester', 'subject'].includes(node.type)) {
+            return true;
+        }
+        // Staff can rename modules and notes
+        if (isStaff && ['module', 'note'].includes(node.type)) {
+            return true;
+        }
+        return false;
+    };
+
+    const canDelete = () => {
+        // Admin can delete depts, semesters, subjects
+        if (isAdmin && ['department', 'semester', 'subject'].includes(node.type)) {
+            return true;
+        }
+        // Staff can delete modules and notes
+        if (isStaff && ['module', 'note'].includes(node.type)) {
+            return true;
+        }
+        return false;
+    };
+
     const handleOpen = () => {
         if (isNote && node.meta?.pdfFilename) {
-            window.open(`/pdfs/${node.meta.pdfFilename}`, '_blank');
+            // Use authenticated API endpoint for inline viewing
+            window.open(`/api/pdfs/${node.meta.pdfFilename}?inline=1`, '_blank');
         } else {
             navigateTo(node, currentPath);
         }
@@ -137,9 +183,12 @@ export function ContextMenu() {
     const handleDownload = () => {
         if (node.meta?.pdfFilename) {
             const link = document.createElement('a');
-            link.href = `/pdfs/${node.meta.pdfFilename}`;
+            // Use authenticated API endpoint for downloads
+            link.href = `/api/pdfs/${node.meta.pdfFilename}`;
             link.download = node.meta.pdfFilename;
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
         closeContextMenu();
     };
@@ -165,26 +214,33 @@ export function ContextMenu() {
                 </button>
             )}
 
-            <div className="context-menu-separator" />
+            {(canCreateChild() || canRename() || canDelete()) && (
+                <div className="context-menu-separator" />
+            )}
 
-            {childType && (
+            {canCreateChild() && childType && (
                 <button className="context-menu-item" onClick={handleCreate}>
                     <Plus size={16} />
                     <span>{childType.label}</span>
                 </button>
             )}
 
-            <button className="context-menu-item" onClick={handleRename}>
-                <Edit size={16} />
-                <span>Rename</span>
-            </button>
+            {canRename() && (
+                <button className="context-menu-item" onClick={handleRename}>
+                    <Edit size={16} />
+                    <span>Rename</span>
+                </button>
+            )}
 
-            <div className="context-menu-separator" />
-
-            <button className="context-menu-item danger" onClick={handleDeleteClick}>
-                <Trash2 size={16} />
-                <span>Delete</span>
-            </button>
+            {canDelete() && (
+                <>
+                    <div className="context-menu-separator" />
+                    <button className="context-menu-item danger" onClick={handleDeleteClick}>
+                        <Trash2 size={16} />
+                        <span>Delete</span>
+                    </button>
+                </>
+            )}
         </div>
     );
 }

@@ -190,7 +190,11 @@ def init_async_firebase():
     creds = service_account.Credentials.from_service_account_file(
         str(key_path),
     )
-    return AsyncClient(credentials=creds)
+    import json
+
+    with open(key_path) as f:
+        project_id = json.load(f).get("project_id")
+    return AsyncClient(credentials=creds, project=project_id)
 
 
 # Initialize database clients

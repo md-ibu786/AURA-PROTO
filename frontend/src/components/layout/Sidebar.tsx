@@ -72,17 +72,25 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
     const currentModule = isAtModuleLevel ? currentNode : null;
     const moduleId = currentModule?.id ?? '';
 
-    // Get create button config based on depth
+    // Get create button config based on depth and user permissions
     const getCreateConfig = (): { label: string; type: HierarchyType } | null => {
+        // Only admins can create departments, semesters, and subjects
+        // Only staff can create modules and upload notes
         switch (pathDepth) {
             case 0:
-                return { label: 'New Department', type: 'department' };
+                // Department creation - admin only
+                return isAdmin ? { label: 'New Department', type: 'department' } : null;
             case 1:
-                return { label: 'New Semester', type: 'semester' };
+                // Semester creation - admin only
+                return isAdmin ? { label: 'New Semester', type: 'semester' } : null;
             case 2:
-                return { label: 'New Subject', type: 'subject' };
+                // Subject creation - admin only
+                return isAdmin ? { label: 'New Subject', type: 'subject' } : null;
             case 3:
-                return { label: 'New Module', type: 'module' };
+                // Module creation - staff only (NOT admin)
+                return !isAdmin && user?.role === 'staff'
+                    ? { label: 'New Module', type: 'module' }
+                    : null;
             default:
                 return null; // At module level, show upload instead
         }
@@ -148,7 +156,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
                         <Plus size={16} />
                         {createConfig.label}
                     </button>
-                ) : isAtModuleLevel && currentModule ? (
+                ) : isAtModuleLevel && currentModule && !isAdmin && user?.role === 'staff' ? (
                     <button
                         className="btn btn-primary"
                         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}

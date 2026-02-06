@@ -59,7 +59,7 @@ USAGE:
 ============================================================================
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 import os
@@ -73,6 +73,27 @@ except (ImportError, ModuleNotFoundError):
         from .config import db
     except (ImportError, ModuleNotFoundError):
         from api.config import db
+
+try:
+    from auth import (
+        get_current_user,
+        require_admin,
+        require_staff,
+        require_staff_or_admin,
+        FirestoreUser,
+        can_modify_note,
+        can_create_note_in_subject,
+    )
+except ImportError:
+    from api.auth import (
+        get_current_user,
+        require_admin,
+        require_staff,
+        require_staff_or_admin,
+        FirestoreUser,
+        can_modify_note,
+        can_create_note_in_subject,
+    )
 
 # Import GraphManager for cascade delete (KG cleanup)
 try:
@@ -152,11 +173,10 @@ def delete_document_recursive(doc_ref):
     base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     for coll in doc_ref.collections():
-        # Check if this is a notes collection - clean up PDF files first
         if coll.id == "notes":
             for note_doc in coll.stream():
-                data = note_doc.to_dict()
-                pdf_url = data.get("pdf_url")
+                note_data = note_doc.to_dict()
+                pdf_url = note_data.get("pdf_url")
                 if pdf_url:
                     try:
                         clean_path = pdf_url.lstrip("/")
@@ -164,7 +184,7 @@ def delete_document_recursive(doc_ref):
                         if os.path.exists(file_path):
                             os.remove(file_path)
                     except Exception:
-                        pass  # Continue even if file cleanup fails
+                        pass
         delete_collection(coll)
     doc_ref.delete()
 
@@ -257,8 +277,15 @@ class NoteUpdate(BaseModel):
         409: {"description": "Conflict: Department with this name already exists"}
     },
 )
-def create_department(dept: DepartmentCreate):
-    # Check for duplicates
+def create_department(
+    dept: DepartmentCreate,
+    user: FirestoreUser = Depends(require_staff_or_admin),
+):
+    if user.role not in ("admin",):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can create departments",
+        )
     existing = list(
         db.collection("departments").where("name", "==", dept.name).limit(1).stream()
     )
@@ -282,7 +309,16 @@ def create_department(dept: DepartmentCreate):
 
 
 @router.put("/departments/{dept_id}")
-def update_department(dept_id: str, dept: DepartmentUpdate):
+def update_department(
+    dept_id: str,
+    dept: DepartmentUpdate,
+    user: FirestoreUser = Depends(require_staff_or_admin),
+):
+    if user.role not in ("admin",):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update departments",
+        )
     doc_ref = db.collection("departments").document(dept_id)
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -308,7 +344,15 @@ def update_department(dept_id: str, dept: DepartmentUpdate):
 
 
 @router.delete("/departments/{dept_id}")
-def delete_department(dept_id: str):
+def delete_department(
+    dept_id: str,
+    user: FirestoreUser = Depends(require_staff_or_admin),
+):
+    if user.role not in ("admin",):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete departments",
+        )
     doc_ref = db.collection("departments").document(dept_id)
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -324,8 +368,11 @@ def delete_department(dept_id: str):
 
 
 @router.post("/semesters")
-def create_semester(sem: SemesterCreate):
-    """Create a semester with transactional parent validation."""
+def create_semester(
+    sem: SemesterCreate,
+    user: FirestoreUser = Depends(require_admin),
+):
+    """Create a semester with transactional parent validation. Admin only."""
     from google.cloud import firestore as fs
 
     parent_ref = db.collection("departments").document(sem.department_id)
@@ -364,7 +411,11 @@ def create_semester(sem: SemesterCreate):
 
 
 @router.put("/semesters/{sem_id}")
-def update_semester(sem_id: str, sem: SemesterUpdate):
+def update_semester(
+    sem_id: str,
+    sem: SemesterUpdate,
+    user: FirestoreUser = Depends(require_admin),
+):
     doc_ref = find_doc_by_id("semesters", sem_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
@@ -387,7 +438,10 @@ def update_semester(sem_id: str, sem: SemesterUpdate):
 
 
 @router.delete("/semesters/{sem_id}")
-def delete_semester(sem_id: str):
+def delete_semester(
+    sem_id: str,
+    user: FirestoreUser = Depends(require_admin),
+):
     doc_ref = find_doc_by_id("semesters", sem_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Semester not found")
@@ -422,7 +476,10 @@ def list_subjects(semester_id: str):
 
 
 @router.post("/subjects")
-def create_subject(subj: SubjectCreate):
+def create_subject(
+    subj: SubjectCreate,
+    user: FirestoreUser = Depends(require_admin),
+):
     """Create a subject with transactional semester validation."""
     from google.cloud import firestore as fs
 
@@ -459,7 +516,11 @@ def create_subject(subj: SubjectCreate):
 
 
 @router.put("/subjects/{subj_id}")
-def update_subject(subj_id: str, subj: SubjectUpdate):
+def update_subject(
+    subj_id: str,
+    subj: SubjectUpdate,
+    user: FirestoreUser = Depends(require_admin),
+):
     doc_ref = find_doc_by_id("subjects", subj_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
@@ -479,7 +540,10 @@ def update_subject(subj_id: str, subj: SubjectUpdate):
 
 
 @router.delete("/subjects/{subj_id}")
-def delete_subject(subj_id: str):
+def delete_subject(
+    subj_id: str,
+    user: FirestoreUser = Depends(require_admin),
+):
     doc_ref = find_doc_by_id("subjects", subj_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
@@ -491,8 +555,11 @@ def delete_subject(subj_id: str):
 
 
 @router.post("/modules")
-def create_module(mod: ModuleCreate):
-    """Create a module with transactional subject validation."""
+def create_module(
+    mod: ModuleCreate,
+    user: FirestoreUser = Depends(require_staff),
+):
+    """Create a module with transactional subject validation. Staff only (no admin access)."""
     from google.cloud import firestore as fs
 
     parent_ref = find_doc_by_id("subjects", mod.subject_id)
@@ -526,7 +593,11 @@ def create_module(mod: ModuleCreate):
 
 
 @router.put("/modules/{mod_id}")
-def update_module(mod_id: str, mod: ModuleUpdate):
+def update_module(
+    mod_id: str,
+    mod: ModuleUpdate,
+    user: FirestoreUser = Depends(require_staff),
+):
     doc_ref = find_doc_by_id("modules", mod_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
@@ -545,7 +616,10 @@ def update_module(mod_id: str, mod: ModuleUpdate):
 
 
 @router.delete("/modules/{mod_id}")
-def delete_module(mod_id: str):
+def delete_module(
+    mod_id: str,
+    user: FirestoreUser = Depends(require_staff),
+):
     doc_ref = find_doc_by_id("modules", mod_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
@@ -557,10 +631,21 @@ def delete_module(mod_id: str):
 
 
 @router.put("/notes/{note_id}")
-def update_note(note_id: str, note: NoteUpdate):
+def update_note(
+    note_id: str,
+    note: NoteUpdate,
+    user: FirestoreUser = Depends(require_staff),
+):
     doc_ref = find_doc_by_id("notes", note_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
+
+    note_data = doc_ref.get().to_dict()
+    if not can_modify_note(user, note_data):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to modify this note",
+        )
 
     new_title = note.title
     siblings_titles = [
@@ -576,14 +661,22 @@ def update_note(note_id: str, note: NoteUpdate):
 
 
 @router.delete("/notes/{note_id}")
-def delete_note(note_id: str):
+def delete_note(
+    note_id: str,
+    user: FirestoreUser = Depends(require_staff),
+):
     doc_ref = find_doc_by_id("notes", note_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
 
-    # Try delete file
-    data = doc_ref.get().to_dict()
-    pdf_url = data.get("pdf_url")
+    note_data = doc_ref.get().to_dict()
+    if not can_modify_note(user, note_data):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this note",
+        )
+
+    pdf_url = note_data.get("pdf_url")
     if pdf_url:
         try:
             base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -599,7 +692,10 @@ def delete_note(note_id: str):
 
 
 @router.delete("/notes/{note_id}/cascade")
-def delete_note_cascade(note_id: str):
+def delete_note_cascade(
+    note_id: str,
+    user: FirestoreUser = Depends(require_staff),
+):
     """
     Cascade delete: removes KG data first, then deletes the document.
 
@@ -624,9 +720,15 @@ def delete_note_cascade(note_id: str):
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    data = doc_ref.get().to_dict()
-    pdf_url = data.get("pdf_url")
-    kg_status = data.get("kg_status", "pending")
+    note_data = doc_ref.get().to_dict()
+    if not can_modify_note(user, note_data):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to delete this note",
+        )
+
+    pdf_url = note_data.get("pdf_url")
+    kg_status = note_data.get("kg_status", "pending")
 
     # Step 1: Delete from Knowledge Graph if processed
     kg_deletion_status = "skipped"  # skipped, success, failed

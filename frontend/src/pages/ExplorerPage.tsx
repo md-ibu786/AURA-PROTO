@@ -50,6 +50,8 @@ import { Header } from '../components/layout/Header';
 import { GridView } from '../components/explorer/GridView';
 import { ListView } from '../components/explorer/ListView';
 import { ContextMenu } from '../components/explorer/ContextMenu';
+import { SelectionOverlay } from '../components/explorer/SelectionOverlay';
+import { SelectionActionBar } from '../components/explorer/SelectionActionBar';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { WarningDialog } from '../components/ui/WarningDialog';
 import type { FileSystemNode } from '../types';
@@ -88,7 +90,9 @@ export default function ExplorerPage() {
         queryFn: () => getExplorerTree(5),
     });
 
-    // Auto-navigate staff/students to their department or first subject
+    // Auto-navigate staff/students to appropriate starting level
+    // Staff with subjectIds: start at root (shows filtered departments containing their subjects)
+    // Students: navigate directly to their department's semesters view
     useEffect(() => {
         if (
             !isLoading &&
@@ -97,38 +101,18 @@ export default function ExplorerPage() {
             currentPath.length === 0 &&
             !hasRedirected.current
         ) {
-            // Staff with subjectIds: navigate to their first subject
-            if (user?.role === 'staff' && user?.subjectIds && user.subjectIds.length > 0) {
-                // Find the first subject in the tree that matches user's subjectIds
-                const findFirstSubject = (nodes: FileSystemNode[]): FileSystemNode | null => {
-                    for (const node of nodes) {
-                        if (node.type === 'subject' && user.subjectIds!.includes(node.id)) {
-                            return node;
-                        }
-                        if (node.children) {
-                            const found = findFirstSubject(node.children);
-                            if (found) return found;
-                        }
-                    }
-                    return null;
-                };
-
-                const firstSubject = findFirstSubject(tree);
-                if (firstSubject) {
-                    console.log("Auto-navigating to first subject:", firstSubject.label);
-                    navigateTo(firstSubject, []);
-                    hasRedirected.current = true;
-                }
-            }
-            // Staff/students with departmentId: navigate to their department
-            else if (user?.departmentId) {
+            // Students: navigate to their department to show semesters
+            if (user?.role === 'student' && user?.departmentId) {
                 const userDept = tree.find(dept => dept.id === user.departmentId);
                 if (userDept) {
-                    console.log("Auto-navigating to department:", userDept.label);
+                    console.log("Auto-navigating student to department:", userDept.label);
                     navigateTo(userDept, []);
                     hasRedirected.current = true;
                 }
             }
+            // Staff with subjectIds: stay at root level (getCurrentChildren will show filtered departments)
+            // Staff without subjectIds but with department: stay at root (getCurrentChildren will show semesters)
+            // No auto-navigation needed - the getCurrentChildren logic handles the default view
         }
     }, [isLoading, tree, user, isAdmin, currentPath.length, navigateTo]);
 
@@ -225,7 +209,7 @@ export default function ExplorerPage() {
                 // Staff with subjects at root: show departments that have their subjects
                 return filteredTree;
             } else if (user?.departmentId) {
-                // Non-admins at root with department: show semesters of their department directly
+                // Students at root with department: show semesters of their department directly
                 const userDept = filteredTree.find(dept => dept.id === user.departmentId);
                 return userDept?.children || [];
             }
@@ -280,30 +264,34 @@ export default function ExplorerPage() {
             <main className="explorer-main">
                 <Header />
 
-                <div className="explorer-content">
-                    {isLoading ? (
-                        <div className="empty-state">
-                            <div className="spinner" />
-                            <div className="empty-state-text" style={{ marginTop: '16px' }}>Loading...</div>
-                        </div>
-                    ) : children.length === 0 && !creatingNodeType ? (
-                        <div className="empty-state">
-                            <Folder className="empty-state-icon" />
-                            <div className="empty-state-title">This folder is empty</div>
-                            {isAdmin() && (
-                                <div className="empty-state-text">
-                                    {currentPath.length === 0
-                                        ? 'Create a department to get started'
-                                        : 'Right-click to create a new item'}
-                                </div>
-                            )}
-                        </div>
-                    ) : viewMode === 'grid' ? (
-                        <GridView items={children} allItems={tree} />
-                    ) : (
-                        <ListView items={children} allItems={tree} />
-                    )}
-                </div>
+                <SelectionOverlay>
+                    <div className="explorer-content">
+                        {isLoading ? (
+                            <div className="empty-state">
+                                <div className="spinner" />
+                                <div className="empty-state-text" style={{ marginTop: '16px' }}>Loading...</div>
+                            </div>
+                        ) : children.length === 0 && !creatingNodeType ? (
+                            <div className="empty-state">
+                                <Folder className="empty-state-icon" />
+                                <div className="empty-state-title">This folder is empty</div>
+                                {isAdmin() && (
+                                    <div className="empty-state-text">
+                                        {currentPath.length === 0
+                                            ? 'Create a department to get started'
+                                            : 'Right-click to create a new item'}
+                                    </div>
+                                )}
+                            </div>
+                        ) : viewMode === 'grid' ? (
+                            <GridView items={children} allItems={tree} />
+                        ) : (
+                            <ListView items={children} allItems={tree} />
+                        )}
+                    </div>
+                </SelectionOverlay>
+
+                <SelectionActionBar />
             </main>
 
             {contextMenuPosition && <ContextMenu />}

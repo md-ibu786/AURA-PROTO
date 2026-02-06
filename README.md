@@ -22,7 +22,7 @@ A simplified hierarchy and note management prototype with React frontend and Fas
 3. Generate a service account key:
    - Go to Project Settings > Service Accounts
    - Click "Generate New Private Key"
-   - Save as `serviceAccountKey.json` in the project root
+   - Save as `serviceAccountKey-auth.json` in the project root
 
 ### 2. Backend Setup
 ```bash
@@ -39,7 +39,7 @@ pip install -r requirements.txt
 Create a `.env` file in the root directory:
 ```
 DEEPGRAM_API_KEY=your_deepgram_key_here
-GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
+GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey-auth.json
 ```
 
 ### 3. Frontend Setup
@@ -138,5 +138,5 @@ AURA-PROTO/
 ├── services/          # Backend services (STT, PDF generation)
 ├── firestore.rules    # Firestore security rules
 ├── firestore.indexes.json # Firestore indexes
-└── serviceAccountKey.json # Firebase credentials (gitignored)
+└── serviceAccountKey-auth.json # Firebase credentials (gitignored)
 ```

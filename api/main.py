@@ -41,8 +41,12 @@ USAGE:
 
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv
+from datetime import datetime
+import io
 import logging
 import os
+import re
+import zipfile
 
 # Load .env from project root (one level up from api/)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -56,7 +60,7 @@ if gac and not os.path.isabs(gac):
     abs_gac = os.path.normpath(os.path.join(project_root, gac))
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = abs_gac
 
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -128,6 +132,7 @@ from api.routers.graph_preview import router as graph_preview_router
 # Production mode detection - enables/disables security features based on environment
 IS_PRODUCTION = os.getenv("ENVIRONMENT", "development").lower() == "production"
 
+
 # CORS configuration - support both environment variable and defaults for development
 # Format: comma-separated list of origins, e.g.:
 #   DEVELOPMENT: http://localhost:5173
@@ -136,7 +141,9 @@ def _get_allowed_origins() -> list:
     """Get allowed CORS origins from environment or use defaults."""
     env_origins = os.getenv("ALLOWED_ORIGINS", "").strip()
     if env_origins:
-        origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        origins = [
+            origin.strip() for origin in env_origins.split(",") if origin.strip()
+        ]
         if IS_PRODUCTION and any(origin == "*" or "*" in origin for origin in origins):
             logger.warning(
                 "ALLOWED_ORIGINS contains wildcard '*' in production; "
@@ -154,6 +161,7 @@ def _get_allowed_origins() -> list:
         "http://127.0.0.1:3000",
     ]
 
+
 ALLOWED_ORIGINS = _get_allowed_origins()
 logger.info("Resolved ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
@@ -170,6 +178,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # SECURITY HEADERS MIDDLEWARE
 # =============================================================================
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add OWASP-recommended security headers to all responses."""
 
@@ -183,9 +192,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
         if IS_PRODUCTION:
-            response.headers[
-                "Strict-Transport-Security"
-            ] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
                 "script-src 'self'; "
@@ -243,10 +252,169 @@ app.include_router(graph_preview_router)  # Graph Preview API (RC-02)
 
 
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, StreamingResponse
+from pydantic import BaseModel
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pdfs_dir = os.path.join(base_dir, "pdfs")
 os.makedirs(pdfs_dir, exist_ok=True)
+
+
+def _resolve_pdf_path(filename: str) -> str:
+    """Resolve a PDF path and block directory traversal attempts."""
+    file_path = os.path.join(pdfs_dir, filename)
+    real_path = os.path.realpath(file_path)
+    real_pdfs_dir = os.path.realpath(pdfs_dir)
+
+    if not real_path.startswith(real_pdfs_dir):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied: invalid file path",
+        )
+
+    return file_path
+
+
+def _safe_zip_component(value: str) -> str:
+    """Sanitize a name for safe use inside a zip filename."""
+    cleaned = re.sub(r'[\\/:*?"<>|]', "-", value.strip())
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.rstrip(" .")
+
+
+class BulkPdfDownloadRequest(BaseModel):
+    """Request payload for downloading multiple PDFs as a zip archive."""
+
+    filenames: list[str]
+    subject_name: str | None = None
+    module_name: str | None = None
+
+
+# Authenticated PDF download endpoint
+@app.get("/api/pdfs/{filename}")
+async def download_pdf(filename: str, inline: bool = Query(False)):
+    """
+    Serve PDF files with proper headers for download.
+
+    This endpoint provides authenticated access to PDF files with
+    Content-Disposition headers to either download or inline view.
+
+    Args:
+        filename: The name of the PDF file to download
+        inline: Whether to render inline instead of downloading
+
+    Returns:
+        FileResponse: The PDF file with download headers
+
+    Raises:
+        HTTPException: 404 if file not found
+    """
+    file_path = _resolve_pdf_path(filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"PDF file not found: {filename}",
+        )
+
+    disposition = "inline" if inline else "attachment"
+
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'{disposition}; filename="{filename}"',
+        },
+    )
+
+
+@app.post("/api/pdfs/zip")
+async def bulk_download_pdfs(payload: BulkPdfDownloadRequest):
+    """
+    Bundle multiple PDFs into a zip file and return it as a download.
+
+    Args:
+        payload: List of PDF filenames to include
+
+    Returns:
+        StreamingResponse: Zip archive containing the requested files
+    """
+    filenames = [name for name in payload.filenames if name]
+
+    if not filenames:
+        raise HTTPException(
+            status_code=400,
+            detail="No filenames provided",
+        )
+
+    seen: set[str] = set()
+    unique_names: list[str] = []
+    for name in filenames:
+        if name in seen:
+            continue
+        if "/" in name or "\\" in name:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid filename",
+            )
+        seen.add(name)
+        unique_names.append(name)
+
+    missing: list[str] = []
+    resolved: list[tuple[str, str]] = []
+    for name in unique_names:
+        file_path = _resolve_pdf_path(name)
+        if not os.path.exists(file_path):
+            missing.append(name)
+            continue
+        resolved.append((name, file_path))
+
+    if missing:
+        missing_list = ", ".join(missing)
+        raise HTTPException(
+            status_code=404,
+            detail=f"Missing files: {missing_list}",
+        )
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(
+        zip_buffer,
+        mode="w",
+        compression=zipfile.ZIP_DEFLATED,
+    ) as zip_file:
+        for name, file_path in resolved:
+            zip_file.write(file_path, arcname=name)
+
+    zip_buffer.seek(0)
+
+    subject_name = (
+        _safe_zip_component(payload.subject_name)
+        if payload.subject_name
+        else ""
+    )
+    module_name = (
+        _safe_zip_component(payload.module_name)
+        if payload.module_name
+        else ""
+    )
+
+    if subject_name and module_name:
+        zip_name = f"notes-{subject_name}-{module_name}.zip"
+    else:
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        zip_name = f"notes_{timestamp}.zip"
+
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_name}"',
+        },
+    )
+
+
+# Keep static file serving for backward compatibility and direct access
 app.mount("/pdfs", StaticFiles(directory=pdfs_dir), name="pdfs")
 
 
@@ -262,12 +430,20 @@ def list_semesters(department_id: str):
 
 @app.get("/semesters/{semester_id}/subjects")
 def list_subjects(semester_id: str, department_id: str | None = None):
-    return {"subjects": get_subjects_by_semester(semester_id, department_id=department_id)}
+    return {
+        "subjects": get_subjects_by_semester(semester_id, department_id=department_id)
+    }
 
 
 @app.get("/subjects/{subject_id}/modules")
-def list_modules(subject_id: str, department_id: str | None = None, semester_id: str | None = None):
-    return {"modules": get_modules_by_subject(subject_id, department_id=department_id, semester_id=semester_id)}
+def list_modules(
+    subject_id: str, department_id: str | None = None, semester_id: str | None = None
+):
+    return {
+        "modules": get_modules_by_subject(
+            subject_id, department_id=department_id, semester_id=semester_id
+        )
+    }
 
 
 @app.get("/")
@@ -313,10 +489,6 @@ def redis_health_check():
         "status": "healthy" if connected else "unhealthy",
         "redis": "connected" if connected else "disconnected",
     }
-
-
-from pydantic import BaseModel
-from fastapi import HTTPException
 
 
 class CreateNoteRequest(BaseModel):

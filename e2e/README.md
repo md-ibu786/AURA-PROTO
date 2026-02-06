@@ -33,7 +33,7 @@ e2e/
 ### Backend Requirements
 - Python 3.9+ with FastAPI running on port 8001
 - Firebase Firestore configured
-- Service account key: `serviceAccountKey.json` in project root
+- Service account key: `serviceAccountKey-auth.json` in project root
 
 ### Frontend Requirements
 - Node.js 16+
@@ -43,7 +43,7 @@ e2e/
 Create `.env` in project root:
 ```env
 DEEPGRAM_API_KEY=your_key
-GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
+GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey-auth.json
 LLM_KEY=your_google_ai_key
 ```
 
@@ -325,7 +325,7 @@ Videos saved for failed tests in `test-results/`.
 **Solution:** Ensure ports 8001 and 5173 are free, or update `playwright.config.ts`.
 
 ### Issue: Firestore authentication errors
-**Solution:** Verify `serviceAccountKey.json` exists and is valid.
+**Solution:** Verify `serviceAccountKey-auth.json` exists and is valid.
 
 ### Issue: Tests timeout during AI processing
 **Solution:** AI tests are skipped by default if credentials aren't present. For full testing, add credentials to `.env`.

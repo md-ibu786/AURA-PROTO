@@ -18,6 +18,7 @@
  *    - API_BASE: Base URL for all API calls ('/api')
  *    - DuplicateError: Custom error class for 409 conflicts (duplicate names)
  *    - fetchApi<T>: Generic typed fetch for JSON requests
+ *    - fetchBlob: Fetch wrapper for binary downloads (Blob responses)
  *    - fetchFormData<T>: Fetch wrapper for file uploads (FormData)
  *
  * ERROR HANDLING:
@@ -54,6 +55,11 @@ export class DuplicateError extends Error {
     }
 }
 
+export interface BlobResponse {
+    blob: Blob;
+    filename: string | null;
+}
+
 async function getAuthHeader(): Promise<Record<string, string>> {
     try {
         const token = await useAuthStore.getState().getIdToken();
@@ -64,6 +70,46 @@ async function getAuthHeader(): Promise<Record<string, string>> {
         console.warn('Failed to get auth token', e);
     }
     return {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
+function extractFilename(contentDisposition: string | null): string | null {
+    if (!contentDisposition) return null;
+
+    const utfMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (utfMatch && utfMatch[1]) {
+        try {
+            return decodeURIComponent(utfMatch[1]);
+        } catch {
+            return utfMatch[1];
+        }
+    }
+
+    const basicMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    return basicMatch ? basicMatch[1] : null;
+}
+
+async function parseErrorMessage(response: Response): Promise<string> {
+    const fallback = `HTTP ${response.status}`;
+    const bodyText = await response.text().catch(() => '');
+
+    if (!bodyText) {
+        return fallback;
+    }
+
+    try {
+        const parsed = JSON.parse(bodyText);
+        if (isRecord(parsed) && typeof parsed.detail === 'string') {
+            return parsed.detail;
+        }
+    } catch {
+        // Ignore JSON parse errors and fall back to raw text.
+    }
+
+    return bodyText;
 }
 
 // Generic fetch wrapper with error handling
@@ -119,6 +165,56 @@ async function fetchApi<T>(
     return response.json();
 }
 
+// Fetch wrapper for Blob responses (downloads)
+async function fetchBlob(
+    endpoint: string,
+    options?: RequestInit
+): Promise<BlobResponse> {
+    const url = `${API_BASE}${endpoint}`;
+    const authHeaders = await getAuthHeader();
+
+    let response = await fetch(url, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...authHeaders,
+            ...options?.headers,
+        },
+    });
+
+    // 401 Retry Logic
+    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
+        try {
+             // Force refresh token
+             const newToken = await useAuthStore.getState().getIdToken(true);
+             if (newToken) {
+                 response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${newToken}`,
+                        ...options?.headers,
+                    },
+                 });
+             }
+        } catch (e) {
+            console.error('Token refresh failed', e);
+        }
+    }
+
+    if (!response.ok) {
+        const message = await parseErrorMessage(response);
+        throw new Error(message);
+    }
+
+    const blob = await response.blob();
+    const filename = extractFilename(
+        response.headers.get('Content-Disposition')
+    );
+
+    return { blob, filename };
+}
+
 // Fetch wrapper for FormData (no Content-Type header)
 async function fetchFormData<T>(
     endpoint: string,
@@ -161,4 +257,4 @@ async function fetchFormData<T>(
     return response.json();
 }
 
-export { fetchApi, fetchFormData, API_BASE };
+export { fetchApi, fetchBlob, fetchFormData, API_BASE };

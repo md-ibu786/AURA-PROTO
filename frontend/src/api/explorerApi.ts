@@ -21,6 +21,7 @@
  *    - getNodeChildren(type, id): Lazy-load children for a node
  *    - moveNode(request): Move node to new parent
  *    - getNoteStatus(noteId): Get processing status for a note
+ *    - downloadNotesZip(filenames): Download selected notes as a zip archive
  *
  *    CRUD - Create:
  *    - createDepartment, createSemester, createSubject, createModule
@@ -43,7 +44,7 @@
  *    await renameNode('module', moduleId, 'New Name');
  * ============================================================================
  */
-import { fetchApi } from './client';
+import { fetchApi, fetchBlob, type BlobResponse } from './client';
 import type {
     FileSystemNode,
     HierarchyType,
@@ -176,6 +177,21 @@ export async function deleteNoteCascade(id: string): Promise<{
     document_deleted: boolean;
 }> {
     return fetchApi(`/notes/${id}/cascade`, { method: 'DELETE' });
+}
+
+export async function downloadNotesZip(
+    filenames: string[],
+    subjectName?: string,
+    moduleName?: string
+): Promise<BlobResponse> {
+    return fetchBlob('/pdfs/zip', {
+        method: 'POST',
+        body: JSON.stringify({
+            filenames,
+            subject_name: subjectName,
+            module_name: moduleName,
+        }),
+    });
 }
 
 // Unified rename function

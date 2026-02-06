@@ -5,31 +5,19 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Table-style list view for displaying folder contents. Alternative to
- *    GridView, shows items in rows with columns for Name, Type, Items count,
- *    and Modified date.
+ *    Table-style list view for displaying explorer items.
  *
  * ROLE IN PROJECT:
- *    One of two view modes for the main content area (the other is GridView).
- *    Provides a detailed, compact view suitable for folders with many items.
+ *    Provides a compact explorer view with selection, rename, and navigation
+ *    behavior aligned with the GridView component.
  *
- * KEY FEATURES:
- *    - Table-style layout with fixed columns
- *    - Same selection behavior as GridView (click, Ctrl, Shift)
- *    - Inline renaming support
- *    - Context menu on right-click
- *    - Formatted dates and item counts
- *
- * COLUMNS:
- *    - Icon: Type-specific icon
- *    - Name: Label with inline rename support
- *    - Type: hierarchy type (department, semester, etc.)
- *    - Items: Note count or '-'
- *    - Modified: Formatted date or '-'
+ * KEY COMPONENTS:
+ *    - ListView: Renders rows and handles click/double-click actions.
+ *    - typeIcons: Maps hierarchy types to row icons.
  *
  * DEPENDENCIES:
- *    - External: lucide-react, @tanstack/react-query
- *    - Internal: stores/useExplorerStore, api, types
+ *    - External: react, lucide-react, @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, api/explorerApi, api, types
  *
  * USAGE:
  *    <ListView items={currentFolderChildren} allItems={fullTree} />
@@ -171,7 +159,8 @@ export function ListView({ items }: ListViewProps) {
     const handleDoubleClick = (item: FileSystemNode) => {
         if (item.type === 'note') {
             if (item.meta?.pdfFilename) {
-                window.open(`/pdfs/${item.meta.pdfFilename}`, '_blank');
+                // Use authenticated API endpoint for inline viewing
+                window.open(`/api/pdfs/${item.meta.pdfFilename}?inline=1`, '_blank');
             }
         } else {
             navigateTo(item, currentPath);

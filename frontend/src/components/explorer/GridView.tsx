@@ -5,43 +5,19 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Windows Explorer-style icon grid view for displaying folder contents.
- *    Renders items as large icons with labels, supporting selection,
- *    inline renaming, inline creation, and context menus.
+ *    Icon grid view for displaying explorer items.
  *
  * ROLE IN PROJECT:
- *    One of two view modes for the main content area (the other is ListView).
- *    Default view mode providing a visual, icon-centric browsing experience.
+ *    Default explorer view with selection, inline editing, and navigation for
+ *    folders and notes.
  *
- * KEY FEATURES:
- *    Selection:
- *    - Single click: Select item
- *    - Ctrl+click: Toggle selection
- *    - Shift+click: Range select
- *    - Right-click: Context menu
- *
- *    Navigation:
- *    - Double-click folder: Navigate into (drill down)
- *    - Double-click note: Open PDF in new tab
- *
- *    Inline Editing:
- *    - Rename mode: Input field replaces label
- *    - Create mode: New item placeholder with input
- *
- * COLOR SCHEME:
- *    - department: Blue
- *    - semester: Green
- *    - subject: Purple
- *    - module: Orange
- *    - note: Gray/document color
- *
- * PROPS:
- *    - items: FileSystemNode[] - Current folder's children
- *    - allItems: FileSystemNode[] - Full tree (for reference)
+ * KEY COMPONENTS:
+ *    - GridView: Renders grid items and handles selection/rename/create.
+ *    - typeConfig: Maps hierarchy types to icon and color classes.
  *
  * DEPENDENCIES:
- *    - External: lucide-react, @tanstack/react-query
- *    - Internal: stores/useExplorerStore, api, types
+ *    - External: react, lucide-react, @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, api, features/kg, types
  *
  * USAGE:
  *    <GridView items={currentFolderChildren} allItems={fullTree} />
@@ -285,7 +261,8 @@ export function GridView({ items }: GridViewProps) {
     const handleDoubleClick = (item: FileSystemNode) => {
         if (item.type === 'note') {
             if (item.meta?.pdfFilename) {
-                window.open(`/pdfs/${item.meta.pdfFilename}`, '_blank');
+                // Use authenticated API endpoint for inline viewing
+                window.open(`/api/pdfs/${item.meta.pdfFilename}?inline=1`, '_blank');
             }
         } else {
             navigateTo(item, currentPath);

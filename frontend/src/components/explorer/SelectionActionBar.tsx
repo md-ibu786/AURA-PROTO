@@ -1,17 +1,34 @@
-// SelectionActionBar.tsx
-// Floating action bar for bulk operations on selected items
-
-// Appears at the bottom of the screen when items are selected in the explorer.
-// Provides actions for Download, Delete (Firestore), Vectorize (KG), and Delete KG.
-// Restricted to module context to ensure bulk actions are performed in valid scopes.
-
-// @see: useExplorerStore.ts - For selection state
-// @see: SelectionOverlay.tsx - For selection logic
-// @note: Renders null if currentModuleId is not resolved or context is invalid.
+/**
+ * ============================================================================
+ * FILE: SelectionActionBar.tsx
+ * LOCATION: frontend/src/components/explorer/SelectionActionBar.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Floating action bar for bulk actions on selected explorer items.
+ *
+ * ROLE IN PROJECT:
+ *    Provides module-scoped bulk operations (open, download, delete, KG).
+ *    Coordinates with explorer selection state to act on chosen notes.
+ *
+ * KEY COMPONENTS:
+ *    - SelectionActionBar: Renders bulk action buttons and selection count.
+ *    - handleDownload: Downloads a single note or a zip of multiple notes.
+ *
+ * DEPENDENCIES:
+ *    - External: react, framer-motion, lucide-react, @tanstack/react-query
+ *    - Internal: stores/useExplorerStore, stores/useAuthStore, api/explorerApi,
+ *      types
+ *
+ * USAGE:
+ *    <SelectionActionBar />
+ * ============================================================================
+ */
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useExplorerStore } from '../../stores/useExplorerStore';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     Download,
@@ -23,17 +40,19 @@ import {
     Database
 } from 'lucide-react';
 import type { FileSystemNode } from '../../types';
-import { deleteNoteCascade } from '../../api/explorerApi';
+import { deleteNoteCascade, downloadNotesZip } from '../../api/explorerApi';
 
 export const SelectionActionBar: React.FC = () => {
     const {
         selectedIds,
         clearSelection,
-        openBulkDownloadDialog,
         openProcessDialog,
         openKGDeleteDialog,
         currentPath
     } = useExplorerStore();
+
+    const { user } = useAuthStore();
+    const isStaff = user?.role === 'staff';
 
     const queryClient = useQueryClient();
     const [isDeleting, setIsDeleting] = useState(false);
@@ -74,7 +93,7 @@ export const SelectionActionBar: React.FC = () => {
         return !status || status === 'pending' || status === 'failed';
     });
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         const tree = queryClient.getQueryData<FileSystemNode[]>(['explorer', 'tree']) || [];
         const nodes = findNodesByIds(tree, selectedIds);
         const notes = nodes.filter(n => n.type === 'note' && n.meta?.pdfFilename);
@@ -84,12 +103,75 @@ export const SelectionActionBar: React.FC = () => {
             return;
         }
 
-        openBulkDownloadDialog(notes.map(n => ({
-            id: n.id,
-            type: n.type,
-            label: n.label,
-            meta: n.meta
-        })));
+        const subjectName = currentPath.find(node => node.type === 'subject')?.label;
+        const moduleName = currentPath.find(node => node.type === 'module')?.label;
+
+        const buildZipFilename = (
+            subjectLabel?: string,
+            moduleLabel?: string
+        ): string => {
+            const sanitize = (value: string): string => {
+                const trimmed = value.trim();
+                const withoutInvalid = trimmed.replace(/[\\/:*?"<>|]/g, '-');
+                const compactSpaces = withoutInvalid.replace(/\s+/g, ' ');
+                return compactSpaces.replace(/[. ]+$/g, '');
+            };
+
+            const safeSubject = subjectLabel ? sanitize(subjectLabel) : '';
+            const safeModule = moduleLabel ? sanitize(moduleLabel) : '';
+
+            if (!safeSubject || !safeModule) {
+                return 'notes.zip';
+            }
+
+            return `notes-${safeSubject}-${safeModule}.zip`;
+        };
+
+        let didStartDownload = false;
+
+        if (notes.length === 1) {
+            const pdfFilename = notes[0].meta?.pdfFilename;
+            if (!pdfFilename) return;
+
+            const link = document.createElement('a');
+            link.href = `/api/pdfs/${pdfFilename}`;
+            link.download = pdfFilename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            didStartDownload = true;
+        } else {
+            try {
+                const filenames = notes
+                    .map(note => note.meta?.pdfFilename)
+                    .filter((filename): filename is string => Boolean(filename));
+
+                const { blob } = await downloadNotesZip(
+                    filenames,
+                    subjectName,
+                    moduleName
+                );
+                const objectUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = objectUrl;
+                link.download = buildZipFilename(subjectName, moduleName);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(objectUrl);
+                didStartDownload = true;
+            } catch (error) {
+                console.error('Bulk download failed:', error);
+                const message = error instanceof Error
+                    ? error.message
+                    : 'Bulk download failed. Please try again.';
+                alert(message);
+            }
+        }
+
+        if (didStartDownload) {
+            clearSelection();
+        }
     };
 
     const handleOpen = () => {
@@ -102,10 +184,35 @@ export const SelectionActionBar: React.FC = () => {
             return;
         }
 
-        // Open all synchronously to stay within the user gesture window as much as possible
-        notes.forEach(note => {
-            window.open(`/pdfs/${note.meta!.pdfFilename}`, `_blank_${note.id}`);
+        if (notes.length > 3) {
+            // Warn user about opening many tabs
+            const confirmed = confirm(`You are about to open ${notes.length} PDF files in new tabs. Continue?`);
+            if (!confirmed) {
+                return;
+            }
+        }
+
+        // Open all PDFs (inline view)
+        // Note: Browsers may block multiple popups. Users need to allow popups for this site.
+        let openedCount = 0;
+        notes.forEach((note, index) => {
+            // Small delay between openings to help browsers handle multiple tabs
+            // Use authenticated API endpoint for inline viewing
+            const pdfFilename = note.meta?.pdfFilename;
+            if (!pdfFilename) return;
+            const newWindow = window.open(
+                `/api/pdfs/${pdfFilename}?inline=1`,
+                `_blank_${index}`
+            );
+            if (newWindow) {
+                openedCount++;
+            }
         });
+
+        // Notify user if some windows were blocked
+        if (openedCount < notes.length) {
+            alert(`Opened ${openedCount} of ${notes.length} PDFs.\n\nSome files may have been blocked by your browser's popup blocker. Please allow popups for this site to open multiple files.`);
+        }
 
         clearSelection();
     };
@@ -227,44 +334,48 @@ export const SelectionActionBar: React.FC = () => {
                             <span>Download</span>
                         </button>
 
-                        <button
-                            onClick={handleVectorize}
-                            className="selection-action-btn accent"
-                            disabled={isDeleting || !hasUnprocessedNotes}
-                            title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
-                        >
-                            <Sparkles />
-                            <span>Vectorize</span>
-                        </button>
+                        {isStaff && (
+                            <>
+                                <button
+                                    onClick={handleVectorize}
+                                    className="selection-action-btn accent"
+                                    disabled={isDeleting || !hasUnprocessedNotes}
+                                    title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
+                                >
+                                    <Sparkles />
+                                    <span>Vectorize</span>
+                                </button>
 
-                        <button
-                            onClick={handleDeleteKG}
-                            className="selection-action-btn"
-                            disabled={isDeleting}
-                        >
-                            <Database size={16} />
-                            <span>Delete KG</span>
-                        </button>
+                                <button
+                                    onClick={handleDeleteKG}
+                                    className="selection-action-btn"
+                                    disabled={isDeleting}
+                                >
+                                    <Database size={16} />
+                                    <span>Delete KG</span>
+                                </button>
 
-                        <div className="selection-separator" />
+                                <div className="selection-separator" />
 
-                        <button
-                            onClick={handleDelete}
-                            className="selection-action-btn danger"
-                            disabled={isDeleting}
-                        >
-                            {isDeleting ? (
-                                <>
-                                    <Loader2 size={16} className="spinning" />
-                                    <span>Cleaning up...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Trash2 />
-                                    <span>Delete</span>
-                                </>
-                            )}
-                        </button>
+                                <button
+                                    onClick={handleDelete}
+                                    className="selection-action-btn danger"
+                                    disabled={isDeleting}
+                                >
+                                    {isDeleting ? (
+                                        <>
+                                            <Loader2 size={16} className="spinning" />
+                                            <span>Cleaning up...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 />
+                                            <span>Delete</span>
+                                        </>
+                                    )}
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </motion.div>
