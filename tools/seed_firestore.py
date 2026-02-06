@@ -14,7 +14,7 @@ ROLE IN PROJECT:
 DEPENDENCIES:
     - firebase-admin
     - google-cloud-firestore
-    - serviceAccountKey.json (Firebase credentials)
+    - serviceAccountKey-auth.json (Firebase credentials)
     - mock_db.json (source data)
 
 USAGE:
@@ -26,6 +26,7 @@ USAGE:
     python tools/seed_firestore.py --credentials serviceAccountKey-auth.json
 ============================================================================
 """
+
 from __future__ import annotations
 
 import argparse
@@ -62,12 +63,13 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MOCK_DB_PATH = PROJECT_ROOT / "mock_db.json"
-DEFAULT_CREDENTIALS_PATH = PROJECT_ROOT / "serviceAccountKey.json"
+DEFAULT_CREDENTIALS_PATH = PROJECT_ROOT / "serviceAccountKey-auth.json"
 
 
 @dataclass(frozen=True)
 class CollectionEntry:
     """Represents a collection path and its documents from mock_db.json."""
+
     collection_path: str
     collection_type: str
     documents: Dict[str, Any]
@@ -97,8 +99,7 @@ class FirestoreMigrator:
         """Initialize Firebase Admin SDK."""
         if not self.credentials_path.exists():
             raise FileNotFoundError(
-                "Service account key not found: "
-                f"{self.credentials_path}"
+                f"Service account key not found: {self.credentials_path}"
             )
 
         if not firebase_admin._apps:
@@ -299,8 +300,7 @@ class FirestoreMigrator:
         for field in get_required_fields(collection_type):
             if field not in document:
                 raise ValueError(
-                    f"Required field '{field}' missing in "
-                    f"{collection_type}/{doc_id}"
+                    f"Required field '{field}' missing in {collection_type}/{doc_id}"
                 )
 
     def check_existing_document(
@@ -406,9 +406,7 @@ class FirestoreMigrator:
                     self._increment_stat(stat_key)
                 else:
                     assert self.db is not None
-                    doc_ref = self.db.collection(collection_path).document(
-                        doc_id
-                    )
+                    doc_ref = self.db.collection(collection_path).document(doc_id)
                     bulk_writer.set(doc_ref, transformed, merge=True)
                     self._queue_pending_write(doc_ref.path, stat_key)
 
@@ -448,8 +446,10 @@ class FirestoreMigrator:
             if target_collection:
                 if "/" in target_collection and key != target_collection:
                     continue
-                if "/" not in target_collection and \
-                        collection_type != target_collection:
+                if (
+                    "/" not in target_collection
+                    and collection_type != target_collection
+                ):
                     continue
 
             entries.append(
@@ -492,8 +492,7 @@ class FirestoreMigrator:
 
         assert self.db is not None
         confirm = input(
-            "WARNING: This will DELETE data in Firestore. "
-            "Type 'yes' to confirm: "
+            "WARNING: This will DELETE data in Firestore. Type 'yes' to confirm: "
         )
         if confirm.lower() != "yes":
             logger.info("Reset cancelled")
@@ -507,15 +506,11 @@ class FirestoreMigrator:
                 return
 
             if target_collection == "users":
-                self._delete_collection_recursive(
-                    self.db.collection("users")
-                )
+                self._delete_collection_recursive(self.db.collection("users"))
                 return
 
             if target_collection == "departments":
-                self._delete_collection_recursive(
-                    self.db.collection("departments")
-                )
+                self._delete_collection_recursive(self.db.collection("departments"))
                 return
 
             logger.warning("Reset skipped: unknown collection")
@@ -593,9 +588,7 @@ class FirestoreMigrator:
                 failed_attempts = getattr(error, "failed_attempts", None)
                 if failed_attempts is None:
                     failed_attempts = getattr(error, "attempts", 0)
-                should_retry = (
-                    failed_attempts < MIGRATION_SETTINGS["max_retries"]
-                )
+                should_retry = failed_attempts < MIGRATION_SETTINGS["max_retries"]
                 if not should_retry:
                     doc_path = None
                     operation = getattr(error, "operation", None)
@@ -670,9 +663,7 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
-    credentials_path = (
-        Path(args.credentials) if args.credentials else None
-    )
+    credentials_path = Path(args.credentials) if args.credentials else None
     migrator = FirestoreMigrator(
         dry_run=args.dry_run,
         credentials_path=credentials_path,

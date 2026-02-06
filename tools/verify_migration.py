@@ -15,6 +15,7 @@ DEPENDENCIES:
     - Internal: mock_db.json (for comparison)
 ============================================================================
 """
+
 from __future__ import annotations
 
 import json
@@ -31,20 +32,15 @@ logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 MOCK_DB_PATH = PROJECT_ROOT / "mock_db.json"
-SERVICE_ACCOUNT_CANDIDATES = [
-    PROJECT_ROOT / "serviceAccountKey-auth.json",
-    PROJECT_ROOT / "serviceAccountKey.json",
-]
+DEFAULT_CREDENTIALS_PATH = PROJECT_ROOT / "serviceAccountKey-auth.json"
 
 
 def resolve_service_account_path() -> Path:
-    """Return the first available service account key path."""
-    for candidate in SERVICE_ACCOUNT_CANDIDATES:
-        if candidate.exists():
-            return candidate
+    """Return the service account key path."""
+    if DEFAULT_CREDENTIALS_PATH.exists():
+        return DEFAULT_CREDENTIALS_PATH
     raise FileNotFoundError(
-        "Service account key not found: "
-        "serviceAccountKey-auth.json or serviceAccountKey.json"
+        "Service account key not found: serviceAccountKey-auth.json"
     )
 
 
@@ -81,9 +77,7 @@ class MigrationVerifier:
             if not isinstance(docs, dict):
                 continue
             mock_count = len(docs)
-            firestore_count = len(
-                list(self.db.collection(collection).stream())
-            )
+            firestore_count = len(list(self.db.collection(collection).stream()))
             if mock_count != firestore_count:
                 logger.error(
                     "%s: Count mismatch - mock: %s, firestore: %s",

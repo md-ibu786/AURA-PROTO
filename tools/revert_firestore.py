@@ -19,10 +19,11 @@ DEPENDENCIES:
     - Internal: None
 
 USAGE:
-    python tools/revert_firestore.py --credentials serviceAccountKey.json \
+    python tools/revert_firestore.py --credentials serviceAccountKey-auth.json \
         --confirm
 ============================================================================
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,16 +39,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CREDENTIALS_PATH = PROJECT_ROOT / "serviceAccountKey.json"
+DEFAULT_CREDENTIALS_PATH = PROJECT_ROOT / "serviceAccountKey-auth.json"
 DEFAULT_COLLECTIONS = ["users", "departments", "_migrations"]
 
 
 def initialize_firebase(credentials_path: Path) -> firestore.Client:
     """Initialize Firebase Admin SDK and return Firestore client."""
     if not credentials_path.exists():
-        raise FileNotFoundError(
-            f"Service account key not found: {credentials_path}"
-        )
+        raise FileNotFoundError(f"Service account key not found: {credentials_path}")
 
     if not firebase_admin._apps:
         cred = credentials.Certificate(str(credentials_path))
@@ -124,11 +123,7 @@ def main() -> None:
         raise SystemExit(1)
 
     credentials_path = Path(args.credentials)
-    collections = [
-        name.strip()
-        for name in args.collections.split(",")
-        if name.strip()
-    ]
+    collections = [name.strip() for name in args.collections.split(",") if name.strip()]
 
     db = initialize_firebase(credentials_path)
     delete_collections(db, collections)

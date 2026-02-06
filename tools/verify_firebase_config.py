@@ -90,7 +90,7 @@ def resolve_credentials_path():
         if not path.is_absolute():
             path = PROJECT_ROOT / env_path
         return path
-    return PROJECT_ROOT / "serviceAccountKey.json"
+    return PROJECT_ROOT / "serviceAccountKey-auth.json"
 
 
 def validate_json_file(path):
@@ -165,10 +165,7 @@ def verify_config():
 
     client = firestore.client()
     collections = list(client.collections())
-    print(
-        "Connected to Firestore. "
-        f"Collections: {len(collections)}"
-    )
+    print(f"Connected to Firestore. Collections: {len(collections)}")
     return 0
 
 

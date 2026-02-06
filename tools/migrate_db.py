@@ -35,7 +35,7 @@ DEPENDENCIES:
 
 ENVIRONMENT VARIABLES:
     - DATABASE_URL: PostgreSQL connection string
-    - FIREBASE_CREDENTIALS or serviceAccountKey.json path
+    - FIREBASE_CREDENTIALS or serviceAccountKey-auth.json path
 
 USAGE:
     python tools/migrate_db.py
@@ -45,6 +45,7 @@ WARNING:
     Does not delete PostgreSQL data after migration.
 ============================================================================
 """
+
 import os
 import sys
 import psycopg
@@ -54,20 +55,22 @@ from firebase_admin import credentials, firestore
 import dotenv
 
 # Load environment variables
-dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
+dotenv.load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Setup Paths
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 # Initialize Firebase
 # Note: We duplicate logic here slightly to be standalone or import config if possible
 # safely importing config from here might be tricky due to relative imports if not careful
 # but sys.path append helps.
 try:
-    from api.db import db # using the exported db client from our new setup
+    from api.db import db  # using the exported db client from our new setup
 except ImportError:
     # Fallback if run directly and pythonpath issues
-    cred_path = os.path.join(os.path.dirname(__file__), '..', 'serviceAccountKey.json')
+    cred_path = os.path.join(
+        os.path.dirname(__file__), "..", "serviceAccountKey-auth.json"
+    )
     if not firebase_admin._apps:
         cred = credentials.Certificate(cred_path)
         firebase_admin.initialize_app(cred)
@@ -78,17 +81,20 @@ if not DATABASE_URL:
     print("Error: DATABASE_URL not set in .env")
     sys.exit(1)
 
+
 def get_pg_connection():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
+
 
 def batch_commit(batch):
     """Commits a batch and returns a new one."""
     batch.commit()
     return db.batch()
 
+
 def migrate():
     print("Starting migration...")
-    
+
     # Maps to store old_id -> new_info (id or full info)
     # dept_map: old_id -> new_doc_id
     dept_map = {}
@@ -101,30 +107,30 @@ def migrate():
 
     batch = db.batch()
     op_count = 0
-    BATCH_LIMIT = 400 # Buffer below 500
+    BATCH_LIMIT = 400  # Buffer below 500
 
     with get_pg_connection() as conn:
         # 1. Departments
         print("Migrating Departments...")
         cur = conn.execute("SELECT * FROM departments")
         for row in cur:
-            new_ref = db.collection('departments').document()
-            
+            new_ref = db.collection("departments").document()
+
             # Prepare data
             data = {
-                'name': row['name'],
-                'code': row.get('code'), # might be null
-                'original_id': row['id']
+                "name": row["name"],
+                "code": row.get("code"),  # might be null
+                "original_id": row["id"],
             }
             batch.set(new_ref, data)
-            dept_map[row['id']] = new_ref.id
-            
+            dept_map[row["id"]] = new_ref.id
+
             op_count += 1
             if op_count >= BATCH_LIMIT:
                 batch = batch_commit(batch)
                 op_count = 0
-        
-        batch = batch_commit(batch) # Commit remaining departments
+
+        batch = batch_commit(batch)  # Commit remaining departments
         op_count = 0
         print(f"Migrated {len(dept_map)} departments.")
 
@@ -132,27 +138,34 @@ def migrate():
         print("Migrating Semesters...")
         cur = conn.execute("SELECT * FROM semesters")
         for row in cur:
-            old_dept_id = row['department_id']
+            old_dept_id = row["department_id"]
             if old_dept_id not in dept_map:
-                print(f"Skipping semester {row['id']} - parent dept {old_dept_id} not found")
+                print(
+                    f"Skipping semester {row['id']} - parent dept {old_dept_id} not found"
+                )
                 continue
-            
+
             dept_uid = dept_map[old_dept_id]
-            new_ref = db.collection('departments').document(dept_uid).collection('semesters').document()
-            
+            new_ref = (
+                db.collection("departments")
+                .document(dept_uid)
+                .collection("semesters")
+                .document()
+            )
+
             data = {
-                'name': row['name'],
-                'semester_number': row['semester_number'],
-                'original_id': row['id']
+                "name": row["name"],
+                "semester_number": row["semester_number"],
+                "original_id": row["id"],
             }
             batch.set(new_ref, data)
-            sem_map[row['id']] = {'id': new_ref.id, 'dept_id': dept_uid}
+            sem_map[row["id"]] = {"id": new_ref.id, "dept_id": dept_uid}
 
             op_count += 1
             if op_count >= BATCH_LIMIT:
                 batch = batch_commit(batch)
                 op_count = 0
-        
+
         batch = batch_commit(batch)
         op_count = 0
         print(f"Migrated {len(sem_map)} semesters.")
@@ -161,31 +174,40 @@ def migrate():
         print("Migrating Subjects...")
         cur = conn.execute("SELECT * FROM subjects")
         for row in cur:
-            old_sem_id = row['semester_id']
+            old_sem_id = row["semester_id"]
             if old_sem_id not in sem_map:
                 continue
-            
-            sem_info = sem_map[old_sem_id]
-            dept_uid = sem_info['dept_id']
-            sem_uid = sem_info['id']
 
-            new_ref = db.collection('departments').document(dept_uid)\
-                        .collection('semesters').document(sem_uid)\
-                        .collection('subjects').document()
-            
+            sem_info = sem_map[old_sem_id]
+            dept_uid = sem_info["dept_id"]
+            sem_uid = sem_info["id"]
+
+            new_ref = (
+                db.collection("departments")
+                .document(dept_uid)
+                .collection("semesters")
+                .document(sem_uid)
+                .collection("subjects")
+                .document()
+            )
+
             data = {
-                'name': row['name'],
-                'code': row.get('code'),
-                'original_id': row['id']
+                "name": row["name"],
+                "code": row.get("code"),
+                "original_id": row["id"],
             }
             batch.set(new_ref, data)
-            subj_map[row['id']] = {'id': new_ref.id, 'sem_id': sem_uid, 'dept_id': dept_uid}
+            subj_map[row["id"]] = {
+                "id": new_ref.id,
+                "sem_id": sem_uid,
+                "dept_id": dept_uid,
+            }
 
             op_count += 1
             if op_count >= BATCH_LIMIT:
                 batch = batch_commit(batch)
                 op_count = 0
-        
+
         batch = batch_commit(batch)
         op_count = 0
         print(f"Migrated {len(subj_map)} subjects.")
@@ -194,27 +216,38 @@ def migrate():
         print("Migrating Modules...")
         cur = conn.execute("SELECT * FROM modules")
         for row in cur:
-            old_subj_id = row['subject_id']
+            old_subj_id = row["subject_id"]
             if old_subj_id not in subj_map:
                 continue
-            
-            subj_info = subj_map[old_subj_id]
-            dept_uid = subj_info['dept_id']
-            sem_uid = subj_info['sem_id']
-            subj_uid = subj_info['id']
 
-            new_ref = db.collection('departments').document(dept_uid)\
-                        .collection('semesters').document(sem_uid)\
-                        .collection('subjects').document(subj_uid)\
-                        .collection('modules').document()
-            
+            subj_info = subj_map[old_subj_id]
+            dept_uid = subj_info["dept_id"]
+            sem_uid = subj_info["sem_id"]
+            subj_uid = subj_info["id"]
+
+            new_ref = (
+                db.collection("departments")
+                .document(dept_uid)
+                .collection("semesters")
+                .document(sem_uid)
+                .collection("subjects")
+                .document(subj_uid)
+                .collection("modules")
+                .document()
+            )
+
             data = {
-                'name': row['name'],
-                'module_number': row.get('module_number'),
-                'original_id': row['id']
+                "name": row["name"],
+                "module_number": row.get("module_number"),
+                "original_id": row["id"],
             }
             batch.set(new_ref, data)
-            mod_map[row['id']] = {'id': new_ref.id, 'subj_id': subj_uid, 'sem_id': sem_uid, 'dept_id': dept_uid}
+            mod_map[row["id"]] = {
+                "id": new_ref.id,
+                "subj_id": subj_uid,
+                "sem_id": sem_uid,
+                "dept_id": dept_uid,
+            }
 
             op_count += 1
             if op_count >= BATCH_LIMIT:
@@ -233,37 +266,44 @@ def migrate():
             cur = conn.execute("SELECT * FROM notes")
             count_notes = 0
             for row in cur:
-                old_mod_id = row['module_id']
+                old_mod_id = row["module_id"]
                 if old_mod_id not in mod_map:
                     continue
-                
-                mod_info = mod_map[old_mod_id]
-                dept_uid = mod_info['dept_id']
-                sem_uid = mod_info['sem_id']
-                subj_uid = mod_info['subj_id']
-                mod_uid = mod_info['id']
 
-                new_ref = db.collection('departments').document(dept_uid)\
-                            .collection('semesters').document(sem_uid)\
-                            .collection('subjects').document(subj_uid)\
-                            .collection('modules').document(mod_uid)\
-                            .collection('notes').document()
-                
+                mod_info = mod_map[old_mod_id]
+                dept_uid = mod_info["dept_id"]
+                sem_uid = mod_info["sem_id"]
+                subj_uid = mod_info["subj_id"]
+                mod_uid = mod_info["id"]
+
+                new_ref = (
+                    db.collection("departments")
+                    .document(dept_uid)
+                    .collection("semesters")
+                    .document(sem_uid)
+                    .collection("subjects")
+                    .document(subj_uid)
+                    .collection("modules")
+                    .document(mod_uid)
+                    .collection("notes")
+                    .document()
+                )
+
                 # Copy all fields except id
                 data = dict(row)
-                data['original_id'] = data.pop('id')
+                data["original_id"] = data.pop("id")
                 # Remove module_id as it's implied by hierarchy
-                if 'module_id' in data:
-                    del data['module_id']
-                
+                if "module_id" in data:
+                    del data["module_id"]
+
                 batch.set(new_ref, data)
                 count_notes += 1
-                
+
                 op_count += 1
                 if op_count >= BATCH_LIMIT:
                     batch = batch_commit(batch)
                     op_count = 0
-            
+
             batch = batch_commit(batch)
             print(f"Migrated {count_notes} notes.")
 
@@ -274,10 +314,12 @@ def migrate():
 
     print("Migration complete!")
 
+
 if __name__ == "__main__":
     try:
         migrate()
     except Exception as e:
         print(f"Migration failed: {e}")
         import traceback
+
         traceback.print_exc()

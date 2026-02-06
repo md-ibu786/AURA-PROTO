@@ -9,7 +9,7 @@
         "lint": "eslint .",
         "preview": "vite preview",
         "test": "vitest",
-        "test:rules": "firebase emulators:exec --only firestore --project aura-2026 --config ../firebase.json \"npm run test:rules:run\"",
+        "test:rules": "firebase emulators:exec --only firestore --project aura-auth-proj --config ../firebase.json \"npm run test:rules:run\"",
         "test:rules:run": "jest src/tests/firestore.rules.test.ts",
         "test:e2e": "playwright test",
         "test:e2e:ui": "playwright test --ui",

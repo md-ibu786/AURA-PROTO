@@ -116,7 +116,7 @@ def _resolve_credentials_path():
         if not path.is_absolute():
             path = PROJECT_ROOT / env_path
         return path
-    return PROJECT_ROOT / "serviceAccountKey.json"
+    return PROJECT_ROOT / "serviceAccountKey-auth.json"
 
 
 def get_db():
@@ -202,6 +202,7 @@ if USE_MOCK_DB:
     try:
         from google.cloud import firestore as gcloud_firestore
         from mock_firestore import mock_transactional
+
         gcloud_firestore.transactional = mock_transactional
     except ImportError:
         pass
