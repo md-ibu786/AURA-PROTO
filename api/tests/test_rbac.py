@@ -130,12 +130,17 @@ class FakeDb:
 class FakeAuthClient:
     """Fake Firebase auth client."""
 
-    def __init__(self, result: typing.Optional[dict], exc: Exception) -> None:
+    def __init__(
+        self,
+        result: typing.Optional[dict],
+        exc: typing.Optional[Exception] = None,
+    ) -> None:
         """Initialize the client.
 
         Args:
             result: Decoded token claims to return.
-            exc: Exception to raise if provided.
+            exc: Exception to raise if provided, or None for
+                success.
         """
         self._result = result
         self._exc = exc
@@ -317,7 +322,16 @@ async def test_verify_firebase_token_real_generic_error(
 async def test_get_current_user_success_with_role_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Token role overrides Firestore role on success."""
+    """Token role overrides Firestore role on success.
+
+    Design note: When a user's role is changed by an admin, the
+    fresh custom claims in the Firebase ID token are authoritative.
+    This diverges from the original plan (07-01, Task 3 item 5)
+    which assumed Firestore takes precedence, but token-based
+    precedence is the correct Firebase Auth pattern: custom claims
+    are set server-side and are always the latest source of truth
+    for role assignments.
+    """
     async def _verify_token(_: str) -> dict:
         return {'uid': 'user-1', 'role': 'admin'}
 
@@ -427,6 +441,21 @@ async def test_get_current_user_disabled_user(
     assert exc.value.status_code == fastapi.status.HTTP_403_FORBIDDEN
     assert exc.value.detail == 'User account is disabled'
     assert exc.value.headers is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_user_missing_credentials() -> None:
+    """Missing credentials raises an error.
+
+    When credentials is None the function raises AttributeError
+    because it tries to access .credentials on None.  In
+    production, FastAPI's Depends(HTTPBearer()) prevents this by
+    returning a 401 before the function is ever called.
+    """
+    with pytest.raises(AttributeError):
+        await auth_module.get_current_user(
+            None,  # type: ignore[arg-type]
+        )
 
 
 @pytest.mark.asyncio

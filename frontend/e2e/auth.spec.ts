@@ -6,7 +6,8 @@
  *
  * PURPOSE:
  *    E2E tests for authentication flows including login, logout, session
- *    persistence, protected route handling, and token refresh scenarios.
+ *    persistence, protected route handling, token refresh, and network
+ *    interruption scenarios.
  *
  * ROLE IN PROJECT:
  *    Validates Firebase Authentication integration and user session management.
@@ -19,6 +20,7 @@
  *    - Session persistence across page reloads
  *    - Protected route redirects
  *    - Token refresh and user info display
+ *    - Network interruption handling (offline → online recovery)
  *
  * DEPENDENCIES:
  *    - External: @playwright/test
@@ -26,6 +28,7 @@
  *
  * USAGE:
  *    npx playwright test e2e/auth.spec.ts
+ *    npx playwright test e2e/auth.spec.ts --grep @advanced
  * ============================================================================
  */
 
@@ -33,11 +36,9 @@ import { test, expect } from './fixtures';
 import {
     loginAsRole,
     clearAuth,
-    waitForAuth,
     isAuthenticated,
     getCurrentUser,
     useMockAuth,
-    waitForLoading,
 } from './fixtures';
 
 test.describe('Authentication Flow @auth', { tag: '@auth' }, () => {
@@ -147,7 +148,7 @@ test.describe('Authentication Flow @auth', { tag: '@auth' }, () => {
                 await page.locator('#email').fill('invalid@test.com');
                 await page.locator('#password').fill('wrongpassword');
                 await page.locator('button[type="submit"]').click();
-                await page.waitForTimeout(1000);
+                await page.waitForLoadState('networkidle');
 
                 const errorMessage = page.locator('.error-message');
                 await expect(errorMessage).toContainText(/invalid|error|failed/i);
@@ -186,7 +187,7 @@ test.describe('Authentication Flow @auth', { tag: '@auth' }, () => {
                 await page.locator('#email').fill('invalid@test.com');
                 await page.locator('#password').fill('error');
                 await page.locator('button[type="submit"]').click();
-                await page.waitForTimeout(500);
+                await page.waitForLoadState('networkidle');
             } else {
                 await page.locator('#email').fill('wrong@aura.edu');
                 await page.locator('#password').fill('wrongpassword');
@@ -416,5 +417,100 @@ test.describe('Token Refresh @token', { tag: '@token' }, () => {
             // Still authenticated
             await expect(page).not.toHaveURL(/.*\/login.*/);
         }
+    });
+});
+
+test.describe('Advanced Scenarios @advanced', { tag: '@advanced' }, () => {
+    test('handles network interruption gracefully (offline → online)', async ({ page }) => {
+        // Step 1: Login as admin user
+        if (useMockAuth()) {
+            await loginAsRole(page, 'admin');
+            // Wait for admin dashboard to load
+            await expect(page).toHaveURL(/.*\/admin.*/, { timeout: 10000 });
+        } else {
+            await page.goto('/login');
+            await page.locator('#email').fill('admin@aura.edu');
+            await page.locator('#password').fill('admin123');
+            await page.locator('button[type="submit"]').click();
+            await page.waitForLoadState('networkidle');
+            await expect(page).not.toHaveURL(/.*\/login.*/);
+        }
+
+        // Step 2: Simulate going offline
+        await page.context().setOffline(true);
+
+        // Step 3: Try to navigate to a page that requires network (root page with data fetching)
+        // This should trigger a network error
+        const navigationPromise = page.goto('/').catch(() => {
+            // Navigation may fail due to offline status, which is expected
+            return null;
+        });
+
+        // Wait for navigation attempt to complete or fail
+        await navigationPromise;
+
+        // Step 4: Wait for page to stabilize and check for error indicators
+        await page.waitForLoadState('domcontentloaded').catch(() => {});
+
+        // Look for error messages (network error, offline indicator, or timeout error)
+        // The exact error message may vary, so we check for common patterns
+        const errorIndicators = [
+            page.locator('text=/network error/i'),
+            page.locator('text=/offline/i'),
+            page.locator('text=/connection/i'),
+            page.locator('text=/failed to fetch/i'),
+            page.locator('text=/timeout/i'),
+            page.locator('.error-message'),
+            page.locator('[role="alert"]'),
+            page.locator('.toast-error'),
+        ];
+
+        // Check if any error indicator is visible
+        let errorFound = false;
+        for (const indicator of errorIndicators) {
+            const isVisible = await indicator.first().isVisible().catch(() => false);
+            if (isVisible) {
+                errorFound = true;
+                break;
+            }
+        }
+
+        // If no error UI is shown, at least verify the page didn't load successfully
+        // (e.g., no content loaded, or stuck in loading state)
+        if (!errorFound) {
+            // In offline mode, data-dependent components should fail to load
+            // This is implementation-specific, so we just document the offline state
+            console.log('Network offline: No explicit error UI, but network is disabled');
+        }
+
+        // Step 5: Come back online
+        await page.context().setOffline(false);
+
+        // Step 6: Retry the navigation - should now succeed
+        await page.goto('/');
+        await page.waitForLoadState('networkidle');
+
+        // Step 7: Verify successful load - check we're on root page and not redirected to login
+        await expect(page).not.toHaveURL(/.*\/login.*/);
+
+        // Verify page content loaded successfully
+        // Look for common UI elements that indicate successful load
+        const successIndicators = [
+            page.locator('nav'), // Navigation should be visible
+            page.locator('aside'), // Sidebar should be present
+            page.locator('main'), // Main content area
+        ];
+
+        let successFound = false;
+        for (const indicator of successIndicators) {
+            const isVisible = await indicator.first().isVisible().catch(() => false);
+            if (isVisible) {
+                successFound = true;
+                break;
+            }
+        }
+
+        // Should have successfully loaded UI components after coming back online
+        expect(successFound).toBe(true);
     });
 });

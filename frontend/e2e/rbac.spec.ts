@@ -265,11 +265,10 @@ test.describe('Staff Role Access @rbac-staff', { tag: ['@rbac', '@staff'] }, () 
         // Should redirect to home (ProtectedRoute redirects non-admin to /)
         const currentUrl = page.url();
         const isNotAdmin = !currentUrl.includes('/admin');
-        const hasAccessDenied = await page
+        const accessDeniedCount = await page
             .locator('text=Access Denied, text=Unauthorized')
-            .first()
-            .isVisible()
-            .catch(() => false);
+            .count();
+        const hasAccessDenied = accessDeniedCount > 0;
 
         expect(isNotAdmin || hasAccessDenied).toBe(true);
     });
@@ -292,12 +291,12 @@ test.describe('Staff Role Access @rbac-staff', { tag: ['@rbac', '@staff'] }, () 
         const contentArea = page.locator('.explorer-content, .explorer-main');
         await expect(contentArea.first()).toBeVisible({ timeout: 10000 });
         await contentArea.first().click({ button: 'right' });
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('domcontentloaded');
 
         // Should NOT see "New Department" option (staff can't manage hierarchy)
         const createDeptOption = page.locator('text=New Department');
-        const isVisible = await createDeptOption.first().isVisible().catch(() => false);
-        expect(isVisible).toBe(false);
+        const count = await createDeptOption.count();
+        expect(count).toBe(0);
     });
 
     test('can read subjects in the explorer tree', async ({ page }) => {
@@ -305,7 +304,7 @@ test.describe('Staff Role Access @rbac-staff', { tag: ['@rbac', '@staff'] }, () 
         const dept = page.locator('text=Computer Science');
         await expect(dept.first()).toBeVisible({ timeout: 10000 });
         await dept.first().dblclick();
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('domcontentloaded');
 
         // Should see semesters/subjects in the tree
         const treeContent = page.locator('.explorer-sidebar');
@@ -315,8 +314,8 @@ test.describe('Staff Role Access @rbac-staff', { tag: ['@rbac', '@staff'] }, () 
     test('restricted UI elements for staff role', async ({ page }) => {
         // Should NOT see admin navigation link in sidebar
         const adminNav = page.locator('a[href="/admin"]');
-        const hasAdminNav = await adminNav.first().isVisible().catch(() => false);
-        expect(hasAdminNav).toBe(false);
+        const adminNavCount = await adminNav.count();
+        expect(adminNavCount).toBe(0);
 
         // Sidebar displays user role as "staff" (capitalized via CSS)
         const sidebar = page.locator('.explorer-sidebar');
@@ -364,11 +363,10 @@ test.describe('Student Role Access @rbac-student', { tag: ['@rbac', '@student'] 
         // Should redirect away from admin
         const currentUrl = page.url();
         const isNotAdmin = !currentUrl.includes('/admin');
-        const hasAccessDenied = await page
+        const accessDeniedCount = await page
             .locator('text=Access Denied, text=Unauthorized')
-            .first()
-            .isVisible()
-            .catch(() => false);
+            .count();
+        const hasAccessDenied = accessDeniedCount > 0;
 
         expect(isNotAdmin || hasAccessDenied).toBe(true);
     });
@@ -391,7 +389,7 @@ test.describe('Student Role Access @rbac-student', { tag: ['@rbac', '@student'] 
         const contentArea = page.locator('.explorer-content, .explorer-main');
         await expect(contentArea.first()).toBeVisible({ timeout: 10000 });
         await contentArea.first().click({ button: 'right' });
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('domcontentloaded');
 
         // Should NOT see any create options
         const createOptions = page.locator(
@@ -406,22 +404,22 @@ test.describe('Student Role Access @rbac-student', { tag: ['@rbac', '@student'] 
         const dept = page.locator('text=Computer Science');
         await expect(dept.first()).toBeVisible({ timeout: 10000 });
         await dept.first().dblclick();
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('domcontentloaded');
 
         // Students should not see upload/create note buttons at any level
         const uploadButton = page.locator(
             'text=Upload Note, text=New Note, text=Upload Notes'
         );
-        const hasUpload = await uploadButton.first().isVisible().catch(() => false);
-        expect(hasUpload).toBe(false);
+        const uploadCount = await uploadButton.count();
+        expect(uploadCount).toBe(0);
     });
 
     test('read-only access throughout the application', async ({ page }) => {
         // Should NOT see any actionable edit buttons
         const editButtons = page.locator('text=Edit, text=Rename');
-        const hasEditButtons = await editButtons.first().isVisible().catch(() => false);
+        const editButtonCount = await editButtons.count();
 
-        if (hasEditButtons) {
+        if (editButtonCount > 0) {
             const editButton = editButtons.first();
             // If visible, should be disabled
             await expect(editButton).toBeHidden({ timeout: 1000 }).catch(async () => {
@@ -431,8 +429,8 @@ test.describe('Student Role Access @rbac-student', { tag: ['@rbac', '@student'] 
 
         // Should NOT see delete buttons
         const deleteButtons = page.locator('text=Delete');
-        const hasDelete = await deleteButtons.first().isVisible().catch(() => false);
-        expect(hasDelete).toBe(false);
+        const deleteCount = await deleteButtons.count();
+        expect(deleteCount).toBe(0);
     });
 
     test('student role shown in sidebar', async ({ page }) => {
@@ -465,7 +463,7 @@ test.describe('Advanced RBAC Scenarios @rbac-advanced', { tag: ['@rbac', '@advan
 
         // Verify staff permissions - should NOT see admin nav link
         const adminNav = page.locator('a[href="/admin"]');
-        expect(await adminNav.first().isVisible().catch(() => false)).toBe(false);
+        expect(await adminNav.count()).toBe(0);
 
         // Clear and login as admin (admin goes to /admin dashboard)
         await clearAuth(page);
@@ -491,11 +489,13 @@ test.describe('Advanced RBAC Scenarios @rbac-advanced', { tag: ['@rbac', '@advan
         await page.locator('button[type="submit"]').click();
         await page.waitForLoadState('networkidle');
 
-        // Should show error message (disabled or generic auth error)
+        // Should stay on login page
+        await expect(page).toHaveURL(/.*\/login.*/);
+
+        // Should show an error message (either disabled-specific or generic auth error)
         const errorMessage = page.locator('.error-message');
-        if (await errorMessage.isVisible().catch(() => false)) {
-            await expect(errorMessage).not.toBeEmpty();
-        }
+        await expect(errorMessage).toBeVisible({ timeout: 5000 });
+        await expect(errorMessage).not.toBeEmpty();
     });
 
     test('concurrent sessions share authentication state', async ({ page }) => {
