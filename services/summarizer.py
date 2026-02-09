@@ -104,7 +104,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         """
 
     try:
-        genai_model = get_genai_model("gemini-3-flash-preview")
+        genai_model = get_genai_model("gemini-2.5-pro")
         if genai_model is not None:
             response = genai_client.generate_content_with_thinking(
                 genai_model,
@@ -115,7 +115,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         return f"Note Generation Failed: {str(e)}"
 
     try:
-        model = get_model(model_name="models/gemini-3-flash-preview")
+        model = get_model(model_name="models/gemini-2.5-pro")
     except Exception as e:
         return f"Note Generation Failed: {str(e)}"
 

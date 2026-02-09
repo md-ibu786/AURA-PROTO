@@ -83,7 +83,7 @@ def transform_transcript(topic: str, transcript: str) -> str:
     """
 
     # usage of models/gemini-3-flash-preview
-    model = get_model(model_name="models/gemini-3-flash-preview")
+    model = get_model(model_name="models/gemini-2.5-pro")
 
 
     # define the prompt for transformation

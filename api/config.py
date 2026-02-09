@@ -110,7 +110,7 @@ def _resolve_credentials_path():
     Raises:
         None.
     """
-    env_path = os.getenv("FIREBASE_CREDENTIALS")
+    env_path = os.getenv("GOOGLE_AUTH_CREDENTIALS")
     if env_path:
         path = Path(env_path)
         if not path.is_absolute():

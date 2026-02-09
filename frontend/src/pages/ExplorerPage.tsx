@@ -54,6 +54,9 @@ import { SelectionOverlay } from '../components/explorer/SelectionOverlay';
 import { SelectionActionBar } from '../components/explorer/SelectionActionBar';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { WarningDialog } from '../components/ui/WarningDialog';
+import { ProcessDialog } from '../features/kg/components/ProcessDialog';
+import { DeleteFromKGDialog } from '../features/kg/components/DeleteFromKGDialog';
+import { ProcessingQueue } from '../features/kg/components/ProcessingQueue';
 import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
 
@@ -305,6 +308,9 @@ export default function ExplorerPage() {
             />
 
             <WarningDialog />
+            <ProcessDialog />
+            <DeleteFromKGDialog />
+            <ProcessingQueue />
         </div>
     );
 }
