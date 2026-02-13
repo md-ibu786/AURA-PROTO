@@ -42,8 +42,8 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [02-01-PLAN.md](phases/02-sidebar-mobile/02-01-PLAN.md): Update `Sidebar.tsx` — mobile overlay with `translateX` animation, semi-transparent backdrop, close button in sidebar header
-- [ ] [02-02-PLAN.md](phases/02-sidebar-mobile/02-02-PLAN.md): Auto-close sidebar on navigation events and backdrop click handling
+- [x] [02-01-PLAN.md](phases/02-sidebar-mobile/02-01-PLAN.md): Update `Sidebar.tsx` — mobile overlay with `translateX` animation, semi-transparent backdrop, close button in sidebar header
+- [x] [02-02-PLAN.md](phases/02-sidebar-mobile/02-02-PLAN.md): Auto-close sidebar on navigation events and backdrop click handling
 
 Key Deliverables:
 - Sidebar hidden by default on mobile (`transform: translateX(-100%)`)
@@ -59,7 +59,7 @@ Key Deliverables:
 
 Plans:
 - [x] [03-01-PLAN.md](phases/03-header-mobile/03-01-PLAN.md): Add hamburger icon button (visible only on mobile) to `Header.tsx`, truncate breadcrumbs to show only `... > [Current]`
-- [ ] [03-02-PLAN.md](phases/03-header-mobile/03-02-PLAN.md): Collapse search bar to icon-toggle on small screens, adjust view toggle and header spacing
+- [x] [03-02-PLAN.md](phases/03-header-mobile/03-02-PLAN.md): Collapse search bar to icon-toggle on small screens, adjust view toggle and header spacing
 
 Key Deliverables:
 - Hamburger button (Menu icon from lucide-react) wired to `setMobileMenuOpen(true)`
@@ -120,7 +120,7 @@ Key Deliverables:
 |-------|----------------|--------|-----------|
 | 1. Foundation & State | 0/2 | Not started | - |
 | 2. Sidebar Mobile | 2/2 | Complete | 2026-02-13 |
-| 3. Header Mobile | 1/2 | In progress | 2026-02-13 |
+| 3. Header Mobile | 2/2 | Complete | 2026-02-13 |
 | 4. Content Views Mobile | 0/2 | Not started | - |
 | 5. Dialogs & Action Bar | 0/2 | Not started | - |
 | 6. Testing & Verification | 0/1 | Not started | - |
