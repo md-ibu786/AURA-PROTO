@@ -47,7 +47,8 @@
  * @see: stores/useExplorerStore.ts - For navigation and UI state
  * @note: Automatically disables selection mode when navigating out of modules
  */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 import { useExplorerStore } from '../../stores';
 import {
     ChevronRight,
@@ -55,10 +56,15 @@ import {
     Search,
     LayoutGrid,
     List,
-    Home
+    Home,
+    Menu,
+    X
 } from 'lucide-react';
 
 export function Header() {
+    const isMobile = useMobileBreakpoint();
+    const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+
     const {
         currentPath,
         navigateUp,
@@ -71,6 +77,7 @@ export function Header() {
         selectionMode,
         setSelectionMode,
         setDeleteMode,
+        setMobileMenuOpen,
     } = useExplorerStore();
 
     const goHome = () => {
@@ -102,6 +109,17 @@ export function Header() {
 
     return (
         <header className="explorer-header">
+            {/* Hamburger menu button - mobile only */}
+            {isMobile && (
+                <button
+                    className="nav-btn"
+                    onClick={() => setMobileMenuOpen(true)}
+                    title="Open menu"
+                >
+                    <Menu size={20} />
+                </button>
+            )}
+
             {/* Navigation buttons */}
             <div className="nav-buttons">
                 <button
@@ -128,33 +146,89 @@ export function Header() {
                     onClick={goHome}
                 >
                     <Home size={14} />
-                    <span>Home</span>
+                    {!isMobile && <span>Home</span>}
                 </button>
 
-                {currentPath.map((node, index) => (
-                    <span key={node.id} className="flex items-center">
+                {isMobile && currentPath.length > 0 ? (
+                    <span className="flex items-center">
                         <ChevronRight size={14} className="breadcrumb-separator" />
+                        {currentPath.length > 1 && (
+                            <>
+                                <span className="breadcrumb-item" style={{ opacity: 0.5 }}>...</span>
+                                <ChevronRight size={14} className="breadcrumb-separator" />
+                            </>
+                        )}
                         <button
-                            className={`breadcrumb-item ${index === currentPath.length - 1 ? 'active' : ''}`}
-                            onClick={() => navigateToBreadcrumb(index)}
+                            className="breadcrumb-item active"
+                            onClick={() => navigateToBreadcrumb(currentPath.length - 1)}
                         >
-                            {node.label}
+                            {currentPath[currentPath.length - 1].label}
                         </button>
                     </span>
-                ))}
+                ) : (
+                    currentPath.map((node, index) => (
+                        <span key={node.id} className="flex items-center">
+                            <ChevronRight size={14} className="breadcrumb-separator" />
+                            <button
+                                className={`breadcrumb-item ${index === currentPath.length - 1 ? 'active' : ''}`}
+                                onClick={() => navigateToBreadcrumb(index)}
+                            >
+                                {node.label}
+                            </button>
+                        </span>
+                    ))
+                )}
             </nav>
 
 
             {/* Search */}
-            <div className="search-box ml-auto">
-                <Search size={16} className="text-muted" />
-                <input
-                    type="text"
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                />
-            </div>
+            {isMobile ? (
+                mobileSearchOpen ? (
+                    <div className="search-box mobile-search-expanded">
+                        <Search size={16} className="text-muted" />
+                        <input
+                            type="text"
+                            placeholder="Search..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            autoFocus
+                            onBlur={() => {
+                                if (!searchQuery) {
+                                    setMobileSearchOpen(false);
+                                }
+                            }}
+                        />
+                        <button
+                            className="nav-btn"
+                            onClick={() => {
+                                setSearchQuery('');
+                                setMobileSearchOpen(false);
+                            }}
+                            style={{ width: '24px', height: '24px' }}
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        className="nav-btn"
+                        onClick={() => setMobileSearchOpen(true)}
+                        title="Search"
+                    >
+                        <Search size={18} />
+                    </button>
+                )
+            ) : (
+                <div className="search-box ml-auto">
+                    <Search size={16} className="text-muted" />
+                    <input
+                        type="text"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+            )}
 
 
             {/* View toggle */}

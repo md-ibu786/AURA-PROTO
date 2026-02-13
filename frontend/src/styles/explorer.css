@@ -1289,4 +1289,49 @@
     .sidebar-header .nav-btn {
         margin-left: auto;
     }
+
+    /* Search: expanded mobile state takes remaining space */
+    .search-box.mobile-search-expanded {
+        flex: 1;
+        width: auto;
+        min-width: 0;
+    }
+
+    /* Hide the fixed-width search box default on mobile */
+    .search-box:not(.mobile-search-expanded) {
+        width: auto;
+    }
+
+    /* View toggle: slightly smaller on mobile */
+    .view-toggle-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    /* Navigation buttons: ensure touch-friendly size */
+    .nav-btn {
+        min-width: 36px;
+        min-height: 36px;
+    }
+
+    /* Header: reduce padding and gap on mobile */
+    .explorer-header {
+        gap: var(--spacing-sm);
+        padding: var(--spacing-xs) var(--spacing-sm);
+        min-height: 44px;
+    }
+
+    /* Breadcrumbs: constrain width */
+    .breadcrumbs {
+        min-width: 0;
+        flex: 1;
+    }
+
+    .breadcrumb-item {
+        font-size: 12px;
+        padding: var(--spacing-xs);
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }
