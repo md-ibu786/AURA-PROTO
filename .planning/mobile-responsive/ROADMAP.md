@@ -58,7 +58,7 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [03-01-PLAN.md](phases/03-header-mobile/03-01-PLAN.md): Add hamburger icon button (visible only on mobile) to `Header.tsx`, truncate breadcrumbs to show only `... > [Current]`
+- [x] [03-01-PLAN.md](phases/03-header-mobile/03-01-PLAN.md): Add hamburger icon button (visible only on mobile) to `Header.tsx`, truncate breadcrumbs to show only `... > [Current]`
 - [ ] [03-02-PLAN.md](phases/03-header-mobile/03-02-PLAN.md): Collapse search bar to icon-toggle on small screens, adjust view toggle and header spacing
 
 Key Deliverables:
@@ -120,7 +120,7 @@ Key Deliverables:
 |-------|----------------|--------|-----------|
 | 1. Foundation & State | 0/2 | Not started | - |
 | 2. Sidebar Mobile | 2/2 | Complete | 2026-02-13 |
-| 3. Header Mobile | 1/2 | In progress | - |
+| 3. Header Mobile | 1/2 | In progress | 2026-02-13 |
 | 4. Content Views Mobile | 0/2 | Not started | - |
 | 5. Dialogs & Action Bar | 0/2 | Not started | - |
 | 6. Testing & Verification | 0/1 | Not started | - |
