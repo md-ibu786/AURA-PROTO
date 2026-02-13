@@ -39,6 +39,7 @@ import {
     Loader2,
     Database
 } from 'lucide-react';
+import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 import type { FileSystemNode } from '../../types';
 import { deleteNoteCascade, downloadNotesZip } from '../../api/explorerApi';
 
@@ -55,6 +56,7 @@ export const SelectionActionBar: React.FC = () => {
     const isStaff = user?.role === 'staff';
 
     const queryClient = useQueryClient();
+    const isMobile = useMobileBreakpoint();
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number } | null>(null);
 
@@ -300,8 +302,8 @@ export const SelectionActionBar: React.FC = () => {
                     <div className="selection-info">
                         <span className="selection-count">
                             {deleteProgress
-                                ? `Deleting ${deleteProgress.current}/${deleteProgress.total}...`
-                                : `${count} selected`
+                                ? `${deleteProgress.current}/${deleteProgress.total}...`
+                                : isMobile ? `${count}` : `${count} selected`
                             }
                         </span>
                         {!isDeleting && (
@@ -321,8 +323,8 @@ export const SelectionActionBar: React.FC = () => {
                             className="selection-action-btn"
                             disabled={isDeleting}
                         >
-                            <ExternalLink />
-                            <span>Open</span>
+                            <ExternalLink size={isMobile ? 18 : undefined} />
+                            {!isMobile && <span>Open</span>}
                         </button>
 
                         <button
@@ -330,8 +332,8 @@ export const SelectionActionBar: React.FC = () => {
                             className="selection-action-btn"
                             disabled={isDeleting}
                         >
-                            <Download />
-                            <span>Download</span>
+                            <Download size={isMobile ? 18 : undefined} />
+                            {!isMobile && <span>Download</span>}
                         </button>
 
                         {isStaff && (
@@ -342,8 +344,8 @@ export const SelectionActionBar: React.FC = () => {
                                     disabled={isDeleting || !hasUnprocessedNotes}
                                     title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
                                 >
-                                    <Sparkles />
-                                    <span>Vectorize</span>
+                                    <Sparkles size={isMobile ? 18 : undefined} />
+                                    {!isMobile && <span>Vectorize</span>}
                                 </button>
 
                                 <button
@@ -351,8 +353,8 @@ export const SelectionActionBar: React.FC = () => {
                                     className="selection-action-btn"
                                     disabled={isDeleting}
                                 >
-                                    <Database size={16} />
-                                    <span>Delete KG</span>
+                                    <Database size={isMobile ? 18 : undefined} />
+                                    {!isMobile && <span>Delete KG</span>}
                                 </button>
 
                                 <div className="selection-separator" />
@@ -364,13 +366,13 @@ export const SelectionActionBar: React.FC = () => {
                                 >
                                     {isDeleting ? (
                                         <>
-                                            <Loader2 size={16} className="spinning" />
+                                            <Loader2 size={isMobile ? 18 : 16} className="spinning" />
                                             <span>Cleaning up...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <Trash2 />
-                                            <span>Delete</span>
+                                            <Trash2 size={isMobile ? 18 : undefined} />
+                                            {!isMobile && <span>Delete</span>}
                                         </>
                                     )}
                                 </button>

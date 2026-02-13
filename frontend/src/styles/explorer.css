@@ -1381,13 +1381,13 @@
     }
 
     /* Grid item icon: smaller on mobile */
-    .grid-item-icon {
+    .grid-view .grid-item-icon {
         width: 48px;
         height: 48px;
         margin-bottom: var(--spacing-xs);
     }
 
-    .grid-item-icon svg {
+    .grid-view .grid-item-icon svg {
         width: 36px;
         height: 36px;
     }
@@ -1402,12 +1402,49 @@
         font-size: 10px;
     }
 
-    /* KG LED indicator: adjust position for smaller grid items */
+/* KG LED indicator: adjust position for smaller grid items */
     .kg-ready-led {
         top: 4px;
         right: 4px;
         width: 8px;
         height: 8px;
+    }
+
+    /* ===== Selection Action Bar Mobile ===== */
+    .selection-action-bar-container {
+        bottom: 16px;
+        left: 50%;
+        right: auto;
+        max-width: calc(100vw - 32px);
+    }
+
+    .selection-action-bar {
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm) var(--spacing-md);
+        min-height: 44px;
+    }
+
+    /* Compact selection info on mobile */
+    .selection-info {
+        padding-right: var(--spacing-sm);
+        gap: var(--spacing-xs);
+    }
+
+    .selection-count {
+        font-size: 12px;
+    }
+
+    /* Action buttons: ensure touch-friendly size */
+    .selection-action-btn {
+        padding: var(--spacing-xs);
+        min-width: 36px;
+        min-height: 36px;
+        justify-content: center;
+    }
+
+    .selection-action-btn svg {
+        width: 18px;
+        height: 18px;
     }
 }
 

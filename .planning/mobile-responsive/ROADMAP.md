@@ -89,7 +89,7 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [05-01-PLAN.md](phases/05-dialogs-action-bar/05-01-PLAN.md): Make `SelectionActionBar` mobile-friendly — icon-only buttons (hide text labels), compact layout, responsive width
+- [x] [05-01-PLAN.md](phases/05-dialogs-action-bar/05-01-PLAN.md): Make `SelectionActionBar` mobile-friendly — icon-only buttons (hide text labels), compact layout, responsive width
 - [ ] [05-02-PLAN.md](phases/05-dialogs-action-bar/05-02-PLAN.md): Ensure UploadDialog, ConfirmDialog, ProcessDialog, DeleteFromKGDialog fit within `max-width: 90vw` on mobile
 
 Key Deliverables:
@@ -122,7 +122,7 @@ Key Deliverables:
 | 2. Sidebar Mobile | 2/2 | Complete | 2026-02-13 |
 | 3. Header Mobile | 2/2 | Complete | 2026-02-13 |
 | 4. Content Views Mobile | 1/2 | In progress | 2026-02-13 |
-| 5. Dialogs & Action Bar | 0/2 | Not started | - |
+| 5. Dialogs & Action Bar | 1/2 | In progress | 2026-02-13 |
 | 6. Testing & Verification | 0/1 | Not started | - |
 
 ## Plan Files
