@@ -1824,13 +1824,19 @@ export function AdminDashboard() {
                 }
 
                 .dept-select {
-                    flex: 1;
+                    width: 100%;
                     padding: 8px 12px;
+                    margin-bottom: var(--spacing-sm);
                     border: 1px solid var(--color-border);
                     border-radius: var(--radius-sm);
                     background: var(--color-bg-primary);
                     color: var(--color-text-primary);
                     font-size: 0.875rem;
+                }
+
+                .dept-select:focus {
+                    outline: none;
+                    border-color: var(--color-primary);
                 }
 
                 .subject-selection-panel {
