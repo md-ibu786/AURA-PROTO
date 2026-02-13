@@ -655,7 +655,7 @@ export function AdminDashboard() {
                 </div>
 
                 {activeTab === 'users' && (
-                    <section className="panel">
+                    <section>
                         <div className="panel-header">
                             <h2>User Management</h2>
                             <button
