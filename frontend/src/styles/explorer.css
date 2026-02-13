@@ -1225,3 +1225,58 @@
     padding-left: 24px;
     color: #ffffff;
 }
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 768px) {
+    /* Layout: keep row direction but hide sidebar by default */
+    .explorer-layout {
+        position: relative;
+        overflow-x: hidden;
+    }
+
+    /* Sidebar: hidden off-screen by default, slides in as overlay */
+    .explorer-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 100;
+        transform: translateX(-100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: none;
+    }
+
+    /* Sidebar open state */
+    .explorer-sidebar.mobile-open {
+        transform: translateX(0);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Sidebar backdrop */
+    .sidebar-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 99;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+    }
+
+    .sidebar-backdrop.visible {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* Main content takes full width */
+    .explorer-main {
+        width: 100%;
+        min-width: 0;
+    }
+
+    /* Content area: reduce padding on mobile */
+    .explorer-content {
+        padding: var(--spacing-sm);
+    }
+}

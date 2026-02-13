@@ -86,6 +86,10 @@ interface ExplorerState {
     currentPath: FileSystemNode[];
     activeNodeId: string | null;
 
+    // Mobile menu state
+    mobileMenuOpen: boolean;
+    setMobileMenuOpen: (open: boolean) => void;
+
     // Selection
     selectedIds: Set<string>;
     lastSelectedId: string | null;
@@ -197,6 +201,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     // Initial state
     currentPath: [],
     activeNodeId: null,
+    mobileMenuOpen: false,
     selectedIds: new Set(),
     lastSelectedId: null,
     expandedIds: new Set(),
@@ -257,10 +262,13 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
         activeNodeId: node?.id ?? null
     }),
 
+    setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
+
     setCurrentPath: (path) => set({
         currentPath: path,
         creatingNodeType: null,
         creatingParentId: null,
+        mobileMenuOpen: false,
     }),
 
     navigateTo: (node, ancestors) => {
@@ -272,6 +280,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
             lastSelectedId: null,
             creatingNodeType: null,
             creatingParentId: null,
+            mobileMenuOpen: false,
         });
     },
 
@@ -287,6 +296,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
                 lastSelectedId: null,
                 creatingNodeType: null,
                 creatingParentId: null,
+                mobileMenuOpen: false,
             });
         } else if (currentPath.length === 1) {
             // Go to root
@@ -297,6 +307,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
                 lastSelectedId: null,
                 creatingNodeType: null,
                 creatingParentId: null,
+                mobileMenuOpen: false,
             });
         }
     },
@@ -460,6 +471,7 @@ export const useExplorerStore = create<ExplorerState>((set, get) => ({
     reset: () => set({
         currentPath: [],
         activeNodeId: null,
+        mobileMenuOpen: false,
         selectedIds: new Set(),
         lastSelectedId: null,
         expandedIds: new Set(),

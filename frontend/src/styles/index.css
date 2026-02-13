@@ -346,3 +346,11 @@ input::placeholder {
 .text-red-500 { color: #ef4444; }
 .text-red-400 { color: #f87171; }
 .text-black { color: #000000; }
+
+/* ===== Mobile Overflow Prevention ===== */
+@media (max-width: 768px) {
+    html, body, #root {
+        overflow-x: hidden;
+        max-width: 100vw;
+    }
+}
