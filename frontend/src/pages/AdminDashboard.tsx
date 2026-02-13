@@ -1824,7 +1824,7 @@ export function AdminDashboard() {
                 }
 
                 .dept-select {
-                    width: 100%;
+                    width: calc(50% - var(--spacing-md) / 2);
                     padding: 8px 12px;
                     margin-bottom: var(--spacing-sm);
                     border: 1px solid var(--color-border);
@@ -1837,6 +1837,12 @@ export function AdminDashboard() {
                 .dept-select:focus {
                     outline: none;
                     border-color: var(--color-primary);
+                }
+
+                @media (max-width: 768px) {
+                    .dept-select {
+                        width: 100%;
+                    }
                 }
 
                 .subject-selection-panel {
