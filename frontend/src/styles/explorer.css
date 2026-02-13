@@ -1279,4 +1279,14 @@
     .explorer-content {
         padding: var(--spacing-sm);
     }
+
+    /* Mobile sidebar close button */
+    .sidebar-header {
+        display: flex;
+        align-items: center;
+    }
+
+    .sidebar-header .nav-btn {
+        margin-left: auto;
+    }
 }

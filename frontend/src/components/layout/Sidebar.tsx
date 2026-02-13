@@ -43,7 +43,8 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { SidebarTree } from '../explorer/SidebarTree';
 import { UploadDialog } from '../explorer/UploadDialog';
 import type { FileSystemNode, HierarchyType } from '../../types';
-import { FolderTree, Upload, Plus, LogOut, Shield, LayoutGrid } from 'lucide-react';
+import { FolderTree, Upload, Plus, LogOut, Shield, LayoutGrid, X } from 'lucide-react';
+import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 
 interface SidebarProps {
     tree: FileSystemNode[];
@@ -51,10 +52,11 @@ interface SidebarProps {
 }
 
 export function Sidebar({ tree, isLoading }: SidebarProps) {
-    const { currentPath, startCreating } = useExplorerStore();
+    const { currentPath, startCreating, mobileMenuOpen, setMobileMenuOpen } = useExplorerStore();
     const { user, logout } = useAuthStore();
     const location = useLocation();
     const [isUploadOpen, setIsUploadOpen] = useState(false);
+    const isMobile = useMobileBreakpoint();
 
     const isAdmin = user?.role === 'admin';
     const isAdminPath = location.pathname.startsWith('/admin');
@@ -107,13 +109,31 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
     };
 
     return (
-        <aside className="explorer-sidebar">
-            <div className="sidebar-header">
-                <div className="flex items-center gap-sm">
-                    <FolderTree size={18} className="text-accent" />
-                    <span className="sidebar-title">AURA</span>
+        <>
+            {isMobile && (
+                <div
+                    className={`sidebar-backdrop ${mobileMenuOpen ? 'visible' : ''}`}
+                    onClick={() => setMobileMenuOpen(false)}
+                />
+            )}
+            <aside className={`explorer-sidebar ${isMobile && mobileMenuOpen ? 'mobile-open' : ''}`}>
+                <div className="sidebar-header">
+                    <div className="flex items-center gap-sm" style={{ justifyContent: 'space-between', width: '100%' }}>
+                        <div className="flex items-center gap-sm">
+                            <FolderTree size={18} className="text-accent" />
+                            <span className="sidebar-title">AURA</span>
+                        </div>
+                        {isMobile && (
+                            <button
+                                onClick={() => setMobileMenuOpen(false)}
+                                className="nav-btn"
+                                title="Close menu"
+                            >
+                                <X size={18} />
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
 
             <div className="sidebar-content">
                 {isAdmin && (
@@ -205,5 +225,6 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
                 </div>
             )}
         </aside>
+        </>
     );
 }
