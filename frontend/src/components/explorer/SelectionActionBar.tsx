@@ -322,6 +322,7 @@ export const SelectionActionBar: React.FC = () => {
                             onClick={handleOpen}
                             className="selection-action-btn"
                             disabled={isDeleting}
+                            aria-label="Open"
                         >
                             <ExternalLink size={isMobile ? 18 : undefined} />
                             {!isMobile && <span>Open</span>}
@@ -331,6 +332,7 @@ export const SelectionActionBar: React.FC = () => {
                             onClick={handleDownload}
                             className="selection-action-btn"
                             disabled={isDeleting}
+                            aria-label="Download"
                         >
                             <Download size={isMobile ? 18 : undefined} />
                             {!isMobile && <span>Download</span>}
@@ -343,6 +345,7 @@ export const SelectionActionBar: React.FC = () => {
                                     className="selection-action-btn accent"
                                     disabled={isDeleting || !hasUnprocessedNotes}
                                     title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
+                                    aria-label="Vectorize"
                                 >
                                     <Sparkles size={isMobile ? 18 : undefined} />
                                     {!isMobile && <span>Vectorize</span>}
@@ -352,6 +355,7 @@ export const SelectionActionBar: React.FC = () => {
                                     onClick={handleDeleteKG}
                                     className="selection-action-btn"
                                     disabled={isDeleting}
+                                    aria-label="Delete Knowledge Graph"
                                 >
                                     <Database size={isMobile ? 18 : undefined} />
                                     {!isMobile && <span>Delete KG</span>}
@@ -363,6 +367,7 @@ export const SelectionActionBar: React.FC = () => {
                                     onClick={handleDelete}
                                     className="selection-action-btn danger"
                                     disabled={isDeleting}
+                                    aria-label="Delete"
                                 >
                                     {isDeleting ? (
                                         <>
