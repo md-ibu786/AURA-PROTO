@@ -1446,6 +1446,107 @@
         width: 18px;
         height: 18px;
     }
+
+    /* ===== Dialogs Mobile ===== */
+    /* Cap all dialogs to 90% viewport width */
+    .dialog,
+    .upload-dialog,
+    .confirm-dialog-v2 {
+        max-width: 90vw;
+    }
+
+    .confirm-dialog-card {
+        max-width: 90vw;
+        padding: var(--spacing-lg);
+    }
+
+    /* Dialog content: less padding on mobile */
+    .dialog-body {
+        padding: var(--spacing-md);
+    }
+
+    .dialog-header {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    .dialog-footer {
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    /* Dialog title: slightly smaller on mobile */
+    .dialog-title {
+        font-size: 16px;
+    }
+
+    /* Dialog content wrapper: stack vertically on very small screens */
+    .dialog-content-wrapper {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    /* Dialog icon container: smaller on mobile */
+    .dialog-icon-container {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Dialog buttons: full width on mobile for better touch targets */
+    .dialog-actions-row {
+        flex-direction: column-reverse;
+        gap: var(--spacing-sm);
+    }
+
+    .dialog-btn {
+        width: 100%;
+        text-align: center;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* ===== Upload Dialog Mobile ===== */
+    /* Upload option cards: reduce gap and padding */
+    .upload-option-card {
+        gap: var(--spacing-md);
+        padding: var(--spacing-md);
+    }
+
+    .upload-option-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    /* Upload zone: reduce minimum height and padding */
+    .upload-zone {
+        padding: var(--spacing-lg);
+        min-height: 140px;
+    }
+
+    /* Upload file name: constrain width */
+    .upload-file-name {
+        max-width: 200px;
+    }
+
+    /* Upload actions: stack vertically */
+    .upload-actions {
+        flex-direction: column-reverse;
+    }
+
+    .upload-actions button {
+        width: 100%;
+    }
+
+    /* ===== Context Menu Mobile ===== */
+    .context-menu {
+        min-width: 200px;
+        max-width: calc(100vw - 32px);
+    }
+
+    .context-menu-item {
+        min-height: 40px;
+        font-size: 14px;
+    }
 }
 
 /* ===== Extra Small Screens ===== */
