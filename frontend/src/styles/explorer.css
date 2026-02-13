@@ -1334,4 +1334,106 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
+
+    /* ===== ListView Mobile ===== */
+    /* Simplify to 2-column grid: icon + name only */
+    .list-header,
+    .list-row {
+        grid-template-columns: 32px 1fr;
+        gap: var(--spacing-sm);
+        padding: var(--spacing-sm);
+    }
+
+    /* Hide auxiliary columns: type, date, count */
+    .list-header > *:nth-child(n+3),
+    .list-row > *:nth-child(n+3) {
+        display: none;
+    }
+
+    /* Ensure list row has adequate touch target height */
+    .list-row {
+        min-height: 44px;
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    /* List row icon: slightly smaller on mobile */
+    .list-row-icon {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* List row name: ensure text doesn't overflow */
+    .list-row-name {
+        font-size: 14px;
+        min-width: 0;
+    }
+
+    /* ===== GridView Mobile ===== */
+    /* Reduce minimum column width for tighter grid on small screens */
+    .grid-view {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: var(--spacing-sm);
+    }
+
+    /* Grid items: reduce padding for mobile */
+    .grid-item {
+        padding: var(--spacing-sm);
+    }
+
+    /* Grid item icon: smaller on mobile */
+    .grid-item-icon {
+        width: 48px;
+        height: 48px;
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .grid-item-icon svg {
+        width: 36px;
+        height: 36px;
+    }
+
+    /* Grid item label: smaller font on mobile */
+    .grid-item-label {
+        font-size: 12px;
+    }
+
+    /* Grid item metadata: smaller on mobile */
+    .grid-item-meta {
+        font-size: 10px;
+    }
+
+    /* KG LED indicator: adjust position for smaller grid items */
+    .kg-ready-led {
+        top: 4px;
+        right: 4px;
+        width: 8px;
+        height: 8px;
+    }
+}
+
+/* ===== Extra Small Screens ===== */
+@media (max-width: 480px) {
+    /* Even more compact grid for very small phones */
+    .grid-view {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    }
+
+    /* Reduce explorer content padding further */
+    .explorer-content {
+        padding: var(--spacing-xs);
+    }
+
+    /* Smaller empty state for narrow screens */
+    .empty-state {
+        padding: var(--spacing-md);
+    }
+
+    .empty-state-icon {
+        width: 48px;
+        height: 48px;
+    }
+
+    .empty-state-title {
+        font-size: 16px;
+    }
 }

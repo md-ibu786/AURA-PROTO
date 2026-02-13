@@ -73,7 +73,7 @@ Key Deliverables:
 **Plans**: 2 plans
 
 Plans:
-- [ ] [04-01-PLAN.md](phases/04-content-views-mobile/04-01-PLAN.md): Adapt `ListView` — hide Type, Modified, Count columns on mobile, give Name column full width
+- [x] [04-01-PLAN.md](phases/04-content-views-mobile/04-01-PLAN.md): Adapt `ListView` — hide Type, Modified, Count columns on mobile, give Name column full width
 - [ ] [04-02-PLAN.md](phases/04-content-views-mobile/04-02-PLAN.md): Adapt `GridView` — reduce `minmax` to `100px`, adjust icon sizes and padding for mobile
 
 Key Deliverables:
@@ -121,7 +121,7 @@ Key Deliverables:
 | 1. Foundation & State | 0/2 | Not started | - |
 | 2. Sidebar Mobile | 2/2 | Complete | 2026-02-13 |
 | 3. Header Mobile | 2/2 | Complete | 2026-02-13 |
-| 4. Content Views Mobile | 0/2 | Not started | - |
+| 4. Content Views Mobile | 1/2 | In progress | 2026-02-13 |
 | 5. Dialogs & Action Bar | 0/2 | Not started | - |
 | 6. Testing & Verification | 0/1 | Not started | - |
 
