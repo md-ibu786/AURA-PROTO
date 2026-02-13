@@ -83,16 +83,7 @@ export function ContextMenu() {
     if (!node) return null;
 
     // Check if we're inside a module (viewing notes)
-    // When inside a module, the bottom action bar handles all actions
-    const isInsideModule = currentPath.length > 0 &&
-        currentPath[currentPath.length - 1].type === 'module';
-
-    // Don't show context menu at all when inside a module (notes directory)
-    // All actions are handled by the bottom SelectionActionBar
-    if (isInsideModule) {
-        closeContextMenu();
-        return null;
-    }
+    // Allow context menu for all items including notes inside modules
 
     const childType = childTypes[node.type];
     const isNote = node.type === 'note';

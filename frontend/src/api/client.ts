@@ -88,7 +88,7 @@ function extractFilename(contentDisposition: string | null): string | null {
         }
     }
 
-    const basicMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+    const basicMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
     return basicMatch ? basicMatch[1] : null;
 }
 

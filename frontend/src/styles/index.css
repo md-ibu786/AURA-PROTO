@@ -354,3 +354,208 @@ input::placeholder {
         max-width: 100vw;
     }
 }
+
+/* ===== Admin Dashboard Modal - Mobile Responsive ===== */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: var(--spacing-md);
+}
+
+.modal-content {
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    max-height: 90vh;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 500px;
+}
+
+.modal-content.modal-large {
+    max-width: 800px;
+}
+
+.modal-subtitle {
+    color: var(--color-text-secondary);
+    margin-bottom: var(--spacing-md);
+    font-size: 0.9rem;
+}
+
+.modal-layout {
+    display: flex;
+    gap: var(--spacing-lg);
+}
+
+.modal-left-panel {
+    flex: 1;
+    min-width: 0;
+}
+
+.modal-right-panel {
+    flex: 1;
+    min-width: 0;
+}
+
+.panel-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--spacing-xs);
+    color: var(--color-text-primary);
+}
+
+.panel-subheading {
+    font-size: 0.9rem;
+    color: var(--color-text-secondary);
+    margin: var(--spacing-md) 0 var(--spacing-sm);
+}
+
+.panel-heading {
+    font-size: 1rem;
+    margin-bottom: var(--spacing-sm);
+    color: var(--color-text-primary);
+}
+
+.dept-select-modal {
+    width: 100%;
+    padding: var(--spacing-sm);
+    background: var(--color-bg-tertiary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text-primary);
+    font-size: 0.9rem;
+}
+
+.modal-subject-list {
+    margin-top: var(--spacing-md);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.subject-checkboxes-modal {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.subject-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    cursor: pointer;
+    padding: var(--spacing-xs);
+    border-radius: var(--radius-sm);
+}
+
+.subject-checkbox:hover {
+    background: var(--color-bg-hover);
+}
+
+.subject-checkbox input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-primary);
+}
+
+.selected-subjects-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.no-selection-msg {
+    color: var(--color-text-secondary);
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+.selected-group {
+    margin-bottom: var(--spacing-md);
+}
+
+.dept-name {
+    color: var(--color-primary);
+    font-size: 0.85rem;
+}
+
+.subj-list {
+    list-style: none;
+    padding: 0;
+    margin: var(--spacing-xs) 0;
+}
+
+.subj-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-xs);
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+}
+
+.btn-remove {
+    background: none;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+.btn-remove:hover {
+    background: var(--color-bg-hover);
+    color: var(--color-text-primary);
+}
+
+/* ===== Mobile Modal Styles ===== */
+@media (max-width: 768px) {
+    .modal-overlay {
+        padding: var(--spacing-sm);
+        align-items: flex-end;
+    }
+
+    .modal-content {
+        max-height: 85vh;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        padding: var(--spacing-md);
+    }
+
+    .modal-content.modal-large {
+        max-width: 100%;
+    }
+
+    .modal-layout {
+        flex-direction: column;
+        gap: var(--spacing-md);
+    }
+
+    .modal-left-panel,
+    .modal-right-panel {
+        flex: none;
+        width: 100%;
+    }
+
+    .modal-subject-list {
+        max-height: 150px;
+    }
+
+    .selected-subjects-list {
+        max-height: 200px;
+    }
+
+    .modal-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .modal-subtitle {
+        font-size: 0.85rem;
+        margin-bottom: var(--spacing-sm);
+    }
+}

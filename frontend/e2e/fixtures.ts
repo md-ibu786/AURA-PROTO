@@ -106,7 +106,7 @@ export const mockUserData: Record<UserRole, object> = {
 /**
  * Check if mock authentication is enabled.
  */
-export function useMockAuth(): boolean {
+export function isMockAuthEnabled(): boolean {
     return process.env.VITE_USE_MOCK_AUTH === 'true';
 }
 
@@ -127,7 +127,7 @@ export async function loginAsRole(
     await page.goto('/login');
     await page.waitForLoadState('domcontentloaded');
 
-    if (useMockAuth()) {
+    if (isMockAuthEnabled()) {
         // Mock authentication path
         await page.evaluate(
             ({ role }) => {
@@ -193,7 +193,7 @@ export async function clearAuth(page: Page): Promise<void> {
         await page.waitForLoadState('domcontentloaded');
     }
 
-    if (useMockAuth()) {
+    if (isMockAuthEnabled()) {
         // Clear mock auth data from localStorage
         try {
             await page.evaluate(() => {
@@ -744,7 +744,7 @@ export const test = base.extend<{
   studentPage: Page;
 }>({
   // Explorer page fixture - base for all tests
-  explorerPage: async ({ page }, use) => {
+  explorerPage: async ({ page }, runTest) => {
     // Set up default mocks
     await mockTreeResponse(page);
     await mockCrudResponses(page);
@@ -753,50 +753,50 @@ export const test = base.extend<{
     await page.goto('/');
     await waitForLoading(page);
 
-    await use(page);
+    await runTest(page);
   },
 
   // Authenticated page fixture - starts logged in as admin
-  authenticatedPage: async ({ page }, use) => {
-    if (useMockAuth()) {
+  authenticatedPage: async ({ page }, runTest) => {
+    if (isMockAuthEnabled()) {
       await loginAsRole(page, 'admin');
     }
 
-    await use(page);
+    await runTest(page);
 
     // Cleanup
     await clearAuth(page);
   },
 
   // Admin page fixture
-  adminPage: async ({ page }, use) => {
-    if (useMockAuth()) {
+  adminPage: async ({ page }, runTest) => {
+    if (isMockAuthEnabled()) {
       await loginAsRole(page, 'admin');
     }
 
-    await use(page);
+    await runTest(page);
 
     await clearAuth(page);
   },
 
   // Staff page fixture
-  staffPage: async ({ page }, use) => {
-    if (useMockAuth()) {
+  staffPage: async ({ page }, runTest) => {
+    if (isMockAuthEnabled()) {
       await loginAsRole(page, 'staff');
     }
 
-    await use(page);
+    await runTest(page);
 
     await clearAuth(page);
   },
 
   // Student page fixture
-  studentPage: async ({ page }, use) => {
-    if (useMockAuth()) {
+  studentPage: async ({ page }, runTest) => {
+    if (isMockAuthEnabled()) {
       await loginAsRole(page, 'student');
     }
 
-    await use(page);
+    await runTest(page);
 
     await clearAuth(page);
   },

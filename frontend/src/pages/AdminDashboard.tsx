@@ -719,6 +719,21 @@ export function AdminDashboard() {
                                             <option value="admin">Admin</option>
                                         </select>
                                     </div>
+                                    {createForm.role === 'student' && (
+                                        <div className="form-group">
+                                            <label>Department</label>
+                                            <select
+                                                value={createForm.department_id}
+                                                onChange={e => setCreateForm({ ...createForm, department_id: e.target.value })}
+                                                required
+                                            >
+                                                <option value="">Select Department</option>
+                                                {departments.map(dept => (
+                                                    <option key={dept.id} value={dept.id}>{dept.name}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {createForm.role === 'staff' && (
@@ -803,22 +818,6 @@ export function AdminDashboard() {
                                     </div>
                                 )}
 
-                                {createForm.role === 'student' && (
-                                    <div className="form-group">
-                                        <label>Department</label>
-                                        <select
-                                            value={createForm.department_id}
-                                            onChange={e => setCreateForm({ ...createForm, department_id: e.target.value })}
-                                            required
-                                        >
-                                            <option value="">Select Department</option>
-                                            {departments.map(dept => (
-                                                <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-
                                 {createError && (
                                     <div className="error-message">{createError}</div>
                                 )}
@@ -861,7 +860,7 @@ export function AdminDashboard() {
                         ) : error ? (
                             <div className="error-message">{error}</div>
                         ) : (
-                            <table className="data-table">
+                            <table className="data-table user-table">
                                 <thead>
                                     <tr>
                                         <th>Name</th>
@@ -2056,7 +2055,7 @@ export function AdminDashboard() {
                     .form-row {
                         grid-template-columns: 1fr;
                     }
-                    
+
                     .hierarchy-grid {
                         grid-template-columns: 1fr;
                     }
@@ -2064,6 +2063,68 @@ export function AdminDashboard() {
                     .hierarchy-column {
                         border-right: none;
                         border-bottom: 1px solid var(--color-border);
+                        padding: var(--spacing-sm);
+                    }
+
+                    .hierarchy-column .panel-header {
+                        flex-direction: column;
+                        gap: var(--spacing-xs);
+                        align-items: stretch;
+                    }
+
+                    .hierarchy-column .panel-header h2 {
+                        font-size: 1rem;
+                    }
+
+                    .inline-form {
+                        flex-direction: column;
+                    }
+
+                    .hierarchy-item {
+                        padding: var(--spacing-md);
+                        min-height: 44px;
+                    }
+
+                    .item-actions {
+                        gap: var(--spacing-xs);
+                    }
+
+                    .btn-icon {
+                        width: 36px;
+                        height: 36px;
+                        font-size: 1rem;
+                    }
+
+                    /* Smaller stats cards on mobile */
+                    .stats-grid {
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: var(--spacing-sm);
+                        margin-bottom: var(--spacing-md);
+                    }
+
+                    .stat-card {
+                        padding: var(--spacing-sm);
+                    }
+
+                    .stat-value {
+                        font-size: 1.25rem;
+                    }
+
+                    .stat-label {
+                        font-size: 0.75rem;
+                    }
+
+                    /* Sticky name column in user table */
+                    .user-table th:first-child,
+                    .user-table td:first-child {
+                        position: sticky;
+                        left: 0;
+                        background: var(--color-bg-secondary);
+                        z-index: 1;
+                    }
+
+                    .user-table th:first-child {
+                        background: var(--color-bg-tertiary);
                     }
                 }
             `}</style>

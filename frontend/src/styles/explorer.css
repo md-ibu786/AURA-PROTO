@@ -173,6 +173,11 @@
     overflow: hidden;
 }
 
+/* Hide first breadcrumb (Home) on desktop - already shown in nav-buttons */
+.breadcrumbs .breadcrumb-item:first-child {
+    display: none;
+}
+
 .breadcrumb-item {
     display: flex;
     align-items: center;
@@ -1327,6 +1332,11 @@
         flex: 1;
     }
 
+    /* Show first breadcrumb (Home) on mobile */
+    .breadcrumbs .breadcrumb-item:first-child {
+        display: flex;
+    }
+
     .breadcrumb-item {
         font-size: 12px;
         padding: var(--spacing-xs);
@@ -1492,7 +1502,7 @@
 
     /* Dialog buttons: full width on mobile for better touch targets */
     .dialog-actions-row {
-        flex-direction: column-reverse;
+        flex-direction: column;
         gap: var(--spacing-sm);
     }
 
