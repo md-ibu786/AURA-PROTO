@@ -23,6 +23,7 @@
 # @see coc.py - Uses for transcript cleaning/auditing
 # @see summarizer.py - Uses for note generation
 # @note Requires VERTEX_PROJECT and VERTEX_LOCATION env vars; uses GCP ADC authentication
+# @note Gemini 3 models automatically use "global" location regardless of VERTEX_LOCATION setting
 
 import json
 import os
@@ -52,19 +53,45 @@ except Exception:  # pragma: no cover
 
 _LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
 _INITIALIZED = False
+_CURRENT_LOCATION: str | None = None
 
 
-# Map "global" to a valid region for Vertex AI SDK
-# The SDK doesn't support "global" but REST API does
-# For preview models like gemini-3-flash-preview, use us-central1
-def _normalize_location(location: str) -> str:
+def _is_gemini3_model(model_name: str | None) -> bool:
+    """Check if the model is a Gemini 3 model that requires global location.
+
+    Gemini 3 preview models are only available through the global endpoint.
+
+    Args:
+        model_name: The model name to check.
+
+    Returns:
+        True if the model is a Gemini 3 model.
+    """
+    if not model_name:
+        return False
+    normalized = model_name.lower()
+    return "gemini-3" in normalized or "gemini3" in normalized
+
+
+def _normalize_location(location: str, model_name: str | None = None) -> str:
     """Normalize location for Vertex AI SDK compatibility.
 
-    The REST API supports "global" location for preview models, but the
-    Python SDK doesn't. Map "global" to us-central1 for SDK compatibility.
+    For Gemini 3 preview models, always use "global" location as they are
+    only available through the global endpoint. For other models, uses the
+    configured VERTEX_LOCATION or defaults to us-central1.
+
+    Args:
+        location: The requested location.
+        model_name: Optional model name to check for Gemini 3 models.
+
+    Returns:
+        The location to use for Vertex AI initialization.
     """
-    if location.lower() == "global":
-        return "us-central1"
+    # Gemini 3 models require global location
+    if _is_gemini3_model(model_name):
+        return "global"
+
+    # For other locations, keep as-is (us-central1 or user-specified)
     return location
 
 
@@ -136,14 +163,25 @@ def _get_project_id() -> Optional[str]:
     return None
 
 
-def init_vertex_ai() -> None:
-    global _INITIALIZED
+def init_vertex_ai(model_name: str | None = None) -> None:
+    """Initialize Vertex AI with appropriate location for the model.
 
-    if _INITIALIZED:
+    Args:
+        model_name: Optional model name to determine location. Gemini 3 models
+            will use "global" location, others will use VERTEX_LOCATION.
+    """
+    global _INITIALIZED, _CURRENT_LOCATION
+
+    # Determine the required location for this model
+    required_location = _normalize_location(_LOCATION, model_name)
+
+    # If already initialized with the same location, skip re-initialization
+    if _INITIALIZED and _CURRENT_LOCATION == required_location:
         return
 
     if os.getenv("AURA_TEST_MODE", "").lower() == "true":
         _INITIALIZED = True
+        _CURRENT_LOCATION = required_location
         return
 
     # Set GOOGLE_APPLICATION_CREDENTIALS from VERTEX_CREDENTIALS if not already set
@@ -172,8 +210,9 @@ def init_vertex_ai() -> None:
             "project_id)."
         )
 
-    vertexai.init(project=project_id, location=_normalize_location(_LOCATION))
+    vertexai.init(project=project_id, location=required_location)
     _INITIALIZED = True
+    _CURRENT_LOCATION = required_location
 
 
 def normalize_model_name(model_name: str) -> str:
@@ -191,7 +230,7 @@ def get_model(model_name: str) -> GenerativeModel:
     if os.getenv("AURA_TEST_MODE", "").lower() == "true":
         return _TestGenerativeModel(model_name)
 
-    init_vertex_ai()
+    init_vertex_ai(model_name)
 
     normalized = normalize_model_name(model_name)
     try:
@@ -199,7 +238,7 @@ def get_model(model_name: str) -> GenerativeModel:
     except Exception as e:
         raise VertexAIRequestError(
             model=model_name,
-            location=_LOCATION,
+            location=_normalize_location(_LOCATION, model_name),
             operation="model load",
             original=e,
         ) from e
