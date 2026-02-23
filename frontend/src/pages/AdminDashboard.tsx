@@ -27,6 +27,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import '../styles/index.css';
 
 // User interface for the list
@@ -128,6 +129,9 @@ export function AdminDashboard() {
     const [renamingId, setRenamingId] = useState<string | null>(null);
     const [renamingType, setRenamingType] = useState<'department' | 'semester' | 'subject' | null>(null);
     const [renameValue, setRenameValue] = useState('');
+
+    // Delete confirmation state
+    const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
     // Selected department for semester view
     const [selectedDeptId, setSelectedDeptId] = useState<string>('');
@@ -282,14 +286,14 @@ export function AdminDashboard() {
         }
     };
 
-    const handleDeleteUser = async (userId: string) => {
-        if (!confirm('Are you sure you want to delete this user?')) return;
+    const confirmDeleteUser = async () => {
+        if (!userToDelete) return;
 
         try {
             const token = await getIdToken();
             if (!token) throw new Error('Not authenticated');
 
-            const response = await fetch(`${API_BASE}/users/${userId}`, {
+            const response = await fetch(`${API_BASE}/users/${userToDelete}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` },
             });
@@ -297,7 +301,7 @@ export function AdminDashboard() {
             if (!response.ok) {
                 // If 404, it's already gone, so just update UI
                 if (response.status === 404) {
-                    setUsers(prev => prev.filter(u => u.id !== userId));
+                    setUsers(prev => prev.filter(u => u.id !== userToDelete));
                     return;
                 }
                 const errorData = await response.json().catch(() => ({}));
@@ -308,7 +312,13 @@ export function AdminDashboard() {
             fetchData();
         } catch (err) {
             alert(err instanceof Error ? err.message : 'Failed to delete user');
+        } finally {
+            setUserToDelete(null);
         }
+    };
+
+    const handleDeleteUser = (userId: string) => {
+        setUserToDelete(userId);
     };
 
     const handleToggleStatus = async (userId: string, currentStatus: string) => {
@@ -2140,6 +2150,17 @@ export function AdminDashboard() {
                     }
                 }
             `}</style>
+
+            <ConfirmDialog 
+                isOpen={!!userToDelete}
+                title="Delete User"
+                message="Are you sure you want to delete this user? This action cannot be undone."
+                confirmLabel="Delete"
+                variant="danger"
+                destructive={true}
+                onConfirm={confirmDeleteUser}
+                onCancel={() => setUserToDelete(null)}
+            />
         </div>
     );
 }
