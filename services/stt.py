@@ -13,11 +13,11 @@ ROLE IN PROJECT:
 
 KEY COMPONENTS:
     - _read_audio_bytes: Normalize input into raw audio bytes
-    - _transcribe_with_deepgram: SDK version-safe Deepgram call
+    - _transcribe_with_deepgram: SDK v5 Deepgram call
     - process_audio_file: Main entry point returning transcript + raw response
 
 DEPENDENCIES:
-    - External: deepgram
+    - External: deepgram-sdk>=5.0.0
     - Internal: None
 
 USAGE:
@@ -68,34 +68,33 @@ def _transcribe_with_deepgram(
 
     Supports:
     - SDK v5+: deepgram.listen.v1.media.transcribe_file(...)
-    - SDK v3.x: deepgram.listen.rest.v("1").transcribe_file(...)
+
+    Note: Deepgram SDK v5 uses:
+    - request= for audio bytes (not source=)
+    - Options passed as kwargs (not options dict)
+    - request_options for timeout
     """
     listen = getattr(deepgram, "listen", None)
     if listen is None:
         raise RuntimeError("Deepgram client does not expose listen API.")
 
+    # Build request_options for timeout (SDK v5 style)
+    request_options = None
+    if timeout is not None:
+        request_options = {"timeout_in_seconds": int(timeout)}
+
+    # SDK v5+ path: deepgram.listen.v1.media.transcribe_file(...)
     if hasattr(listen, "v1") and hasattr(listen.v1, "media"):
+        if request_options:
+            return listen.v1.media.transcribe_file(
+                request=audio_bytes,
+                request_options=request_options,
+                **options,
+            )
         return listen.v1.media.transcribe_file(
             request=audio_bytes,
             **options,
-            timeout=timeout,
         )
-
-    source = {"buffer": audio_bytes}
-
-    if hasattr(listen, "rest"):
-        rest = listen.rest
-        if hasattr(rest, "v"):
-            return rest.v("1").transcribe_file(source, options, timeout=timeout)
-        if hasattr(rest, "transcribe_file"):
-            return rest.transcribe_file(source, options, timeout=timeout)
-
-    if hasattr(listen, "prerecorded"):
-        prerec = listen.prerecorded
-        if hasattr(prerec, "v"):
-            return prerec.v("1").transcribe_file(source, options, timeout=timeout)
-        if hasattr(prerec, "transcribe_file"):
-            return prerec.transcribe_file(source, options, timeout=timeout)
 
     raise RuntimeError("Unsupported Deepgram SDK API surface.")
 

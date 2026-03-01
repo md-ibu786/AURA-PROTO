@@ -33,9 +33,9 @@ DEPENDENCIES:
     - Internal: hierarchy.py, hierarchy_crud.py, explorer.py, audio_processing.py, config.py
 
 USAGE:
-    Run with: uvicorn main:app --reload --port 8000
-    Or from project root: cd api && python -m uvicorn main:app --reload
-    Access API docs at: http://localhost:8000/docs
+    Run with: python main.py (auto-reloads on file changes)
+    Or: uvicorn main:app --reload --port 8001
+    Access API docs at: http://localhost:8001/docs
 ============================================================================
 """
 
@@ -526,3 +526,15 @@ def create_note_endpoint(payload: CreateNoteRequest):
     if not note:
         raise HTTPException(status_code=500, detail="Failed to create note")
     return note
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8001,
+        reload=True,
+        reload_dirs=["."],
+    )

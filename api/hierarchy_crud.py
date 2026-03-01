@@ -212,7 +212,11 @@ def find_doc_by_id(collection_name: str, doc_id: str):
 
     # For nested collections, query by the 'id' field stored in documents
     # This is the recommended approach for collection group queries
-    docs = list(db.collection_group(collection_name).where("id", "==", doc_id).stream())
+    docs = list(
+        db.collection_group(collection_name)
+        .where(filter=firestore.FieldFilter("id", "==", doc_id))
+        .stream()
+    )
     if docs:
         return docs[0].reference
     return None
@@ -287,7 +291,10 @@ def create_department(
             detail="Only admins can create departments",
         )
     existing = list(
-        db.collection("departments").where("name", "==", dept.name).limit(1).stream()
+        db.collection("departments")
+        .where(filter=firestore.FieldFilter("name", "==", dept.name))
+        .limit(1)
+        .stream()
     )
     if existing:
         raise HTTPException(
