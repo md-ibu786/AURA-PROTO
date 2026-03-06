@@ -2,46 +2,91 @@
 
 **For Google Gemini CLI**
 
-**Generated:** 2026-01-19
+**Generated:** 2026-03-06
 
 ## OVERVIEW
 
-React 18 frontend for staff hierarchy management with Gemini-powered audio-to-notes pipeline.
+React 18 + Vite + TypeScript 5.6 frontend for staff hierarchy management with Firebase authentication, Gemini-powered audio-to-notes pipeline, and Knowledge Graph processing capabilities.
+
+## ARCHITECTURE
+
+```
+src/
+├── api/                  # Typed fetch wrappers
+│   ├── client.ts         # Base HTTP client, DuplicateError
+│   ├── explorerApi.ts    # Hierarchy CRUD
+│   ├── audioApi.ts       # Audio processing
+│   ├── userApi.ts        # User operations
+│   └── firebaseClient.ts # Firebase configuration
+├── components/
+│   ├── explorer/         # ListView, GridView, SidebarTree, UploadDialog
+│   ├── layout/           # Header, Sidebar
+│   └── ui/               # Button, Dialog primitives
+├── features/kg/          # Knowledge Graph feature module
+│   ├── components/       # KGStatusBadge, ProcessDialog, ProcessingQueue
+│   ├── hooks/            # useKGProcessing
+│   └── types/            # kg.types.ts
+├── hooks/                # useMobileBreakpoint.ts
+├── integration/          # Service connection tests
+├── lib/                  # cn.ts (Tailwind utilities)
+├── pages/                # ExplorerPage, LoginPage, AdminDashboard
+├── stores/               # useExplorerStore, useAuthStore (Zustand)
+├── styles/               # CSS files
+└── types/                # TypeScript interfaces
+```
 
 ## GEMINI-SPECIFIC NOTES
 
-### AI Services
-- **Summarization**: Gemini in `services/summarizer.py`
-- **Content refinement**: Gemini in `services/coc.py`
-- **STT**: Deepgram Nova-3 (NOT Gemini)
+### AI Services Integration
+- **Summarization**: Gemini in backend `services/summarizer.py`
+- **Content refinement**: Gemini in backend `services/coc.py`
+- **STT**: Deepgram Nova-3 (NOT Gemini) in `services/stt.py`
+- **Knowledge Graph**: Neo4j integration with KG processing pipeline
 
 ### API Integration
 - **Typed fetch**: `fetchApi<T>()`, `fetchFormData<T>()`
 - **Error handling**: Custom `DuplicateError` for 409 conflicts
-- **Proxy**: Vite proxies `/api` → `127.0.0.1:8001`
+- **Proxy**: Vite proxies `/api` → `127.0.0.1:8001` on port 5174
+- **Auth**: Firebase Authentication with `useAuthStore`
 
 ### State Management
-- **Zustand**: UI state only (`useExplorerStore`)
-- **React Query**: Server state (separate)
+- **Zustand**: UI state (`useExplorerStore`) and auth state (`useAuthStore`)
+- **TanStack Query**: Server state (separate from Zustand)
 - **Clear separation**: Don't mix Zustand + React Query
+
+### Knowledge Graph Feature
+- **Location**: `src/features/kg/`
+- **Components**: KGStatusBadge, ProcessDialog, ProcessingQueue, FileSelectionBar
+- **Hook**: useKGProcessing for managing KG operations
+- **Types**: kg.types.ts defines KG interfaces
 
 ## KEY FILES
 
 | Component | Path |
 |-----------|------|
-| API client | `api/client.ts` (typed wrappers, DuplicateError) |
+| API client | `api/client.ts` (typed wrappers, DuplicateError, auth) |
 | Explorer API | `api/explorerApi.ts` (CRUD operations) |
-| State store | `stores/useExplorerStore.ts` |
-| Main page | `pages/ExplorerPage.tsx` |
+| User API | `api/userApi.ts` |
+| Firebase | `api/firebaseClient.ts` |
+| UI State | `stores/useExplorerStore.ts` |
+| Auth State | `stores/useAuthStore.ts` |
+| Explorer Page | `pages/ExplorerPage.tsx` |
+| Login Page | `pages/LoginPage.tsx` |
+| KG Processing | `features/kg/hooks/useKGProcessing.ts` |
 | Integration | `integration/` (tests + service layer) |
 
 ## DEVELOPMENT
 
 ```bash
-cd AURA-NOTES-MANAGER/frontend
-npm run dev      # Frontend at localhost:5173
-# API: http://127.0.0.1:8001 (not localhost)
+npm run dev              # Frontend at localhost:5174 (port 5174!)
+npm run build            # Type check + production build
+npm run lint             # ESLint check
+npm test                 # Run Vitest unit tests
+npm run test:e2e         # Run Playwright E2E tests
+npm run test:rules       # Firestore rules tests with emulator
 ```
+
+**Backend API**: http://127.0.0.1:8001 (proxied via Vite)
 
 ## AUDIO PIPELINE
 
@@ -50,11 +95,13 @@ npm run dev      # Frontend at localhost:5173
 3. **Refinement**: Gemini (`services/coc.py`)
 4. **Summary**: Gemini (`services/summarizer.py`)
 5. **PDF**: Generate from transcript (`services/pdf_generator.py`)
+6. **Knowledge Graph**: Optional Neo4j processing
 
 ## TESTING
 
-- **Unit**: Vitest with `@testing-library/react`
-- **E2E**: Playwright, SEQUENTIAL (DB consistency)
+- **Unit**: Vitest with `@testing-library/react` (13 test files)
+- **E2E**: Playwright in `e2e/`, SEQUENTIAL for DB consistency
+- **Firestore Rules**: Jest for security rules testing
 - **Integration**: `integration/` folder contains test helpers
 
 ## AGENT BEHAVIOUR

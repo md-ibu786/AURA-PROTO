@@ -1,48 +1,65 @@
 # AURA-NOTES-MANAGER/frontend
 
-**Generated:** 2026-01-19
+**Generated:** 2026-03-06
 
 ## OVERVIEW
 
-React 18 + Vite + TypeScript 5.6 frontend for staff hierarchy/note management with Zustand state, typed API layer, and custom DuplicateError handling.
+React 18 + Vite + TypeScript 5.6 frontend for staff hierarchy/note management with Zustand state, typed API layer, Firebase auth, and Knowledge Graph processing capabilities.
 
 ## STRUCTURE
 
 ```
 frontend/
 ├── src/
-│   ├── api/              # Typed fetch wrappers (client.ts, explorerApi.ts, audioApi.ts)
-│   ├── components/       # UI components (Explorer, Sidebar, Layout)
-│   ├── integration/      # Service connection layer + test files
-│   ├── pages/            # Page components (ExplorerPage.tsx)
-│   ├── stores/           # Zustand state (useExplorerStore.ts)
-│   ├── types/            # TypeScript interfaces
-│   └── styles/           # CSS files
-├── vite.config.ts        # Proxy to 127.0.0.1:8001
-└── vitest.config.ts      # Unit test configuration
+│   ├── api/              # Typed fetch wrappers (client.ts, explorerApi.ts, audioApi.ts, userApi.ts, firebaseClient.ts)
+│   ├── components/       # UI components
+│   │   ├── explorer/     # File explorer (ListView, GridView, SidebarTree, UploadDialog, etc.)
+│   │   ├── layout/       # Header, Sidebar
+│   │   └── ui/           # UI primitives (Button, Dialog, ConfirmDialog)
+│   ├── features/kg/      # Knowledge Graph feature module
+│   │   ├── components/   # KGStatusBadge, ProcessDialog, ProcessingQueue, FileSelectionBar
+│   │   ├── hooks/        # useKGProcessing
+│   │   └── types/        # kg.types.ts
+│   ├── hooks/            # useMobileBreakpoint.ts
+│   ├── integration/      # Service connection tests
+│   ├── lib/              # Utilities (cn.ts for Tailwind class merging)
+│   ├── pages/            # ExplorerPage, LoginPage, AdminDashboard
+│   ├── stores/           # Zustand stores (useExplorerStore, useAuthStore)
+│   ├── styles/           # CSS files (index.css, explorer.css)
+│   ├── test/             # Vitest setup
+│   ├── tests/            # Firestore rules tests (Jest)
+│   └── types/            # TypeScript interfaces
+├── e2e/                  # Playwright E2E tests
+├── vite.config.ts        # Proxy to 127.0.0.1:8001, port 5174
+├── playwright.config.ts  # E2E test configuration
+└── vitest.config.ts      # Unit test configuration (in vite.config.ts)
 ```
 
 ## WHERE TO LOOK
 
 | Task | Location |
 |------|----------|
-| API integration | `src/api/client.ts` (fetch wrappers), `src/api/explorerApi.ts` (CRUD) |
-| State management | `src/stores/useExplorerStore.ts` (Zustand, UI state only) |
-| Page structure | `src/pages/ExplorerPage.tsx` |
-| Service connections | `src/integration/` (test files + integration layer) |
+| API integration | `src/api/client.ts` (fetch wrappers, DuplicateError), `src/api/explorerApi.ts` (CRUD), `src/api/userApi.ts` |
+| State management | `src/stores/useExplorerStore.ts` (UI state), `src/stores/useAuthStore.ts` (auth state) |
+| Page structure | `src/pages/ExplorerPage.tsx`, `src/pages/LoginPage.tsx`, `src/pages/AdminDashboard.tsx` |
+| Knowledge Graph | `src/features/kg/` (components, hooks, types) |
+| Service connections | `src/integration/` (test files) |
 | Custom errors | `src/api/client.ts` (DuplicateError class) |
-| Unit tests | `src/**/*.test.ts(x)` (Vitest) |
+| Unit tests | `src/**/*.test.ts(x)` (Vitest), `src/tests/*.test.ts` (Jest for Firestore rules) |
+| E2E tests | `e2e/*.spec.ts` (Playwright) |
 
 ## CONVENTIONS
 
 - **API layer**: Typed fetch wrappers in `src/api/` with `DuplicateError` for 409 conflicts
-- **State separation**: Zustand (`useExplorerStore`) for UI state only; server state via React Query
-- **Integration layer**: `src/integration/` contains service connection logic + test files
-- **Vite proxy**: Proxies `/api` to `127.0.0.1:8001` (not `localhost`)
+- **State separation**: Zustand for UI/auth state only; server state via TanStack Query
+- **Feature-based**: Knowledge Graph features in `src/features/kg/`
+- **Vite proxy**: Proxies `/api`, `/departments`, `/semesters`, `/subjects`, `/pdfs` to `127.0.0.1:8001` on port 5174
 - **Vitest**: Unit testing with `@testing-library/react` and `@tanstack/react-query`
+- **Jest**: Firestore security rules testing
+- **Playwright**: E2E testing (sequential for DB consistency)
 - **No `any`**: Google TypeScript Style Guide enforced
 
-## Python Environment (for backend testing)
+## PYTHON ENVIRONMENT (FOR BACKEND TESTING)
 
 - **ALWAYS use the root venv** (from project root) for all Python tasks
 - **NEVER install dependencies globally** or create local venvs

@@ -2,35 +2,58 @@
 
 **For Claude Code**
 
-**Generated:** 2026-01-19
+**Generated:** 2026-03-06
 
 ## OVERVIEW
 
-React 18 + Vite + TypeScript 5.6 frontend for staff hierarchy/note management with typed API layer and custom error handling.
+React 18 + Vite + TypeScript 5.6 frontend for staff hierarchy/note management with Firebase auth, typed API layer, custom error handling, and Knowledge Graph processing.
 
 ## ARCHITECTURE
 
 ### Page-Based Structure
 ```
 src/
-├── api/              # Typed fetch wrappers (client.ts, DuplicateError)
-├── components/       # UI, Explorer, Sidebar, Layout
-├── integration/      # Service connections + tests
-├── pages/            # ExplorerPage.tsx (main)
-├── stores/           # useExplorerStore.ts (Zustand, UI state only)
-├── types/            # TypeScript interfaces
-└── styles/           # CSS files
+├── api/                  # Typed fetch wrappers (client.ts, DuplicateError)
+│   ├── client.ts         # Base HTTP client with auth
+│   ├── explorerApi.ts    # Hierarchy CRUD
+│   ├── audioApi.ts       # Audio processing
+│   ├── userApi.ts        # User operations
+│   └── firebaseClient.ts # Firebase config
+├── components/           # UI components
+│   ├── explorer/         # ListView, GridView, SidebarTree, UploadDialog
+│   ├── layout/           # Header, Sidebar
+│   └── ui/               # Button, Dialog, ConfirmDialog primitives
+├── features/kg/          # Knowledge Graph feature module
+│   ├── components/       # KGStatusBadge, ProcessDialog, ProcessingQueue
+│   ├── hooks/            # useKGProcessing
+│   └── types/            # kg.types.ts
+├── hooks/                # useMobileBreakpoint.ts
+├── integration/          # Service connection tests
+├── lib/                  # cn.ts (Tailwind class merging)
+├── pages/                # ExplorerPage, LoginPage, AdminDashboard
+├── stores/               # useExplorerStore.ts, useAuthStore.ts (Zustand)
+├── styles/               # CSS files
+├── test/                 # Vitest setup
+├── tests/                # Firestore rules tests (Jest)
+└── types/                # TypeScript interfaces
 ```
 
 ### State Management
-- **Zustand**: UI state only (`useExplorerStore`)
-- **React Query**: Server state (separate from Zustand)
+- **Zustand**: UI and auth state (`useExplorerStore`, `useAuthStore`)
+- **TanStack Query**: Server state (separate from Zustand)
 - **No mixing**: Clear separation enforced
 
 ### API Layer
 - **Typed fetch wrappers**: `fetchApi<T>()`, `fetchFormData<T>()`
 - **Custom error**: `DuplicateError` for 409 conflicts
 - **Base URL**: `/api` (Vite proxy to `127.0.0.1:8001`)
+- **Auth**: Firebase Authentication integration
+
+### Knowledge Graph Feature
+- **Location**: `src/features/kg/`
+- **Components**: KGStatusBadge, ProcessDialog, ProcessingQueue, FileSelectionBar
+- **Hooks**: useKGProcessing for KG operations
+- **Types**: kg.types.ts for KG-specific interfaces
 
 ## CLAUDE CODE RULES
 
@@ -43,27 +66,43 @@ src/
 - **DuplicateError**: Handle 409 conflicts gracefully
 - **Typed responses**: Always use `<T>` generics
 - **FormData**: Use `fetchFormData<T>()` wrapper
+- **Auth**: Check `useAuthStore` for authentication state
 
 ### Testing
-- **Unit**: Vitest with `@testing-library/react`
+- **Unit**: Vitest with `@testing-library/react` (13 test files)
 - **E2E**: Playwright in `e2e/`, SEQUENTIAL (fullyParallel: false)
-- **DB consistency**: Tests run one-at-a-time
+- **Firestore Rules**: Jest for security rules testing
+- **DB consistency**: E2E tests run one-at-a-time
 
 ## KEY FILES
 
 | Purpose | File |
 |---------|------|
-| API client | `api/client.ts` (DuplicateError, typed fetch) |
+| API client | `api/client.ts` (DuplicateError, typed fetch, auth) |
 | Explorer CRUD | `api/explorerApi.ts` |
-| State | `stores/useExplorerStore.ts` |
-| Page | `pages/ExplorerPage.tsx` |
-| Integration | `integration/` (tests + service layer) |
+| User API | `api/userApi.ts` |
+| Firebase | `api/firebaseClient.ts` |
+| UI State | `stores/useExplorerStore.ts` |
+| Auth State | `stores/useAuthStore.ts` |
+| Explorer Page | `pages/ExplorerPage.tsx` |
+| Login Page | `pages/LoginPage.tsx` |
+| Admin Dashboard | `pages/AdminDashboard.tsx` |
+| KG Processing | `features/kg/hooks/useKGProcessing.ts` |
+| Integration Tests | `integration/` |
 
-## TESTING
+## DEVELOPMENT
 
-- **Unit**: Vitest configured
-- **E2E**: Sequential for DB consistency
-- **Run**: `npm run test:e2e` from project root
+```bash
+npm run dev              # Frontend at localhost:5174 (port 5174!)
+npm run build            # Type check + production build
+npm run lint             # ESLint check
+npm test                 # Run Vitest unit tests
+npm run test:e2e         # Run Playwright E2E tests
+npm run test:e2e:ui      # Run E2E tests with UI
+npm run test:rules       # Firestore rules tests with emulator
+```
+
+**Backend API**: http://127.0.0.1:8001 (proxied via Vite)
 
 ## AGENT BEHAVIOUR
 
