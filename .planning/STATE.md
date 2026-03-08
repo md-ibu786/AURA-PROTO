@@ -58,3 +58,11 @@ None currently.
 - [ ] Define requirements for v1.1 milestone
 - [ ] Research Firebase Auth integration approach
 - [ ] Consider security audit before production deployment
+
+---
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 2 | check if the current test files are compatibe with the currect projects functionalities and recent updates, verify both frontend and backend test files | 2026-03-08 | 7759b67 | [2-check-if-the-current-test-files-are-comp](./quick/2-check-if-the-current-test-files-are-comp/)
