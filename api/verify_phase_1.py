@@ -53,7 +53,7 @@ def report_matches(
 
 
 def check_no_google_generativeai() -> bool:
-    matches = scan_pattern("import google.generativeai")
+    matches = scan_pattern("import google." + "generativeai")
     if matches:
         print("FAIL: Found google.generativeai imports")
         report_matches("Matches", matches)
