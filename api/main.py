@@ -48,10 +48,11 @@ import os
 import re
 import zipfile
 
-# Load .env from project root (one level up from api/)
+# Load .env from project root (one level up from api/) without
+# overriding pytest-controlled environment variables.
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 env_path = os.path.join(project_root, ".env")
-load_dotenv(env_path, override=True)
+load_dotenv(env_path, override=False)
 
 # Fix relative GOOGLE_APPLICATION_CREDENTIALS path to absolute
 gac = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "")
@@ -124,6 +125,7 @@ from api.routers.schema import router as schema_router
 
 # Import Graph Preview API router (RC-02)
 from api.routers.graph_preview import router as graph_preview_router
+from api.routers.settings import router as settings_router
 
 # =============================================================================
 # SECURITY CONFIGURATION
@@ -249,6 +251,7 @@ app.include_router(
     schema_router
 )  # Schema API (Phase 11-04) - prefix already set in router
 app.include_router(graph_preview_router)  # Graph Preview API (RC-02)
+app.include_router(settings_router)
 
 
 from fastapi.staticfiles import StaticFiles
@@ -389,14 +392,10 @@ async def bulk_download_pdfs(payload: BulkPdfDownloadRequest):
     zip_buffer.seek(0)
 
     subject_name = (
-        _safe_zip_component(payload.subject_name)
-        if payload.subject_name
-        else ""
+        _safe_zip_component(payload.subject_name) if payload.subject_name else ""
     )
     module_name = (
-        _safe_zip_component(payload.module_name)
-        if payload.module_name
-        else ""
+        _safe_zip_component(payload.module_name) if payload.module_name else ""
     )
 
     if subject_name and module_name:
