@@ -54,6 +54,7 @@ router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
 ALLOWED_USE_CASES = {"chat", "embeddings", "entity_extraction"}
 DEFAULT_REDIS_URL = "redis://localhost:6379"
+MODEL_CACHE_TTL_ENV = "MODEL_CACHE_TTL_SECONDS"
 
 _redis_client: redis_asyncio.Redis | None = None
 
@@ -104,7 +105,8 @@ def get_model_cache(
     redis_client: redis_asyncio.Redis = Depends(get_redis),
 ) -> ModelCache:
     """Build a model cache backed by the shared router singleton."""
-    return ModelCache(redis_client, get_default_router())
+    ttl = int(os.getenv(MODEL_CACHE_TTL_ENV, "900"))
+    return ModelCache(redis_client, get_default_router(), default_ttl=ttl)
 
 
 def _map_model_router_error(error: ModelRouterError) -> HTTPException:
