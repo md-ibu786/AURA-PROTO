@@ -189,12 +189,18 @@ async def list_models(
 
 
 @router.get("/models")
-async def list_all_models() -> list[dict[str, object]]:
+async def list_all_models(
+    cache: ModelCache = Depends(get_model_cache),
+) -> list[dict[str, object]]:
     """Return all models exposed by the current router."""
-    try:
-        models = await get_default_router().list_models()
-    except ModelRouterError as error:
-        raise _map_model_router_error(error) from error
+    models: list[ModelInfo] = []
+    for provider in ProviderType:
+        try:
+            models.extend(await cache.get_models(provider.value))
+        except ModelUnavailableError:
+            continue
+        except ModelRouterError as error:
+            raise _map_model_router_error(error) from error
     return _serialize_models(models)
 
 
