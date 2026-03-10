@@ -230,6 +230,15 @@ def get_model(model_name: str) -> GenerativeModel:
     if os.getenv("AURA_TEST_MODE", "").lower() == "true":
         return _TestGenerativeModel(model_name)
 
+    # --- MODEL ROUTER SHIM (Strangler Fig) ---
+    if os.getenv("USE_MODEL_ROUTER", "").lower() == "true":
+        try:
+            from model_router.compat import VertexCompatModel
+            return VertexCompatModel(model_name)
+        except ImportError:
+            pass  # Fallback to original behavior
+    # --- END SHIM ---
+
     init_vertex_ai(model_name)
 
     normalized = normalize_model_name(model_name)
