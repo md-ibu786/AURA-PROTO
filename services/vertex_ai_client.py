@@ -1,321 +1,169 @@
 # vertex_ai_client.py
-# =========================
-#
-# Thin wrapper around Google Vertex AI's Generative Models API for Gemini text generation.
-#
-# Features:
-# ---------
-# - Handles Google Application Default Credentials (ADC) authentication
-# - Provides convenient functions for model loading and text generation
-# - Implements custom exception with context (model, location, operation)
-# - Disables safety filtering for academic content via block_none_safety_settings()
-# - Supports both preview and stable vertexai SDK imports
-#
-# Classes/Functions:
-# ------------------
-# - VertexAIRequestError: Custom exception with model, location, operation, and original error
-# - init_vertex_ai(): Initializes SDK with ADC credentials
-# - get_model(model_name): Returns a GenerativeModel instance
-# - generate_content(model, contents, generation_config): Generates text from model
-# - block_none_safety_settings(): Returns list disabling all safety filtering
-# - normalize_model_name(model_name): Strips "models/" prefix from model names
-#
-# @see coc.py - Uses for transcript cleaning/auditing
-# @see summarizer.py - Uses for note generation
-# @note Requires VERTEX_PROJECT and VERTEX_LOCATION env vars; uses GCP ADC authentication
-# @note Gemini 3 models automatically use "global" location regardless of VERTEX_LOCATION setting
+# Legacy Vertex AI façade backed by the shared model router.
 
-import json
-import os
-from typing import Optional
+# Preserves the historical NOTES import surface while delegating generation
+# work to model_router compatibility helpers. This keeps downstream services
+# unchanged and removes all direct provider SDK imports from the app.
 
-import google.auth
-import vertexai
+# @see: shared/model_router/src/model_router/compat.py
+# @note: Safety settings are now handled internally by model_router.
 
-try:
-    from vertexai.generative_models import (
-        GenerationConfig,
-        GenerativeModel,
-        HarmBlockThreshold,
-        HarmCategory,
-        Part,
-        SafetySetting,
-    )
-except Exception:  # pragma: no cover
-    from vertexai.preview.generative_models import (  # type: ignore
-        GenerationConfig,
-        GenerativeModel,
-        HarmBlockThreshold,
-        HarmCategory,
-        Part,
-        SafetySetting,
-    )
+"""Legacy Vertex AI façade backed by the shared model router."""
 
-_LOCATION = os.environ.get("VERTEX_LOCATION", "us-central1")
-_INITIALIZED = False
-_CURRENT_LOCATION: str | None = None
+from __future__ import annotations
+
+from typing import Any, Optional
+
+from model_router.compat import (
+    VertexCompatModel,
+    VertexCompatResponse,
+    _extract_generation_config,
+    _run_sync,
+)
+from model_router.errors import ModelRouterError
+from model_router.providers.vertex_ai import _normalize_vertex_model_name
+from model_router.router import get_default_router
 
 
-def _is_gemini3_model(model_name: str | None) -> bool:
-    """Check if the model is a Gemini 3 model that requires global location.
+class GenerationConfig:
+    """Thin config shim storing kwargs for router translation."""
 
-    Gemini 3 preview models are only available through the global endpoint.
+    def __init__(self, **kwargs: Any) -> None:
+        self._kwargs = dict(kwargs)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-    Args:
-        model_name: The model name to check.
-
-    Returns:
-        True if the model is a Gemini 3 model.
-    """
-    if not model_name:
-        return False
-    normalized = model_name.lower()
-    return "gemini-3" in normalized or "gemini3" in normalized
+    def to_dict(self) -> dict[str, Any]:
+        """Return a plain dict copy of the stored config values."""
+        return dict(self._kwargs)
 
 
-def _normalize_location(location: str, model_name: str | None = None) -> str:
-    """Normalize location for Vertex AI SDK compatibility.
+class VertexAIRequestError(ModelRouterError):
+    """Legacy error type preserved for existing NOTES callers."""
 
-    For Gemini 3 preview models, always use "global" location as they are
-    only available through the global endpoint. For other models, uses the
-    configured VERTEX_LOCATION or defaults to us-central1.
-
-    Args:
-        location: The requested location.
-        model_name: Optional model name to check for Gemini 3 models.
-
-    Returns:
-        The location to use for Vertex AI initialization.
-    """
-    # Gemini 3 models require global location
-    if _is_gemini3_model(model_name):
-        return "global"
-
-    # For other locations, keep as-is (us-central1 or user-specified)
-    return location
-
-
-class _TestGenerativeModel:
-    def __init__(self, model_name: str) -> None:
-        self._model_name = model_name
-
-    def generate_content(self, *args, **kwargs):
-        class _TestResponse:
-            def __init__(self, text: str) -> None:
-                self.text = text
-
-        return _TestResponse("Test-mode notes output.")
-
-
-class VertexAIRequestError(RuntimeError):
     def __init__(
         self,
+        message: str = "",
         *,
-        model: str | None,
-        location: str,
-        operation: str,
-        original: BaseException,
+        model: str = "",
+        location: str = "",
+        operation: str = "",
+        original: BaseException | None = None,
+        **kwargs: Any,
     ) -> None:
-        safe_model = model if isinstance(model, str) else "<unknown>"
-        message = (
-            f"Vertex AI Gemini {operation} failed "
-            f"(model={safe_model!r}, location={location!r}): "
-            f"{original.__class__.__name__}: {original}"
+        details = message
+        if not details and operation:
+            details = (
+                f"Vertex AI Gemini {operation} failed "
+                f"(model={model or '<unknown>'!r}, "
+                f"location={location or 'vertex_ai'!r})"
+            )
+            if original is not None:
+                details = f"{details}: {original.__class__.__name__}: {original}"
+        super().__init__(
+            details or "Vertex AI request failed",
+            provider="vertex_ai",
+            model=model,
+            original=original,
+            **kwargs,
         )
-        super().__init__(message)
-
-        self.model = safe_model
-        self.location = location
+        self.location = location or "vertex_ai"
         self.operation = operation
-        self.original = original
 
 
-def _read_project_id_from_credentials_file(path: str) -> Optional[str]:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        project_id = data.get("project_id")
-        return project_id if isinstance(project_id, str) else None
-    except Exception:
-        return None
+class SafetySetting:
+    """Placeholder kept for legacy type compatibility."""
 
 
-def _get_project_id() -> Optional[str]:
-    # First, check for explicit VERTEX_PROJECT env var (preferred for multi-project setups)
-    explicit_project = os.environ.get("VERTEX_PROJECT")
-    if explicit_project:
-        return explicit_project
+class Part:
+    """Minimal legacy part shim retained for older imports/tests."""
 
-    # Fallback to google.auth.default
-    _, project_id = google.auth.default(
-        scopes=["https://www.googleapis.com/auth/cloud-platform"]
-    )  # type: ignore
-    if project_id:
-        return project_id
-
-    # Final fallback: read from credentials file
-    creds_path = os.environ.get("VERTEX_CREDENTIALS") or os.environ.get(
-        "GOOGLE_APPLICATION_CREDENTIALS"
-    )
-    if creds_path:
-        return _read_project_id_from_credentials_file(creds_path)
-
-    return None
+    def __init__(self, text: str) -> None:
+        self.text = text
 
 
 def init_vertex_ai(model_name: str | None = None) -> None:
-    """Initialize Vertex AI with appropriate location for the model.
-
-    Args:
-        model_name: Optional model name to determine location. Gemini 3 models
-            will use "global" location, others will use VERTEX_LOCATION.
-    """
-    global _INITIALIZED, _CURRENT_LOCATION
-
-    # Determine the required location for this model
-    required_location = _normalize_location(_LOCATION, model_name)
-
-    # If already initialized with the same location, skip re-initialization
-    if _INITIALIZED and _CURRENT_LOCATION == required_location:
-        return
-
-    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
-        _INITIALIZED = True
-        _CURRENT_LOCATION = required_location
-        return
-
-    # Set GOOGLE_APPLICATION_CREDENTIALS from VERTEX_CREDENTIALS if not already set
-    vertex_creds = os.environ.get("VERTEX_CREDENTIALS")
-    if vertex_creds and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
-        # Resolve relative path
-        if not os.path.isabs(vertex_creds):
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            vertex_creds = os.path.normpath(os.path.join(project_root, vertex_creds))
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = vertex_creds
-
-    try:
-        google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])  # type: ignore
-    except Exception as e:
-        raise RuntimeError(
-            "Vertex AI requires Application Default Credentials (ADC). "
-            "Authenticate with `gcloud auth application-default login` or set "
-            "GOOGLE_APPLICATION_CREDENTIALS to a service account JSON file."
-        ) from e
-
-    project_id = _get_project_id()
-    if not project_id:
-        raise RuntimeError(
-            "Could not determine GCP project_id from ADC. Ensure your ADC source "
-            "includes a project (for example, a service account JSON containing "
-            "project_id)."
-        )
-
-    vertexai.init(project=project_id, location=required_location)
-    _INITIALIZED = True
-    _CURRENT_LOCATION = required_location
+    """No-op preserved for backwards compatibility."""
+    del model_name
 
 
 def normalize_model_name(model_name: str) -> str:
+    """Normalize legacy `models/`-prefixed Vertex model identifiers."""
     if not isinstance(model_name, str) or not model_name.strip():
         raise ValueError("model_name must be a non-empty string")
-
-    normalized = model_name.strip()
-    if normalized.startswith("models/"):
-        normalized = normalized[len("models/") :]
-
-    return normalized
+    return _normalize_vertex_model_name(model_name)
 
 
-def get_model(model_name: str) -> GenerativeModel:
-    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
-        return _TestGenerativeModel(model_name)
-
-    # --- MODEL ROUTER SHIM (Strangler Fig) ---
-    if os.getenv("USE_MODEL_ROUTER", "").lower() == "true":
-        try:
-            from model_router.compat import VertexCompatModel
-            return VertexCompatModel(model_name)
-        except ImportError:
-            pass  # Fallback to original behavior
-    # --- END SHIM ---
-
-    init_vertex_ai(model_name)
-
-    normalized = normalize_model_name(model_name)
-    try:
-        return GenerativeModel(normalized)
-    except Exception as e:
-        raise VertexAIRequestError(
-            model=model_name,
-            location=_normalize_location(_LOCATION, model_name),
-            operation="model load",
-            original=e,
-        ) from e
+def get_model(model_name: str) -> VertexCompatModel:
+    """Return a model-router-backed legacy-compatible model wrapper."""
+    return VertexCompatModel(normalize_model_name(model_name))
 
 
-def block_none_safety_settings() -> list[SafetySetting]:
-    return [
-        SafetySetting(
-            category=HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold=HarmBlockThreshold.BLOCK_NONE,
-        ),
-        SafetySetting(
-            category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold=HarmBlockThreshold.BLOCK_NONE,
-        ),
-        SafetySetting(
-            category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold=HarmBlockThreshold.BLOCK_NONE,
-        ),
-        SafetySetting(
-            category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold=HarmBlockThreshold.BLOCK_NONE,
-        ),
-    ]
+def block_none_safety_settings() -> list[Any]:
+    """Return a no-op safety settings override for legacy callers."""
+    return []
 
 
-def _operation_from_contents(contents) -> str:
+def _operation_from_contents(contents: Any) -> str:
+    """Classify the legacy request operation for error messages."""
     if isinstance(contents, str):
         return "text generation"
     return "multimodal generation"
 
 
-def _model_name_from_model(model: GenerativeModel) -> str:
+def _model_name_from_model(model: Any) -> str:
+    """Extract a model name from legacy wrappers for error reporting."""
     for attr in ("model_name", "_model_name"):
-        name = getattr(model, attr, None)
-        if isinstance(name, str) and name:
-            return name
+        value = getattr(model, attr, None)
+        if isinstance(value, str) and value:
+            return value
     return "<unknown>"
 
 
 def generate_content(
-    model: GenerativeModel,
-    contents,
+    model: Any,
+    contents: Any,
     *,
-    generation_config: GenerationConfig,
-    safety_settings: Optional[list[SafetySetting]] = None,
-):
+    generation_config: GenerationConfig | dict[str, Any] | None = None,
+    safety_settings: Optional[list[Any]] = None,
+) -> VertexCompatResponse:
+    """Generate content through a compat model or direct router fallback."""
     try:
-        return model.generate_content(
-            contents,
-            generation_config=generation_config,
-            safety_settings=safety_settings,
-        )
-    except Exception as e:
+        if hasattr(model, "generate_content"):
+            return model.generate_content(
+                contents,
+                generation_config=generation_config,
+                safety_settings=safety_settings,
+            )
+
+        request_kwargs: dict[str, Any] = {
+            "model": _model_name_from_model(model),
+            "contents": contents,
+        }
+        request_kwargs.update(_extract_generation_config(generation_config))
+        if safety_settings is not None:
+            request_kwargs["safety_settings"] = safety_settings
+
+        response = _run_sync(get_default_router().generate(**request_kwargs))
+        return VertexCompatResponse(response.text, metadata=response.metadata)
+    except Exception as error:
+        model_name = _model_name_from_model(model)
         raise VertexAIRequestError(
-            model=_model_name_from_model(model),
-            location=_LOCATION,
+            model=model_name,
+            location="vertex_ai",
             operation=_operation_from_contents(contents),
-            original=e,
-        ) from e
+            original=error,
+        ) from error
 
 
 __all__ = [
     "GenerationConfig",
     "Part",
+    "SafetySetting",
     "VertexAIRequestError",
-    "get_model",
     "block_none_safety_settings",
     "generate_content",
+    "get_model",
+    "init_vertex_ai",
     "normalize_model_name",
 ]
