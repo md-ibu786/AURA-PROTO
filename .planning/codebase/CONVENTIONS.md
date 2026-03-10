@@ -1,800 +1,113 @@
-# Code Conventions
+# Coding Conventions
 
-**Analysis Date:** 2025-01-24
-
-## Overview
-
-AURA-NOTES-MANAGER is a full-stack TypeScript/Python application with React frontend (Vite + TypeScript) and FastAPI backend. The codebase uses strict TypeScript configuration, comprehensive linting, and extensive header documentation patterns for code organization and discoverability.
-
----
+**Analysis Date:** 2026-03-10
 
 ## Naming Patterns
 
-### Files - Frontend (TypeScript/TSX)
+**Files:**
+- Frontend feature files use `UpperCamelCase.tsx` for components and pages such as `frontend/src/pages/LoginPage.tsx`, `frontend/src/components/ui/WarningDialog.tsx`, and `frontend/src/features/kg/components/ProcessDialog.tsx`.
+- Frontend hooks and Zustand stores use `useX.ts` naming such as `frontend/src/stores/useAuthStore.ts`, `frontend/src/stores/useExplorerStore.ts`, and `frontend/src/hooks/useMobileBreakpoint.ts`.
+- Frontend test files are usually colocated as `*.test.ts(x)` such as `frontend/src/api/client.test.ts`, `frontend/src/pages/ExplorerPage.test.tsx`, and `frontend/src/components/explorer/__tests__/ListView.test.tsx`.
+- Backend application and test modules use `snake_case.py` such as `api/auth.py`, `api/hierarchy_crud.py`, `tests/test_auth_sync.py`, and `api/tests/test_rbac.py`.
 
-**Components:**
-- PascalCase: `ExplorerPage.tsx`, `WarningDialog.tsx`, `ListView.tsx`
-- Test files: `{ComponentName}.test.tsx` (co-located with source)
+**Functions:**
+- TypeScript functions use `lowerCamelCase` for helpers and exported APIs, for example `getExplorerTree()` in `frontend/src/api/explorerApi.ts`, `initAuthListener()` in `frontend/src/stores/useAuthStore.ts`, and `handleCreateSubmit()` in `frontend/src/components/explorer/GridView.tsx`.
+- React components are declared with `UpperCamelCase` function names such as `ProtectedRoute` in `frontend/src/components/ProtectedRoute.tsx` and `LoginPage` in `frontend/src/pages/LoginPage.tsx`.
+- Python functions use `snake_case`, including dependencies and helpers like `verify_firebase_token()` in `api/auth.py`, `readiness_check()` in `api/main.py`, and `_make_user()` in `api/tests/test_rbac.py`.
 
-**Hooks:**
-- camelCase with `use` prefix: `useExplorerStore.ts`, `useKGProcessing.ts`
-- Test files: `{hookName}.test.tsx`
-
-**API Modules:**
-- camelCase: `client.ts`, `explorerApi.ts`, `audioApi.ts`, `userApi.ts`
+**Variables:**
+- Frontend variables and props use `lowerCamelCase`, including state like `renameValue` in `frontend/src/components/explorer/GridView.tsx` and `currentPath` in `frontend/src/stores/useExplorerStore.ts`.
+- Backend local variables and constants mix `snake_case` and uppercase constants, for example `decoded_token` in `api/auth.py`, `PROJECT_ID` in `frontend/src/tests/firestore.rules.test.ts`, and `DEFAULT_TIMESTAMP` in `frontend/src/tests/firestore.rules.test.ts`.
+- Request and response payload keys mirror backend/API field names rather than being normalized everywhere; frontend code uses both camelCase UI keys and snake_case API keys in files like `frontend/src/api/explorerApi.ts` and `frontend/src/stores/useAuthStore.ts`.
 
 **Types:**
-- Singular nouns: `user.ts`, `kg.types.ts`
+- TypeScript domain types use `UpperCamelCase` interfaces and aliases such as `FileSystemNode`, `BlobResponse`, `AuthUser`, and `HierarchyType` in `frontend/src/types/FileSystemNode.ts` and `frontend/src/api/client.ts`.
+- Python schema types use `PascalCase` Pydantic models and `Literal` aliases such as `FirestoreUser`, `CreateUserInput`, `UserRole`, and `UserStatus` in `api/models.py`.
 
-**Utilities/Services:**
-- camelCase: `firebaseClient.ts`
+## Code Style
 
-### Files - Backend (Python)
+**Formatting:**
+- Frontend formatting is enforced primarily by ESLint in `frontend/eslint.config.js`; there is no Prettier or Biome config detected.
+- Style is semicolon-heavy in many frontend files such as `frontend/src/stores/useAuthStore.ts` and `frontend/src/api/client.ts`, but some entry files like `frontend/src/main.tsx` and `frontend/src/App.tsx` omit semicolons, so formatting is not fully uniform.
+- Python files follow standard 4-space indentation and docstring-heavy style in `api/auth.py`, `api/main.py`, and `api/tests/test_rbac.py`.
 
-**Routers:**
-- Snake_case: `hierarchy_crud.py`, `auth_sync.py`, `graph_manager.py`
+**Linting:**
+- Frontend uses ESLint 9 flat config in `frontend/eslint.config.js` with `@eslint/js`, `typescript-eslint`, `eslint-plugin-react-hooks`, and `eslint-plugin-react-refresh`.
+- Ignored output directories are `dist` and `coverage` in `frontend/eslint.config.js`.
+- The only explicit custom rule detected is `react-refresh/only-export-components` in `frontend/eslint.config.js`; other rules come from recommended presets.
 
-**Test files:**
-- `test_{module_name}.py`: `test_auth_integration.py`, `test_summarizer.py`
+## Import Organization
 
-**Models/Schemas:**
-- `models.py`, `schemas/{domain}.py`: `schemas/graph_preview.py`
+**Order:**
+1. External packages first, for example React, router, query, and icon imports in `frontend/src/pages/ExplorerPage.tsx`.
+2. Internal app modules second, grouped by store/api/component/type usage as seen in `frontend/src/pages/ExplorerPage.tsx` and `frontend/src/components/ProtectedRoute.tsx`.
+3. Type-only imports usually come last or near related imports, for example `import type { FileSystemNode }` in `frontend/src/pages/ExplorerPage.tsx` and `import type { ProcessingRequest }` in `frontend/src/features/kg/hooks/useKGProcessing.ts`.
 
-**Services:**
-- Descriptive: `summarizer.py`, `summary_service.py`
+**Path Aliases:**
+- Vite defines the `@` alias in `frontend/vite.config.ts`, but current source files mostly use relative imports; no active `@/...` imports were detected in `frontend/src`.
 
-### Functions - Frontend
+## Error Handling
 
-**Standard functions:**
-- camelCase: `fetchApi()`, `getKGDocumentStatus()`, `processKGBatch()`
-
-**React components:**
-- PascalCase (function declarations): `function ListView()`, `function WarningDialog()`
-
-**Event handlers:**
-- Prefix with `handle` or `on`: `handleClick`, `onClose`, `handleRename`
-
-**Utilities:**
-- camelCase verbs: `waitForLoading()`, `mockTreeResponse()`, `primeExplorerTreeCache()`
-
-### Functions - Backend
-
-**Endpoint handlers:**
-- Snake_case: `get_current_user()`, `verify_firebase_token()`, `delete_document_recursive()`
-
-**Utility functions:**
-- Snake_case verbs: `get_unique_name()`, `get_next_available_number()`, `cleanup_orphaned_entities()`
-
-**Private helpers:**
-- Prefix with underscore: `_verify_mock_token()`, `_update_firestore_with_retry()`
-
-### Variables
-
-**Frontend:**
-- camelCase: `queryClient`, `selectedIds`, `renamingNodeId`
-- Constants: SCREAMING_SNAKE_CASE for true constants (rare)
-- Type annotations: PascalCase interfaces/types
-
-**Backend:**
-- Snake_case: `mock_driver`, `graph_manager`, `entity_ids`
-- Class names: PascalCase `GraphManager`, `SummaryService`, `FirestoreUser`
-- Type aliases: PascalCase `UserRole`, `UserStatus`
-
-### Types and Interfaces
-
-**Frontend:**
-- PascalCase: `FileSystemNode`, `ProcessingRequest`, `BatchDeleteRequest`
-- Literal types: lowercase: `'admin' | 'staff' | 'student'`
-- Props interfaces: `{ComponentName}Props`
-
-**Backend (Pydantic):**
-- PascalCase: `FirestoreUser`, `CreateUserInput`, `UpdateUserInput`
-- Type literals: `Literal["admin", "staff", "student"]`
-- Response models: `{Operation}Response`: `TaskStatus`, `CacheInvalidationResponse`
-
----
-
-## File Organization
-
-### Frontend Structure
-
-**Entry points:**
-- `frontend/src/main.tsx`: Application bootstrap, renders App
-- `frontend/src/App.tsx`: Router configuration, global UI (Toaster)
-
-**Feature-based organization:**
-```
-src/
-├── api/                    # API client layer
-│   ├── client.ts           # Base fetch utilities, DuplicateError
-│   ├── explorerApi.ts      # Hierarchy/explorer endpoints
-│   ├── audioApi.ts         # Audio processing endpoints
-│   ├── userApi.ts          # User management endpoints
-│   └── firebaseClient.ts   # Firebase SDK initialization
-├── components/
-│   ├── explorer/           # Explorer-specific components
-│   ├── layout/             # Header, Sidebar
-│   └── ui/                 # Reusable UI primitives (dialog, button)
-├── features/               # Feature modules (KG processing)
-│   └── kg/
-│       ├── components/     # KG-specific UI
-│       ├── hooks/          # KG-specific React Query hooks
-│       └── types/          # KG type definitions
-├── hooks/                  # Global custom hooks
-├── pages/                  # Route-level components
-├── stores/                 # Zustand state management
-├── test/                   # Test setup and utilities
-├── tests/                  # Firestore rules tests
-└── types/                  # Global type definitions
-```
-
-**Key patterns:**
-- Co-located tests: Place `.test.tsx` files next to implementation
-- Feature modules for bounded contexts: `features/kg/`
-- Shared UI in `components/ui/`
-
-### Backend Structure
-
-**Entry point:**
-- `api/main.py`: FastAPI app, middleware, router mounting
-
-**Module organization:**
-```
-api/
-├── main.py                 # App entry, CORS, rate limiting
-├── auth.py                 # Firebase token verification, RBAC
-├── auth_sync.py            # User management endpoints
-├── config.py               # Firebase client initialization
-├── models.py               # Pydantic user models
-├── routers/                # Feature routers (summaries, trends, etc.)
-├── schemas/                # Pydantic request/response schemas
-├── kg/                     # Knowledge graph feature module
-│   └── router.py
-├── hierarchy/              # Hierarchy management module
-│   ├── router.py
-│   └── models.py
-├── modules/                # Module publishing feature
-│   ├── router.py
-│   ├── models.py
-│   └── service.py
-├── tasks/                  # Celery background tasks
-└── migrations/             # Schema migrations
-```
-
-**Key patterns:**
-- Routers in `routers/` or feature packages (`kg/router.py`)
-- Shared schemas in `schemas/{domain}.py`
-- Services in feature packages (`modules/service.py`)
-
-### Test Organization
-
-**Frontend:**
-- Unit tests: Co-located `.test.tsx` files
-- Integration tests: `src/integration/*.test.tsx`
-- E2E tests: `frontend/e2e/*.spec.ts` (Playwright)
-- Test setup: `src/test/setup.ts` (Vitest global config)
-
-**Backend:**
-- Unit tests: `tests/test_{module}.py`
-- Integration tests: Same directory, suffix-based
-- E2E tests: `api/tests/test_{feature}_e2e.py`
-- Fixtures: `conftest.py` (pytest configuration)
-
----
-
-## Import Patterns
-
-### Frontend Import Order
-
-**Standard order:**
-1. External dependencies (React, libraries)
-2. Internal API modules (`@/api/...`)
-3. Internal components (`@/components/...`)
-4. Internal stores (`@/stores/...`)
-5. Internal types (`@/types/...`)
-6. Styles (if any)
-
-**Example from `ListView.tsx`:**
-```typescript
-import { useExplorerStore } from '../../stores';
-import * as React from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import type { FileSystemNode } from '../../types';
-import { Building2, Calendar, BookOpen } from 'lucide-react';
-```
-
-**Path aliases:**
-- `@/*` resolves to `src/*` (configured in `tsconfig.app.json` and `vite.config.ts`)
-- Prefer absolute imports for cross-feature references
-- Relative imports for same-feature files
-
-**Type imports:**
-- Use `import type` for type-only imports (enforced by TypeScript isolatedModules)
-
-### Backend Import Order
-
-**Standard order:**
-1. Standard library (`os`, `logging`, `datetime`)
-2. External dependencies (`fastapi`, `pydantic`, `firebase_admin`)
-3. Internal imports with try/except for module vs script execution
-
-**Example from `auth.py`:**
-```python
-import os
-
-from firebase_admin import auth
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-try:
-    from config import get_auth, get_db
-    from models import FirestoreUser
-except ImportError:
-    from api.config import get_auth, get_db
-    from api.models import FirestoreUser
-```
-
-**Pattern for dual-mode imports:**
-```python
-# Supports both 'python api/main.py' and 'from api.main import app'
-try:
-    from config import db
-except ImportError:
-    from api.config import db
-```
-
----
-
-## TypeScript Patterns
-
-### Configuration
-
-**Strict mode enabled** (`tsconfig.app.json`):
-```json
-{
-  "strict": true,
-  "noUnusedLocals": true,
-  "noUnusedParameters": true,
-  "noFallthroughCasesInSwitch": true,
-  "noUncheckedSideEffectImports": true
-}
-```
-
-### Type Definitions
-
-**Prefer interfaces for object shapes:**
-```typescript
-export interface FirestoreUser {
-    uid: string;
-    email: string;
-    displayName?: string;
-    role: UserRole;
-}
-```
-
-**Use type aliases for unions:**
-```typescript
-export type UserRole = 'admin' | 'staff' | 'student';
-export type UserStatus = 'active' | 'disabled';
-```
-
-**Generic types for reusable patterns:**
-```typescript
-type BlobResponse = {
-    blob: Blob;
-    filename: string;
-}
-```
-
-### React Patterns
-
-**Function components with typed props:**
-```typescript
-interface ListViewProps {
-    items: FileSystemNode[];
-    allItems: FileSystemNode[];
-}
-
-export function ListView({ items, allItems }: ListViewProps) {
-    // ...
-}
-```
-
-**Hooks with explicit return types:**
-```typescript
-export function useKGProcessing() {
-    const queryClient = useQueryClient();
-    
-    const { mutate: processFiles } = useMutation<
-        ProcessingResponse,
-        Error,
-        ProcessingRequest
-    >({
-        mutationFn: processKGBatch,
-        // ...
-    });
-    
-    return { processFiles, /* ... */ };
-}
-```
-
-**State with type inference:**
-```typescript
-const [renameValue, setRenameValue] = React.useState('');  // inferred as string
-const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-```
-
----
-
-## Python Patterns
-
-### Type Annotations
-
-**Function signatures with type hints:**
-```python
-async def verify_firebase_token(token: str) -> dict:
-    """Verify a Firebase ID token and return decoded claims."""
-    # ...
-```
-
-**Pydantic models for validation:**
-```python
-class FirestoreUser(pydantic.BaseModel):
-    uid: str = pydantic.Field(..., description="Firebase Auth UID")
-    email: str = pydantic.Field(..., description="User email address")
-    role: UserRole = pydantic.Field(..., description="User role")
-    status: UserStatus = pydantic.Field("active", description="Account status")
-```
-
-**Type aliases for domain concepts:**
-```python
-UserRole = typing.Literal["admin", "staff", "student"]
-UserStatus = typing.Literal["active", "disabled"]
-```
-
-### FastAPI Patterns
-
-**Dependency injection for auth:**
-```python
-@router.get("/api/users")
-async def list_users(user: FirestoreUser = Depends(require_admin)):
-    """List all users. Admin only."""
-    # ...
-```
-
-**Response models for validation:**
-```python
-@router.post("/v1/summaries/document/{document_id}", response_model=DocumentSummary)
-async def summarize_document(
-    document_id: str,
-    length: SummaryLength = Query(default=SummaryLength.STANDARD),
-    service: SummaryService = Depends(get_summary_service)
-) -> DocumentSummary:
-    # ...
-```
-
-**Pydantic field aliases for camelCase/snake_case:**
-```python
-class CreateUserInput(pydantic.BaseModel):
-    displayName: typing.Optional[str] = pydantic.Field(
-        None,
-        validation_alias=pydantic.AliasChoices("displayName", "display_name"),
-    )
-```
-
----
-
-## Error Handling Patterns
-
-### Frontend
-
-**Custom error classes:**
-```typescript
-export class DuplicateError extends Error {
-    code: string;
-    constructor(message: string, code: string) {
-        super(message);
-        this.code = code;
-        this.name = 'DuplicateError';
-    }
-}
-```
-
-**Centralized error parsing in API client:**
-```typescript
-export async function fetchApi(url: string, options?: RequestInit) {
-    const response = await fetch(url, options);
-    
-    if (!response.ok) {
-        const errorData = await response.json();
-        
-        if (response.status === 409 && errorData.detail?.code) {
-            throw new DuplicateError(errorData.detail.message, errorData.detail.code);
-        }
-        
-        throw new Error(errorData.detail || 'Request failed');
-    }
-    
-    return response.json();
-}
-```
-
-**Try-catch in React Query mutations:**
-```typescript
-const { mutate } = useMutation({
-    mutationFn: processKGBatch,
-    onSuccess: () => {
-        toast.success('Processing started');
-    },
-    onError: (error: Error) => {
-        toast.error(error.message);
-    }
-});
-```
-
-### Backend
-
-**HTTPException for API errors:**
-```python
-if not decoded_token:
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid authentication token",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-```
-
-**Specific exception handling with logging:**
-```python
-try:
-    decoded_token = auth_client.verify_id_token(token, clock_skew_seconds=10)
-    return decoded_token
-except auth.InvalidIdTokenError as exc:
-    logger.warning(f"Invalid token error: {exc}")
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=f"Invalid authentication token: {str(exc)}",
-    )
-except auth.ExpiredIdTokenError as exc:
-    logger.warning(f"Expired token error: {exc}")
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=f"Authentication token has expired: {str(exc)}",
-    )
-```
-
-**Graceful degradation in services:**
-```python
-def generate_university_notes(topic: str, transcript: str) -> str:
-    try:
-        model = get_genai_model("gemini-3-flash-preview")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        logger.error(f"Note generation failed: {e}")
-        return f"Note Generation Failed: {str(e)}"
-```
-
----
+**Patterns:**
+- Frontend API access is funneled through typed wrappers in `frontend/src/api/client.ts`; callers generally catch `DuplicateError` for conflict handling and fall back to `Error` for generic failures.
+- UI components often branch on `instanceof api.DuplicateError` and otherwise log and surface alerts, as in `frontend/src/components/explorer/GridView.tsx` and `frontend/src/components/explorer/SidebarTree.tsx`.
+- Auth code translates Firebase error codes into user-facing messages in `frontend/src/stores/useAuthStore.ts` and stores the message in Zustand state instead of throwing custom UI exceptions.
+- Backend request handlers prefer `raise HTTPException(...)` for request/permission failures, visible throughout `api/auth.py`, `api/main.py`, and `api/hierarchy_crud.py`.
+- Backend utility code commonly wraps external service calls in `try/except` and either logs or rethrows HTTP errors, such as token verification in `api/auth.py` and readiness checks in `api/main.py`.
+
+## Logging
+
+**Framework:** `console` on the frontend, Python `logging`/module `logger` on the backend
+
+**Patterns:**
+- Frontend uses `console.error`, `console.warn`, and occasional `console.log` in runtime code, for example `frontend/src/stores/useAuthStore.ts`, `frontend/src/api/client.ts`, and `frontend/src/pages/ExplorerPage.tsx`.
+- Backend modules create or reuse module loggers, for example `logger = logging.getLogger(__name__)` in `api/main.py`, and log operational failures before returning or raising.
+- Tests occasionally patch logger objects directly, as in `tests/test_kg_router_delete.py`, to assert warning and critical paths.
+
+## Comments
+
+**When to Comment:**
+- Large frontend and backend source files often start with required file headers describing purpose, role, dependencies, and usage, for example `frontend/src/api/client.ts`, `frontend/src/stores/useExplorerStore.ts`, and `api/main.py`.
+- Inline comments are used to explain state-machine or permission behavior rather than trivial code, such as the student/staff routing notes in `frontend/src/pages/ExplorerPage.tsx` and mock/real auth branching in `frontend/src/stores/useAuthStore.ts`.
+- Some files still use lightweight banner or inline comment styles instead of the longer template, such as `frontend/e2e/explorer.spec.ts`, `frontend/e2e/health.spec.ts`, and `tests/test_kg_router_delete.py`.
+
+**JSDoc/TSDoc:**
+- Frontend source leans on block headers plus occasional function comments rather than per-function TSDoc.
+- Backend test and model files frequently use Python docstrings on modules, classes, and helper methods, especially in `api/tests/test_rbac.py` and `api/models.py`.
+
+## Function Design
+
+**Size:**
+- Small focused wrappers are common in API modules like `frontend/src/api/explorerApi.ts`.
+- State-heavy files centralize many actions in one module, especially `frontend/src/stores/useExplorerStore.ts` and `frontend/src/stores/useAuthStore.ts`, so large single-file stores are an accepted pattern.
+- Backend endpoint files can be very large and multi-purpose, for example `api/main.py` and `api/hierarchy_crud.py`.
+
+**Parameters:**
+- TypeScript function parameters are usually explicitly typed, including callback parameters in hooks and store actions in `frontend/src/features/kg/hooks/useKGProcessing.ts` and `frontend/src/stores/useExplorerStore.ts`.
+- Python public helpers usually type annotate parameters and return values in newer files like `api/tests/test_rbac.py`; older scripts/tests such as `api/test_mock_firestore.py` are less strict.
+
+**Return Values:**
+- Frontend API functions usually return typed promises such as `Promise<FileSystemNode[]>` or `Promise<BlobResponse>` from `frontend/src/api/explorerApi.ts` and `frontend/src/api/client.ts`.
+- Zustand stores expose computed permissions as functions returning booleans in `frontend/src/stores/useAuthStore.ts` instead of storing duplicated booleans.
+- Backend dependencies typically return Pydantic models such as `FirestoreUser` from `api/auth.py`.
+
+## Module Design
+
+**Exports:**
+- Most utility and store modules use named exports, for example `frontend/src/api/explorerApi.ts`, `frontend/src/stores/index.ts`, `frontend/src/components/ProtectedRoute.tsx`, and `frontend/src/features/kg/hooks/useKGProcessing.ts`.
+- The page shell still uses default exports for app and page components in `frontend/src/App.tsx`, `frontend/src/pages/ExplorerPage.tsx`, `frontend/src/pages/LoginPage.tsx`, and `frontend/src/pages/AdminDashboard.tsx`; follow the local file pattern when editing those files.
+
+**Barrel Files:**
+- Barrel files are used sparingly for shared surfaces, such as `frontend/src/types/index.ts`, `frontend/src/stores/index.ts`, `frontend/src/api/index.ts`, and `frontend/src/components/layout/index.ts`.
+- Internal feature modules still commonly import relative leaf modules directly rather than going through a barrel, especially under `frontend/src/features/kg/` and `frontend/src/components/explorer/`.
 
 ## State Management Patterns
 
-### Zustand Stores (Frontend)
-
-**Store definition with actions:**
-```typescript
-export const useExplorerStore = create<ExplorerStore>((set, get) => ({
-    // State
-    selectedIds: new Set<string>(),
-    currentPath: [],
-    viewMode: 'grid',
-    
-    // Actions
-    select: (id: string) => set({ selectedIds: new Set([id]) }),
-    toggleSelect: (id: string) => set((state) => {
-        const newSet = new Set(state.selectedIds);
-        newSet.has(id) ? newSet.delete(id) : newSet.add(id);
-        return { selectedIds: newSet };
-    }),
-    clearSelection: () => set({ selectedIds: new Set() }),
-}));
-```
-
-**Usage in components:**
-```typescript
-function ListView() {
-    const { selectedIds, select, toggleSelect } = useExplorerStore();
-    // ...
-}
-```
-
-### React Query for Server State
-
-**Query hooks with refetch intervals:**
-```typescript
-const { data: queueStatus } = useQuery({
-    queryKey: ['kg-processing-queue', moduleId],
-    queryFn: () => getKGProcessingQueue(moduleId),
-    refetchInterval: (data) => 
-        data?.status === 'processing' ? 2000 : false,
-    enabled: !!moduleId && isPolling,
-});
-```
-
-**Mutation hooks with optimistic updates:**
-```typescript
-const { mutate: renameNode } = useMutation({
-    mutationFn: (params: { id: string; newName: string }) => 
-        renameEntity(params.id, params.newName),
-    onSuccess: () => {
-        queryClient.invalidateQueries(['explorer-tree']);
-        toast.success('Renamed successfully');
-    }
-});
-```
+- Use Zustand for client/UI state in `frontend/src/stores/useExplorerStore.ts` and authentication/session state in `frontend/src/stores/useAuthStore.ts`.
+- Use TanStack Query for server state, caching, and invalidation in `frontend/src/main.tsx`, `frontend/src/pages/ExplorerPage.tsx`, `frontend/src/components/explorer/GridView.tsx`, and `frontend/src/features/kg/hooks/useKGProcessing.ts`.
+- Keep auth persistence in browser storage only for mock mode; `localStorage` usage is limited to `frontend/src/stores/useAuthStore.ts` and Playwright helpers in `frontend/e2e/fixtures.ts`.
+- When mutating server state from components, refetch or invalidate query keys like `['explorer', 'tree']` or `['kg', 'queue']` rather than manually mutating deep tree objects, as seen in `frontend/src/components/explorer/GridView.tsx` and `frontend/src/features/kg/hooks/useKGProcessing.ts`.
 
 ---
 
-## API Communication Patterns
-
-### Authentication
-
-**Token in Authorization header:**
-```typescript
-export async function fetchApi(url: string, options: RequestInit = {}) {
-    const token = useAuthStore.getState().token;
-    
-    const headers = {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-    };
-    
-    return fetch(url, { ...options, headers });
-}
-```
-
-**Dependency-based auth in backend:**
-```python
-security = HTTPBearer()
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)
-) -> FirestoreUser:
-    token = credentials.credentials
-    decoded = await verify_firebase_token(token)
-    # ... lookup user in Firestore
-    return user
-```
-
-### Request/Response Patterns
-
-**FormData for file uploads:**
-```typescript
-export async function uploadAudio(file: File, moduleId: string) {
-    const formData = new FormData();
-    formData.append('audio_file', file);
-    formData.append('module_id', moduleId);
-    
-    return fetchFormData('/api/audio/upload', formData);
-}
-```
-
-**JSON for structured data:**
-```typescript
-export async function processKGBatch(request: ProcessingRequest) {
-    return fetchApi('/kg/process', {
-        method: 'POST',
-        body: JSON.stringify(request),
-    });
-}
-```
-
-**Blob downloads:**
-```typescript
-export async function downloadPDF(noteId: string): Promise<BlobResponse> {
-    const response = await fetchBlob(`/api/notes/${noteId}/pdf`);
-    return response;
-}
-```
-
----
-
-## Documentation Practices
-
-### File Headers
-
-**All files include comprehensive headers:**
-
-**Frontend example:**
-```typescript
-/**
- * ============================================================================
- * FILE: ListView.tsx
- * LOCATION: frontend/src/components/explorer/ListView.tsx
- * ============================================================================
- *
- * PURPOSE:
- *    Table-style list view for displaying explorer items.
- *
- * ROLE IN PROJECT:
- *    Provides a compact explorer view with selection, rename, and navigation
- *    behavior aligned with the GridView component.
- *
- * KEY COMPONENTS:
- *    - ListView: Renders rows and handles click/double-click actions.
- *    - typeIcons: Maps hierarchy types to row icons.
- *
- * DEPENDENCIES:
- *    - External: react, lucide-react, @tanstack/react-query
- *    - Internal: stores/useExplorerStore, api/explorerApi, types
- *
- * USAGE:
- *    <ListView items={currentFolderChildren} allItems={fullTree} />
- * ============================================================================
- */
-```
-
-**Backend example:**
-```python
-"""
-============================================================================
-FILE: auth.py
-LOCATION: api/auth.py
-============================================================================
-
-PURPOSE:
-    Firebase Authentication utilities for verifying ID tokens and extracting
-    user role information for role-based access control (RBAC).
-
-ROLE IN PROJECT:
-    Provides FastAPI dependencies for protected endpoints. All endpoints that
-    require authentication or specific roles should use these dependencies.
-
-KEY COMPONENTS:
-    - verify_firebase_token(): Verify Firebase ID token
-    - get_current_user(): FastAPI dependency returning current user with role
-    - require_admin(): Dependency that ensures user is an admin
-    - require_staff(): Dependency that ensures user is staff (or admin)
-
-DEPENDENCIES:
-    - External: firebase_admin.auth, fastapi
-    - Internal: config.py (Firestore client)
-
-USAGE:
-    from auth import get_current_user, require_admin
-    
-    @app.get("/api/users")
-    async def list_users(user = Depends(require_admin)):
-        ...
-============================================================================
-"""
-```
-
-### Inline Comments
-
-**Use `@see` for cross-references:**
-```typescript
-// @see: useExplorerStore.ts - Store under test
-// @see: api/client.ts - API functions mocked here
-```
-
-**Use `@note` for important caveats:**
-```typescript
-// @note: Use 127.0.0.1 not localhost to avoid IPv6 issues
-// @note: Large modules (>10 docs) may use background processing
-```
-
-**Explain complex logic:**
-```python
-# Manual cascade TODO: Files cleanup (omitted for brevity, requires iterating notes)
-```
-
-### JSDoc/TSDoc for Public APIs
-
-**Minimal usage - headers are preferred:**
-```typescript
-/**
- * Dependency to get SummaryService instance.
- *
- * Creates a new SummaryService with the global Neo4j driver.
- *
- * Returns:
- *     SummaryService: Configured summary service instance.
- */
-async def get_summary_service() -> SummaryService:
-    # ...
-```
-
----
-
-## Linting and Formatting
-
-### Frontend
-
-**ESLint configuration** (`eslint.config.js`):
-- Based on `@eslint/js` recommended
-- TypeScript ESLint recommended rules
-- React Hooks recommended-latest
-- Custom rule: `react-refresh/only-export-components`
-
-**No Prettier** - formatting via ESLint only
-
-**Run linting:**
-```bash
-npm run lint
-```
-
-### Backend
-
-**No explicit linter config detected**
-
-Conventions observed:
-- Line length: ~80-100 characters
-- Indentation: 4 spaces
-- Blank lines between functions
-- Docstrings for all public functions
-
----
-
-## Environment Configuration
-
-### Frontend
-
-**Environment variables:**
-- Prefix: `VITE_*` (Vite convention)
-- `VITE_USE_MOCK_AUTH`: Enable mock auth for testing
-- Firebase config in `firebaseClient.ts`
-
-**Files:**
-- `.env` (gitignored)
-- `.env.example` (template)
-- `.env.e2e.example` (E2E template)
-
-### Backend
-
-**Environment variables:**
-- `GOOGLE_APPLICATION_CREDENTIALS`: Path to service account key
-- `USE_REAL_FIREBASE`: Toggle real vs mock Firebase
-- `TESTING`: Test mode flag (skips external services)
-- `REDIS_ENABLED`: Enable/disable Redis caching
-- `AURA_TEST_MODE`: Hermetic test mode
-
-**Loading:**
-```python
-from dotenv import load_dotenv
-load_dotenv(env_path, override=True)
-```
-
-**Files:**
-- `.env` (gitignored - NEVER commit or read)
-- `.env.example` (template)
-
----
-
-## Comments and Code Quality
-
-### When to Comment
-
-**Always document:**
-- File headers (purpose, role, dependencies)
-- Complex algorithms or business logic
-- Workarounds and TODOs
-- Public API functions
-
-**Rarely comment:**
-- Self-explanatory code
-- Variable declarations (use descriptive names)
-
-### TODO Patterns
-
-**Single TODO found in codebase:**
-```python
-# Manual cascade TODO: Files cleanup (omitted for brevity, requires iterating notes)
-```
-
-**Pattern: Explain what's missing and why**
-
----
-
-*Convention analysis: 2025-01-24*
+*Convention analysis: 2026-03-10*
