@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any, Optional
 
 from model_router.compat import (
@@ -82,6 +83,9 @@ class Part:
         self.text = text
 
 
+GenerativeModel = VertexCompatModel
+
+
 def init_vertex_ai(model_name: str | None = None) -> None:
     """No-op preserved for backwards compatibility."""
     del model_name
@@ -96,7 +100,17 @@ def normalize_model_name(model_name: str) -> str:
 
 def get_model(model_name: str) -> VertexCompatModel:
     """Return a model-router-backed legacy-compatible model wrapper."""
-    return VertexCompatModel(normalize_model_name(model_name))
+    if os.getenv("USE_MODEL_ROUTER", "").lower() == "true":
+        try:
+            import model_router.compat as compat_module
+
+            return compat_module.VertexCompatModel(model_name)
+        except ImportError:
+            pass
+
+    init_vertex_ai(model_name)
+    normalized = normalize_model_name(model_name)
+    return GenerativeModel(normalized)
 
 
 def block_none_safety_settings() -> list[Any]:
@@ -159,6 +173,7 @@ def generate_content(
 __all__ = [
     "GenerationConfig",
     "Part",
+    "GenerativeModel",
     "SafetySetting",
     "VertexAIRequestError",
     "block_none_safety_settings",
