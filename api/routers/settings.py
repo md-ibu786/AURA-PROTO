@@ -55,6 +55,9 @@ router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 ALLOWED_USE_CASES = {"chat", "embeddings", "entity_extraction"}
 DEFAULT_REDIS_URL = "redis://localhost:6379"
 MODEL_CACHE_TTL_ENV = "MODEL_CACHE_TTL_SECONDS"
+OPENROUTER_VALIDATION_METHOD = "health_check"
+VERTEX_AI_VALIDATION_METHOD = "provider_health_check"
+OLLAMA_VALIDATION_METHOD = "not_applicable"
 
 _redis_client: redis_asyncio.Redis | None = None
 
@@ -130,16 +133,41 @@ async def _validate_openrouter_key(api_key: str) -> bool:
 async def _validate_provider_key(
     provider: str,
     key_manager: KeyManager,
-) -> bool:
-    """Validate a stored provider key when runtime support exists."""
+) -> bool | None:
+    """Validate a stored provider key when runtime support exists.
+
+    Returns:
+        True when the stored credential or provider is valid, False when the
+        validation attempt fails, and None when validation does not apply.
+    """
     validator: Callable[[str], Awaitable[bool]] | None = None
     if provider == ProviderType.OPENROUTER.value:
         validator = _validate_openrouter_key
+    elif provider == ProviderType.VERTEX_AI.value:
+        try:
+            router_instance = get_default_router()
+            vertex_provider = router_instance.get_provider(ProviderType.VERTEX_AI)
+            return await vertex_provider.health_check()
+        except Exception:
+            return False
+    elif provider == ProviderType.OLLAMA.value:
+        return None
 
     if validator is None:
-        return False
+        return None
 
     return await key_manager.validate_key(provider, validator)
+
+
+def _get_validation_method(provider: str) -> str | None:
+    """Return the validation method label for API responses."""
+    if provider == ProviderType.OPENROUTER.value:
+        return OPENROUTER_VALIDATION_METHOD
+    if provider == ProviderType.VERTEX_AI.value:
+        return VERTEX_AI_VALIDATION_METHOD
+    if provider == ProviderType.OLLAMA.value:
+        return OLLAMA_VALIDATION_METHOD
+    return None
 
 
 def _serialize_models(models: list[ModelInfo]) -> list[dict[str, object]]:
@@ -223,6 +251,7 @@ async def store_api_key(
         "provider": provider,
         "masked_key": masked_key,
         "valid": is_valid,
+        "validation_method": _get_validation_method(provider),
     }
 
 
@@ -278,4 +307,5 @@ async def validate_api_key(
         "provider": provider,
         "masked_key": masked_key,
         "valid": is_valid,
+        "validation_method": _get_validation_method(provider),
     }
