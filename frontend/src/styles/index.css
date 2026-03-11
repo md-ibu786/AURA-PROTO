@@ -309,6 +309,131 @@ input::placeholder {
   border-radius: var(--radius-md);
 }
 
+/* ===== Shadcn/UI-style Utility Classes ===== */
+/* Background colors */
+.bg-card {
+  background-color: var(--color-bg-secondary);
+}
+
+.bg-muted {
+  background-color: var(--color-bg-tertiary);
+}
+
+.bg-background {
+  background-color: var(--color-bg-primary);
+}
+
+.bg-destructive {
+  background-color: var(--color-error);
+}
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+/* Text colors */
+.text-foreground {
+  color: var(--color-text-primary);
+}
+
+.text-muted-foreground {
+  color: var(--color-text-secondary);
+}
+
+.text-destructive {
+  color: var(--color-error);
+}
+
+.text-destructive-foreground {
+  color: #ffffff;
+}
+
+.text-primary-foreground {
+  color: var(--color-bg-primary);
+}
+
+/* Border colors */
+.border-border {
+  border-color: var(--color-border);
+}
+
+.border-primary {
+  border-color: var(--color-primary);
+}
+
+/* Utility backgrounds with opacity */
+.bg-primary\\/10 {
+  background-color: rgba(255, 212, 0, 0.1);
+}
+
+.bg-primary\\/20 {
+  background-color: rgba(255, 212, 0, 0.2);
+}
+
+.bg-muted\\/20 {
+  background-color: rgba(26, 26, 26, 0.2);
+}
+
+.bg-muted\\/30 {
+  background-color: rgba(26, 26, 26, 0.3);
+}
+
+.bg-muted\\/50 {
+  background-color: rgba(26, 26, 26, 0.5);
+}
+
+.bg-card\\/30 {
+  background-color: rgba(17, 17, 17, 0.3);
+}
+
+.bg-card\\/50 {
+  background-color: rgba(17, 17, 17, 0.5);
+}
+
+.bg-destructive\\/10 {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+.bg-destructive\\/20 {
+  background-color: rgba(239, 68, 68, 0.2);
+}
+
+.bg-white\\/5 {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.bg-white\\/10 {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.bg-background\\/50 {
+  background-color: rgba(10, 10, 10, 0.5);
+}
+
+/* Backdrop blur */
+.backdrop-blur-\\[1px\\] {
+  backdrop-filter: blur(1px);
+}
+
+/* Scrollbar utilities */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thumb-border::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 3px;
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
 /* ===== Mobile Overflow Prevention ===== */
 @media (max-width: 768px) {
   html, body, #root {
