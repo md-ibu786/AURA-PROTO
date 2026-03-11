@@ -36,6 +36,7 @@ import ExplorerPage from './pages/ExplorerPage'
 import { LoginPage } from './pages/LoginPage'
 import AdminDashboard from './pages/AdminDashboard'
 import { SettingsPage } from './pages/SettingsPage'
+import { UsagePage } from './pages/UsagePage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { initAuthListener } from './stores/useAuthStore'
 
@@ -63,6 +64,12 @@ function App() {
                 <Route path="/settings" element={
                     <ProtectedRoute requiredRole="admin">
                         <SettingsPage />
+                    </ProtectedRoute>
+                } />
+
+                <Route path="/usage" element={
+                    <ProtectedRoute requiredRole="admin">
+                        <UsagePage />
                     </ProtectedRoute>
                 } />
 
