@@ -35,6 +35,7 @@ import { Toaster } from 'sonner'
 import ExplorerPage from './pages/ExplorerPage'
 import { LoginPage } from './pages/LoginPage'
 import AdminDashboard from './pages/AdminDashboard'
+import { SettingsPage } from './pages/SettingsPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { initAuthListener } from './stores/useAuthStore'
 
@@ -56,6 +57,12 @@ function App() {
                 <Route path="/admin" element={
                     <ProtectedRoute requiredRole="admin">
                         <AdminDashboard />
+                    </ProtectedRoute>
+                } />
+
+                <Route path="/settings" element={
+                    <ProtectedRoute requiredRole="admin">
+                        <SettingsPage />
                     </ProtectedRoute>
                 } />
 
