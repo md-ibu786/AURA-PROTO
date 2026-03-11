@@ -25,7 +25,7 @@
  */
 
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import '../styles/index.css';
@@ -617,6 +617,12 @@ export function AdminDashboard() {
                     </span>
                 </div>
                 <div className="header-actions">
+                    <Link to="/settings" className="btn btn-primary">
+                        Settings
+                    </Link>
+                    <Link to="/usage" className="btn btn-primary">
+                        Usage
+                    </Link>
                     <button
                         className="btn btn-ghost"
                         onClick={handleLogout}
