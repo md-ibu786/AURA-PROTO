@@ -54,7 +54,7 @@ export function UsagePage() {
     const hasAnyData = (summaryData?.total_requests ?? 0) > 0;
 
     return (
-        <div className="min-h-screen bg-[#0A0A0A] text-foreground p-4 md:p-8">
+        <div className="min-h-screen bg-[#0A0A0A] text-foreground p-4 sm:p-6">
             <div className="max-w-6xl mx-auto space-y-6 pb-12">
                 {/* Header */}
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
@@ -67,12 +67,12 @@ export function UsagePage() {
                             >
                                 <ArrowLeft className="w-5 h-5 text-muted-foreground" />
                             </button>
-                            <h1 className="text-3xl font-bold tracking-tight text-[#FFD400]">
+                            <h1 className="text-xl sm:text-2xl font-bold text-white">
                                 Usage & Cost Dashboard
                             </h1>
                         </div>
-                        <p className="text-muted-foreground">
-                            Track LLM usage and estimated costs across providers.
+                        <p className="text-gray-400 text-xs sm:text-sm mt-1">
+                            Track LLM usage and estimated costs across providers
                         </p>
                     </div>
                 </div>
@@ -92,9 +92,9 @@ export function UsagePage() {
 
                 {/* Empty State */}
                 {!summaryLoading && !hasAnyData && (
-                    <div className="flex flex-col items-center justify-center py-16 text-gray-500">
+                    <div className="flex flex-col items-center justify-center py-10 sm:py-16 text-gray-500">
                         <svg
-                            className="w-16 h-16 mb-4 opacity-30"
+                            className="w-12 h-12 sm:w-16 sm:h-16 mb-4 opacity-30"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
