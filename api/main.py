@@ -126,6 +126,7 @@ from api.routers.schema import router as schema_router
 # Import Graph Preview API router (RC-02)
 from api.routers.graph_preview import router as graph_preview_router
 from api.routers.settings import router as settings_router
+from api.routers.usage import router as usage_router
 
 # =============================================================================
 # SECURITY CONFIGURATION
@@ -252,6 +253,28 @@ app.include_router(
 )  # Schema API (Phase 11-04) - prefix already set in router
 app.include_router(graph_preview_router)  # Graph Preview API (RC-02)
 app.include_router(settings_router)
+app.include_router(usage_router)
+
+
+# Wire usage tracking into the shared model router at startup
+@app.on_event("startup")
+async def _wire_usage_tracking() -> None:
+    """Bind UsageTracker + CostCalculator to the model router."""
+    try:
+        from model_router import (
+            CostCalculator,
+            UsageTracker,
+            get_default_router,
+        )
+        from api.routers.settings import get_redis as _get_usage_redis
+
+        _usage_redis = _get_usage_redis()
+        _tracker = UsageTracker(_usage_redis)
+        _calculator = CostCalculator()
+        get_default_router().set_usage_tracking(_tracker, _calculator)
+        logger.info("Usage tracking wired into model router")
+    except Exception as exc:
+        logger.warning("Usage tracking setup skipped: %s", exc)
 
 
 from fastapi.staticfiles import StaticFiles
