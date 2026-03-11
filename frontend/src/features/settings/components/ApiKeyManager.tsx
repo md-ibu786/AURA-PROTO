@@ -61,7 +61,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
             return;
         }
         
-        deleteMutation.mutate(undefined as any, {
+        deleteMutation.mutate(undefined, {
             onSuccess: () => {
                 setIsConfirmingDelete(false);
                 setValidationResult(null);
@@ -71,7 +71,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
 
     const handleValidate = () => {
         setValidationResult(null);
-        validateMutation.mutate(undefined as any, {
+        validateMutation.mutate(undefined, {
             onSuccess: (data) => {
                 setValidationResult({
                     valid: data.valid,

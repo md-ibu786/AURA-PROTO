@@ -83,7 +83,7 @@ export const useStoreApiKey = (provider: ProviderType | string) => {
             queryClient.invalidateQueries({ queryKey: settingsKeys.providerModels(provider) });
             queryClient.invalidateQueries({ queryKey: settingsKeys.apiKey(provider) });
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
             toast.error(error.message || 'Failed to store API key');
         }
     });
@@ -105,7 +105,7 @@ export const useDeleteApiKey = (provider: ProviderType | string) => {
             queryClient.invalidateQueries({ queryKey: settingsKeys.models() });
             queryClient.invalidateQueries({ queryKey: settingsKeys.providerModels(provider) });
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
             toast.error(error.message || 'Failed to delete API key');
         }
     });
@@ -126,7 +126,7 @@ export const useValidateApiKey = (provider: ProviderType | string) => {
                 toast.error(data.error || 'API key is invalid');
             }
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
             toast.error(error.message || 'Validation failed');
         }
     });
@@ -149,7 +149,7 @@ export const useUpdateDefault = (useCase: UseCase | string) => {
             toast.success('Default model updated');
             queryClient.invalidateQueries({ queryKey: settingsKeys.defaults() });
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
             toast.error(error.message || 'Failed to update default model');
         }
     });

@@ -8,8 +8,34 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.main import app
+from api.models import FirestoreUser
+
+_hierarchy_module = sys.modules.get("hierarchy_crud")
+if _hierarchy_module is None:
+    _hierarchy_module = sys.modules.get("api.hierarchy_crud")
+if _hierarchy_module is None:
+    import api.hierarchy_crud as _hierarchy_module
+_staff_or_admin_dependency = _hierarchy_module.require_staff_or_admin
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_dependency_overrides():
+    """Ensure dependency overrides do not leak between tests."""
+    app.dependency_overrides = {}
+    yield
+    app.dependency_overrides = {}
+
+
+def _admin_user() -> FirestoreUser:
+    return FirestoreUser(
+        uid="admin-1",
+        email="admin@aura.edu",
+        displayName="Admin User",
+        role="admin",
+        status="active",
+    )
 
 @patch("hierarchy_crud.db")
 def test_create_duplicate_department_returns_409(mock_db):
@@ -33,6 +59,7 @@ def test_create_duplicate_department_returns_409(mock_db):
     # stream() returns list with 1 item
     mock_query_limit.stream.return_value = [mock_doc]
 
+    app.dependency_overrides[_staff_or_admin_dependency] = _admin_user
     payload = {"name": "Existing Dept", "code": "NEWCODE"}
     response = client.post("/api/departments", json=payload)
     
@@ -60,6 +87,7 @@ def test_create_unique_department_succeeds(mock_db):
     mock_new_ref.id = "new-id-123"
     mock_collection.document.return_value = mock_new_ref
 
+    app.dependency_overrides[_staff_or_admin_dependency] = _admin_user
     payload = {"name": "New Unique Dept", "code": "ND01"}
     response = client.post("/api/departments", json=payload)
     

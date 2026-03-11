@@ -30,7 +30,7 @@ class TestSummarizer(unittest.TestCase):
         result = generate_university_notes(self.sample_topic, self.sample_transcript)
 
         # Verify that genai model was used
-        mock_get_genai_model.assert_called_once_with("gemini-3-flash-preview")
+        mock_get_genai_model.assert_called_once_with("gemini-2.5-pro")
         mock_genai_model.generate_content.assert_called_once()
         self.assertEqual(result, "Mocked university notes content")
 
@@ -55,10 +55,10 @@ class TestSummarizer(unittest.TestCase):
             result = generate_university_notes(self.sample_topic, self.sample_transcript)
 
             # Verify that genai was tried first but returned None
-            mock_get_genai_model.assert_called_once_with("gemini-3-flash-preview")
+            mock_get_genai_model.assert_called_once_with("gemini-2.5-pro")
             
             # Verify that vertexai was used as fallback
-            mock_get_model.assert_called_once_with(model_name="models/gemini-3-flash-preview")
+            mock_get_model.assert_called_once_with(model_name="models/gemini-2.5-pro")
             mock_generate_content.assert_called_once()
             
             # Verify that the correct parameters were used

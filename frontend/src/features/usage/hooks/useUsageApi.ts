@@ -1,9 +1,10 @@
 // useUsageApi.ts
 // TanStack Query hooks for usage tracking API endpoints
 
-// Provides query hooks for fetching usage summaries, session costs,
-// daily cost trends, and cost breakdowns by provider and model.
-// Uses fetchApi client adapted for AURA-NOTES-MANAGER conventions.
+// Provides query hooks for fetching usage summaries and session costs.
+// The summary endpoint returns all breakdowns (daily, by-provider,
+// by-model) in a single response — derived hooks select from that
+// cached result to avoid redundant Redis scans.
 
 // @see: types/usage.ts - Type definitions for usage API responses
 // @see: features/settings/hooks/useSettingsApi.ts - Equivalent pattern for settings
@@ -25,12 +26,6 @@ export const usageKeys = {
         [...usageKeys.all, 'summary', startDate, endDate, provider] as const,
     session: (sessionId: string) =>
         [...usageKeys.all, 'session', sessionId] as const,
-    daily: (startDate?: string, endDate?: string) =>
-        [...usageKeys.all, 'daily', startDate, endDate] as const,
-    byProvider: (startDate?: string, endDate?: string) =>
-        [...usageKeys.all, 'byProvider', startDate, endDate] as const,
-    byModel: (startDate?: string, endDate?: string) =>
-        [...usageKeys.all, 'byModel', startDate, endDate] as const,
 };
 
 function buildQueryString(params: Record<string, string>): string {
@@ -71,44 +66,29 @@ export const useSessionUsage = (sessionId: string) => {
     });
 };
 
-export const useDailyCosts = (startDate?: string, endDate?: string) => {
-    return useQuery({
-        queryKey: usageKeys.daily(startDate, endDate),
-        queryFn: async () => {
-            const params: Record<string, string> = {};
-            if (startDate) params.start_date = startDate;
-            if (endDate) params.end_date = endDate;
-            const qs = buildQueryString(params);
-            return await fetchApi<DailyCost[]>(`/v1/usage/daily${qs}`);
-        },
-        staleTime: 2 * 60 * 1000,
-    });
+/** Derive daily costs from the cached summary query. */
+export const useDailyCosts = (
+    startDate?: string,
+    endDate?: string,
+): { data: DailyCost[] | undefined; isLoading: boolean } => {
+    const { data, isLoading } = useUsageSummary(startDate, endDate);
+    return { data: data?.daily, isLoading };
 };
 
-export const useCostByProvider = (startDate?: string, endDate?: string) => {
-    return useQuery({
-        queryKey: usageKeys.byProvider(startDate, endDate),
-        queryFn: async () => {
-            const params: Record<string, string> = {};
-            if (startDate) params.start_date = startDate;
-            if (endDate) params.end_date = endDate;
-            const qs = buildQueryString(params);
-            return await fetchApi<ProviderCost[]>(`/v1/usage/by-provider${qs}`);
-        },
-        staleTime: 2 * 60 * 1000,
-    });
+/** Derive provider breakdown from the cached summary query. */
+export const useCostByProvider = (
+    startDate?: string,
+    endDate?: string,
+): { data: ProviderCost[] | undefined; isLoading: boolean } => {
+    const { data, isLoading } = useUsageSummary(startDate, endDate);
+    return { data: data?.by_provider, isLoading };
 };
 
-export const useCostByModel = (startDate?: string, endDate?: string) => {
-    return useQuery({
-        queryKey: usageKeys.byModel(startDate, endDate),
-        queryFn: async () => {
-            const params: Record<string, string> = {};
-            if (startDate) params.start_date = startDate;
-            if (endDate) params.end_date = endDate;
-            const qs = buildQueryString(params);
-            return await fetchApi<ModelCost[]>(`/v1/usage/by-model${qs}`);
-        },
-        staleTime: 2 * 60 * 1000,
-    });
+/** Derive model breakdown from the cached summary query. */
+export const useCostByModel = (
+    startDate?: string,
+    endDate?: string,
+): { data: ModelCost[] | undefined; isLoading: boolean } => {
+    const { data, isLoading } = useUsageSummary(startDate, endDate);
+    return { data: data?.by_model, isLoading };
 };

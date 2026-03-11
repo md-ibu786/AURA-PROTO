@@ -45,9 +45,9 @@ class TestSummarizerFunctional(unittest.TestCase):
             result = generate_university_notes(self.sample_topic, self.sample_transcript)
 
             # Verify that genai was tried first
-            mock_get_genai_model.assert_called_once_with("gemini-3-flash-preview")
+            mock_get_genai_model.assert_called_once_with("gemini-2.5-pro")
             # Verify that vertexai was used as fallback
-            mock_get_model.assert_called_once_with(model_name="models/gemini-3-flash-preview")
+            mock_get_model.assert_called_once_with(model_name="models/gemini-2.5-pro")
             # Verify generate_content was called
             mock_generate_content.assert_called_once()
             # Verify the result
@@ -68,7 +68,7 @@ class TestSummarizerFunctional(unittest.TestCase):
             result = generate_university_notes(self.sample_topic, self.sample_transcript)
 
             # Verify that genai was used
-            mock_get_genai_model.assert_called_once_with("gemini-3-flash-preview")
+            mock_get_genai_model.assert_called_once_with("gemini-2.5-pro")
             # Verify that genai generate was called
             mock_genai_generate.assert_called_once()
             # Verify the result
