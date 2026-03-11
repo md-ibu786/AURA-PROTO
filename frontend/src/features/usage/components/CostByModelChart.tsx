@@ -71,8 +71,8 @@ export function CostByModelChart({ data }: CostByModelChartProps) {
                         color: '#fff',
                     }}
                     labelStyle={{ color: '#888' }}
-                    formatter={(value: number, _name: string, entry: { payload: ModelCost }) => [
-                        `$${value.toFixed(4)} (${entry.payload.provider})`,
+                    formatter={(value, _name, entry) => [
+                        `$${Number(value).toFixed(4)} (${(entry?.payload as ModelCost)?.provider ?? ''})`,
                         'Cost',
                     ]}
                 />

@@ -53,7 +53,7 @@ export function CostByProviderChart({ data }: CostByProviderChartProps) {
                         color: '#fff',
                     }}
                     labelStyle={{ color: '#888' }}
-                    formatter={(value: number) => [`$${value.toFixed(4)}`, 'Cost']}
+                    formatter={(value) => [`$${Number(value).toFixed(4)}`, 'Cost']}
                 />
                 <Bar dataKey="cost" fill="#FFD400" radius={[4, 4, 0, 0]} />
             </BarChart>

@@ -1,12 +1,11 @@
 // DefaultModelSection.tsx
 // Configuration for default models per use case
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDefaults, useAllModels, useUpdateDefault } from '../hooks/useSettingsApi';
 import { useGroupedModels } from '../hooks/useModelList';
 import { HierarchicalModelPicker } from './HierarchicalModelPicker';
 import { UseCase, ModelGroup, ModelInfo } from '@/types/settings';
-import { cn } from '@/lib/cn';
 import { Check, AlertCircle } from 'lucide-react';
 
 const USE_CASES: { id: UseCase; label: string; description: string }[] = [
@@ -62,6 +61,11 @@ function UseCaseSection({
 }) {
     const mutation = useUpdateDefault(useCase.id);
     const [selected, setSelected] = useState(currentValue);
+
+    // Sync local state when server default changes (e.g. via another tab)
+    useEffect(() => {
+        setSelected(currentValue);
+    }, [currentValue]);
 
     const handleChange = (modelName: string) => {
         setSelected(modelName);

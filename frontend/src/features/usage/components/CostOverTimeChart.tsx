@@ -54,7 +54,7 @@ export function CostOverTimeChart({ data }: CostOverTimeChartProps) {
                         color: '#fff',
                     }}
                     labelStyle={{ color: '#888' }}
-                    formatter={(value: number) => [`$${value.toFixed(4)}`, 'Cost']}
+                    formatter={(value) => [`$${Number(value).toFixed(4)}`, 'Cost']}
                 />
                 <Area
                     type="monotone"
