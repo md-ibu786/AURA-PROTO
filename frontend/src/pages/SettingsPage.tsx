@@ -1,75 +1,189 @@
 // SettingsPage.tsx
-// Admin-only page for provider configuration, default models, and API key management
+// Admin settings page with system status monitoring, about section, and provider configuration
 
-// Renders a settings interface with card-style layout matching AURA-CHAT styling.
-// Features three sections: Provider Configuration, Default Models, and API Credentials.
-// Each section is wrapped in a card container with responsive padding and icons.
+// Mirrors AURA-CHAT SettingsPage.tsx structure exactly for visual and functional parity.
+// Features real-time health monitoring (30s auto-refresh), StatusBadge component, About
+// section, and three configuration sections: Provider Configuration, Default Models, API Credentials.
 
 // @see: features/settings/components/ - ProviderSettingsSection, DefaultModelSection, ApiKeyManager
-// @note: Includes back navigation button (AURA-NOTES-MANAGER specific feature)
+// @see: api/client.ts - checkHealth function for health endpoint polling
+// @note: Layout uses 1/3 sidebar (Status + About) + 2/3 main config columns
 
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Shield, Cpu, Key } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import {
+    Settings,
+    Database,
+    Zap,
+    CheckCircle,
+    XCircle,
+    RefreshCw,
+    Shield,
+    Cpu,
+    Key
+} from 'lucide-react';
+import { checkHealth } from '@/api/client';
+import { cn } from '@/lib/cn';
 import { ProviderSettingsSection } from '../features/settings/components/ProviderSettingsSection';
 import { DefaultModelSection } from '../features/settings/components/DefaultModelSection';
 import { ApiKeyManager } from '../features/settings/components/ApiKeyManager';
-import '../styles/index.css';
 
 export function SettingsPage() {
-    const navigate = useNavigate();
+    const healthQuery = useQuery({
+        queryKey: ['health'],
+        queryFn: checkHealth,
+        refetchInterval: 30000, // Refresh every 30 seconds
+    });
 
     return (
-        <div className="flex flex-col h-full bg-[#0A0A0A]">
+        <div className="flex flex-col h-full">
             {/* Header */}
             <header className="px-4 md:px-6 py-3 md:py-4 border-b border-border">
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors -ml-2"
-                        title="Back"
-                    >
-                        <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-                    </button>
-                    <div>
-                        <h1 className="text-xl font-semibold text-white">Settings</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Configure AI providers, default models, and API credentials
-                        </p>
-                    </div>
-                </div>
+                <h1 className="text-xl font-semibold">Settings</h1>
+                <p className="text-sm text-muted-foreground">
+                    Configure AURA and view system status
+                </p>
             </header>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">
-                <div className="max-w-4xl mx-auto space-y-6">
-                    {/* Provider Configuration */}
-                    <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
-                            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                            Provider Configuration
-                        </h2>
-                        <ProviderSettingsSection />
-                    </section>
+                <div className="max-w-7xl mx-auto">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                        {/* Status & Information - Sidebar (1/3) */}
+                        <div className="space-y-6 lg:order-2">
+                            {/* System Status */}
+                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                                        <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                                        System Status
+                                    </h2>
+                                    <button
+                                        onClick={() => healthQuery.refetch()}
+                                        disabled={healthQuery.isFetching}
+                                        className="text-muted-foreground hover:text-foreground transition-colors p-2 -mr-2 sm:p-0 sm:mr-0 min-h-11 sm:min-h-0 flex items-center justify-center"
+                                    >
+                                        <RefreshCw className={cn("w-4 h-4 sm:w-5 sm:h-5", healthQuery.isFetching && "animate-spin")} />
+                                    </button>
+                                </div>
 
-                    {/* Default Models */}
-                    <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
-                            <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                            Default Models
-                        </h2>
-                        <DefaultModelSection />
-                    </section>
+                                <div className="space-y-5 sm:space-y-4">
+                                    {/* API Status */}
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                            <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                            <div>
+                                                <p className="font-medium text-sm sm:text-base">API Server</p>
+                                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                                    Version {healthQuery.data?.version || 'unknown'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <StatusBadge
+                                            status={healthQuery.data?.status === 'healthy' ? 'healthy' : 'degraded'}
+                                        />
+                                    </div>
 
-                    {/* API Credentials */}
-                    <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
-                            <Key className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                            API Credentials
-                        </h2>
-                        <ApiKeyManager />
-                    </section>
+                                    {/* Neo4j Status */}
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                            <Database className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                            <div>
+                                                <p className="font-medium text-sm sm:text-base">Neo4j Database</p>
+                                                <p className="text-xs sm:text-sm text-muted-foreground">
+                                                    Graph database connection
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <StatusBadge
+                                            status={healthQuery.data?.neo4j_connected ? 'connected' : 'disconnected'}
+                                        />
+                                    </div>
+
+                                    {/* Services Status */}
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                            <div>
+                                                <p className="font-medium text-sm sm:text-base">Backend Services</p>
+                                                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                                                    GraphManager, RAGEngine, DocumentProcessor
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <StatusBadge
+                                            status={healthQuery.data?.services_ready ? 'ready' : 'not ready'}
+                                        />
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* About */}
+                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                                <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">About AURA</h2>
+                                <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
+                                    AURA (Academic Research Assistant) is an AI-powered research tool that helps you
+                                    explore and understand your document collection through knowledge graphs and
+                                    conversational AI.
+                                </p>
+                                <div className="space-y-2.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Upload research papers and documents (PDF, DOCX, TXT)</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Automatic entity extraction and knowledge graph construction</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Ask questions with RAG-powered answers and citations</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Visualize document relationships and concepts</span></p>
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* Main Configuration - Primary Column (2/3) */}
+                        <div className="lg:col-span-2 space-y-6 lg:order-1">
+                            {/* Provider Configuration */}
+                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
+                                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                                    Provider Configuration
+                                </h2>
+                                <ProviderSettingsSection />
+                            </section>
+
+                            {/* Default Models */}
+                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
+                                    <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                                    Default Models
+                                </h2>
+                                <DefaultModelSection />
+                            </section>
+
+                            {/* API Keys */}
+                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
+                                <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2 mb-4">
+                                    <Key className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                                    API Keys
+                                </h2>
+                                <ApiKeyManager />
+                            </section>
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function StatusBadge({ status }: { status: string }) {
+    const isPositive = ['healthy', 'connected', 'ready'].includes(status);
+
+    return (
+        <div className={cn(
+            "flex items-center gap-1.5 sm:gap-2 sm:px-3 sm:py-1 sm:rounded-full text-xs sm:text-sm w-fit",
+            isPositive ? "text-green-500 sm:bg-green-500/10" : "text-destructive sm:bg-destructive/10"
+        )}>
+            {isPositive ? (
+                <CheckCircle className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+            ) : (
+                <XCircle className="w-5 h-5 sm:w-4 sm:h-4 shrink-0" />
+            )}
+            <span className="hidden sm:inline capitalize whitespace-nowrap">{status}</span>
         </div>
     );
 }
