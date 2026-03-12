@@ -257,4 +257,57 @@ async function fetchFormData<T>(
     return response.json();
 }
 
+// Health check response type
+export interface HealthStatus {
+    status: string;
+    version: string;
+    neo4j_connected: boolean;
+    services_ready: boolean;
+}
+
+/**
+ * checkHealth
+ * Checks backend health by querying /health, /ready, and /health/redis endpoints.
+ * Used by SettingsPage for real-time system monitoring with auto-refresh.
+ *
+ * @see: api/main.py - Health check endpoint definitions
+ * @note: AURA-NOTES-MANAGER uses /ready (Firestore) and /health/redis instead of
+ *        AURA-CHAT's single /health endpoint with neo4j_connected/services_ready
+ */
+export async function checkHealth(): Promise<HealthStatus> {
+    let status = 'healthy';
+    let version = 'unknown';
+    let neo4jConnected = false;
+    let servicesReady = false;
+
+    try {
+        const healthData = await fetchApi<{ status: string; version: string }>('/health');
+        version = healthData.version;
+    } catch {
+        status = 'degraded';
+    }
+
+    try {
+        const readyData = await fetchApi<{ status: string; database: string }>('/ready');
+        servicesReady = readyData.status === 'ready';
+    } catch {
+        servicesReady = false;
+        status = 'degraded';
+    }
+
+    try {
+        const redisData = await fetchApi<{ status: string }>('/health/redis');
+        neo4jConnected = redisData.status === 'healthy';
+    } catch {
+        neo4jConnected = false;
+    }
+
+    return {
+        status,
+        version,
+        neo4j_connected: neo4jConnected,
+        services_ready: servicesReady,
+    };
+}
+
 export { fetchApi, fetchBlob, fetchFormData, API_BASE };
