@@ -69,7 +69,7 @@ export function AdminHeader({ title, subtitle, showBack }: AdminHeaderProps) {
                     );
                 })}
                 <button
-                    className="px-4 py-2 rounded-md font-medium text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200 text-sm ml-2"
+                    className="px-4 py-2 rounded-md font-medium text-red-500 hover:text-white hover:bg-red-500/20 transition-all duration-200 text-sm ml-2"
                     onClick={handleLogout}
                 >
                     Logout
