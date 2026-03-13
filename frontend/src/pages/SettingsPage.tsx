@@ -114,22 +114,6 @@ export function SettingsPage() {
                                     </div>
                                 </div>
                             </section>
-
-                            {/* About */}
-                            <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
-                                <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">About AURA</h2>
-                                <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
-                                    AURA Notes Manager is a staff portal for managing academic content,
-                                    organizing modules, processing documents into knowledge graphs, and
-                                    publishing materials for students.
-                                </p>
-                                <div className="space-y-2.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Organize departments, semesters, and modules</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Upload and manage notes and documents</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Audio-to-notes pipeline with AI transcription</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Knowledge graph processing and publishing</span></p>
-                                </div>
-                            </section>
                         </div>
 
                         {/* Main Configuration - Primary Column (2/3) */}
