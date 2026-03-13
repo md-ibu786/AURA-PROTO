@@ -64,53 +64,121 @@ export function SettingsPage() {
                                     </button>
                                 </div>
 
-                                <div className="space-y-5 sm:space-y-4">
-                                    {/* API Status */}
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
-                                            <div>
-                                                <p className="font-medium text-sm sm:text-base">API Server</p>
-                                                <p className="text-xs sm:text-sm text-muted-foreground">
-                                                    Version {healthQuery.data?.version || 'unknown'}
-                                                </p>
+                                <div className="space-y-8 sm:space-y-6">
+                                    {/* Notes Manager Status */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                                            <Shield className="w-3 h-3" />
+                                            Notes Manager
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {/* API Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">API Server</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground">
+                                                            Version {healthQuery.data?.version || 'unknown'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.status === 'healthy' ? 'healthy' : 'degraded'}
+                                                />
+                                            </div>
+
+                                            {/* Firestore Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <Database className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">Firestore Database</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground">
+                                                            Cloud database connection
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.services_ready ? 'connected' : 'disconnected'}
+                                                />
+                                            </div>
+
+                                            {/* Redis Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">Redis Cache</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                                                            Task queue & caching
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.neo4j_connected ? 'ready' : 'not ready'}
+                                                />
                                             </div>
                                         </div>
-                                        <StatusBadge
-                                            status={healthQuery.data?.status === 'healthy' ? 'healthy' : 'degraded'}
-                                        />
                                     </div>
 
-                                    {/* Firestore Status */}
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <Database className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
-                                            <div>
-                                                <p className="font-medium text-sm sm:text-base">Firestore Database</p>
-                                                <p className="text-xs sm:text-sm text-muted-foreground">
-                                                    Cloud database connection
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <StatusBadge
-                                            status={healthQuery.data?.services_ready ? 'connected' : 'disconnected'}
-                                        />
-                                    </div>
+                                    <div className="border-t border-border pt-6 sm:pt-4" />
 
-                                    {/* Services Status */}
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
-                                            <div>
-                                                <p className="font-medium text-sm sm:text-base">Backend Services</p>
-                                                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                                                    Firestore, Redis, AudioPipeline
-                                                </p>
+                                    {/* Chat Status */}
+                                    <div className="space-y-4">
+                                        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                                            <Zap className="w-3 h-3" />
+                                            AURA Chat
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {/* API Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <Cpu className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">Chat Server</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground">
+                                                            Version {healthQuery.data?.chat?.version || 'unknown'}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.chat?.status || 'disconnected'}
+                                                />
+                                            </div>
+
+                                            {/* Neo4j Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <Database className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">Neo4j Graph</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground">
+                                                            Knowledge graph database
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.chat?.neo4j_connected ? 'connected' : 'disconnected'}
+                                                />
+                                            </div>
+
+                                            {/* Semantic Router Status */}
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="flex items-start gap-3">
+                                                    <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
+                                                    <div>
+                                                        <p className="font-medium text-sm sm:text-base">Semantic Router</p>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                                                            Query intent classification
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <StatusBadge
+                                                    status={healthQuery.data?.chat?.semantic_router || 'not ready'}
+                                                />
                                             </div>
                                         </div>
-                                        <StatusBadge
-                                            status={healthQuery.data?.neo4j_connected ? 'ready' : 'not ready'}
-                                        />
                                     </div>
                                 </div>
                             </section>

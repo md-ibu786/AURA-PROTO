@@ -11,8 +11,6 @@
 // @note: Default date range is last 30 days
 
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
 import { DateRangeFilter } from '@/features/usage/components/DateRangeFilter';
 import { UsageSummaryCards } from '@/features/usage/components/UsageSummaryCards';
 import { CostOverTimeChart } from '@/features/usage/components/CostOverTimeChart';
@@ -38,7 +36,7 @@ function getDefaultDateRange(): { start: string; end: string } {
 }
 
 export function UsagePage() {
-    const navigate = useNavigate();
+
     const defaults = getDefaultDateRange();
     const [startDate, setStartDate] = useState(defaults.start);
     const [endDate, setEndDate] = useState(defaults.end);

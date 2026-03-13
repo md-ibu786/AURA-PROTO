@@ -12,7 +12,7 @@ export default defineConfig({
         // (e.g., .bg-primary\/10, .backdrop-blur-\[1px\])
         lightningcss: {
             unusedSymbols: [],
-        } as unknown,
+        } as any,
     },
     resolve: {
         alias: {
@@ -27,6 +27,11 @@ export default defineConfig({
                 target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
             },
+            '/chat-api': {
+                target: 'http://127.0.0.1:8000',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/chat-api/, ''),
+            },
             '/departments': {
                 target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
@@ -40,6 +45,14 @@ export default defineConfig({
                 changeOrigin: true,
             },
             '/pdfs': {
+                target: 'http://127.0.0.1:8001',
+                changeOrigin: true,
+            },
+            '/health': {
+                target: 'http://127.0.0.1:8001',
+                changeOrigin: true,
+            },
+            '/ready': {
                 target: 'http://127.0.0.1:8001',
                 changeOrigin: true,
             },

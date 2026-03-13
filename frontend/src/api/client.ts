@@ -258,48 +258,98 @@ async function fetchFormData<T>(
 }
 
 // Health check response type
-export interface HealthStatus {
+export interface ChatHealthStatus {
     status: string;
     version: string;
     neo4j_connected: boolean;
+    redis_connected: boolean;
+    firestore_connected: boolean;
     services_ready: boolean;
+    semantic_router: string;
+    timestamp: string;
+}
+
+export interface HealthStatus {
+    // Notes Manager specific
+    status: string;
+    version: string;
+    neo4j_connected: boolean; // Misnamed Redis check in ANM
+    services_ready: boolean;  // Firestore check in ANM
+
+    // Chat specific
+    chat?: ChatHealthStatus;
 }
 
 /**
  * checkHealth
- * Checks backend health by querying /health, /ready, and /health/redis endpoints.
+ * Checks backend health by querying /health and /chat-api/health.
  * Used by SettingsPage for real-time system monitoring with auto-refresh.
  *
- * @see: api/main.py - Health check endpoint definitions
- * @note: AURA-NOTES-MANAGER uses /ready (Firestore) and /health/redis instead of
- *        AURA-CHAT's single /health endpoint with neo4j_connected/services_ready
+ * @see: api/main.py - Health check endpoint definitions for ANM
+ * @see: AURA-CHAT/server/routers/health.py - Health check endpoint for Chat
  */
 export async function checkHealth(): Promise<HealthStatus> {
     let status = 'healthy';
     let version = 'unknown';
     let neo4jConnected = false;
     let servicesReady = false;
+    let chatStatus: ChatHealthStatus | undefined = undefined;
 
+    // Helper to fetch without /api prefix (health endpoints are at root)
+    const fetchHealth = async (endpoint: string): Promise<Response> => {
+        const authHeaders = await getAuthHeader();
+        return fetch(endpoint, {
+            headers: authHeaders,
+        });
+    };
+
+    // 1. Check Notes Manager health
     try {
-        const healthData = await fetchApi<{ status: string; version: string }>('/health');
-        version = healthData.version;
+        const response = await fetchHealth('/health');
+        if (response.ok) {
+            const healthData = await response.json() as { status: string; version: string };
+            version = healthData.version;
+        } else {
+            status = 'degraded';
+        }
     } catch {
         status = 'degraded';
     }
 
     try {
-        const readyData = await fetchApi<{ status: string; database: string }>('/ready');
-        servicesReady = readyData.status === 'ready';
+        const response = await fetchHealth('/ready');
+        if (response.ok) {
+            const readyData = await response.json() as { status: string; database: string };
+            servicesReady = readyData.status === 'ready';
+        } else {
+            servicesReady = false;
+            status = 'degraded';
+        }
     } catch {
         servicesReady = false;
         status = 'degraded';
     }
 
     try {
-        const redisData = await fetchApi<{ status: string }>('/health/redis');
-        neo4jConnected = redisData.status === 'healthy';
+        const response = await fetchHealth('/health/redis');
+        if (response.ok) {
+            const redisData = await response.json() as { status: string };
+            neo4jConnected = redisData.status === 'healthy';
+        } else {
+            neo4jConnected = false;
+        }
     } catch {
         neo4jConnected = false;
+    }
+
+    // 2. Check Chat health via proxy
+    try {
+        const response = await fetch('/chat-api/health');
+        if (response.ok) {
+            chatStatus = await response.json() as ChatHealthStatus;
+        }
+    } catch (e) {
+        console.warn('Failed to fetch Chat status', e);
     }
 
     return {
@@ -307,6 +357,7 @@ export async function checkHealth(): Promise<HealthStatus> {
         version,
         neo4j_connected: neo4jConnected,
         services_ready: servicesReady,
+        chat: chatStatus,
     };
 }
 

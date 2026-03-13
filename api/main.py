@@ -497,20 +497,39 @@ async def readiness_check():
 
 @app.get("/health/redis")
 def redis_health_check():
-    """Check Redis connection status."""
+    """Check Redis connection status with fresh connection test."""
     try:
-        from cache import redis_client
+        import redis
+        from cache.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
     except ImportError:
         try:
-            from api.cache import redis_client
+            import redis
+            from api.cache.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
         except ImportError:
             return {"status": "unavailable", "redis": "package_not_found"}
 
-    connected = redis_client.ping()
-    return {
-        "status": "healthy" if connected else "unhealthy",
-        "redis": "connected" if connected else "disconnected",
-    }
+    # Try a fresh connection (bypass singleton cache)
+    try:
+        client = redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            db=REDIS_DB,
+            password=REDIS_PASSWORD,
+            socket_connect_timeout=2,
+            socket_timeout=2
+        )
+        connected = client.ping()
+        client.close()
+        return {
+            "status": "healthy" if connected else "unhealthy",
+            "redis": "connected" if connected else "disconnected",
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "redis": "disconnected",
+            "error": str(e),
+        }
 
 
 class CreateNoteRequest(BaseModel):

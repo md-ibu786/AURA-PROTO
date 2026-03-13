@@ -25,7 +25,6 @@
  */
 
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
 import { AdminHeader } from '../components/layout/AdminHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -73,8 +72,7 @@ const API_BASE = '/api';
 type TabType = 'users' | 'hierarchy';
 
 export function AdminDashboard() {
-    const navigate = useNavigate();
-    const { user, logout, getIdToken } = useAuthStore();
+    const { user, getIdToken } = useAuthStore();
 
     // Tab state
     const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -600,11 +598,6 @@ export function AdminDashboard() {
         } catch (err) {
             alert(err instanceof Error ? err.message : 'Failed to rename');
         }
-    };
-
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
     };
 
     return (
