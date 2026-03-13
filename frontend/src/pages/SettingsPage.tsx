@@ -25,6 +25,8 @@ import { ProviderSettingsSection } from '../features/settings/components/Provide
 import { DefaultModelSection } from '../features/settings/components/DefaultModelSection';
 import { ApiKeyManager } from '../features/settings/components/ApiKeyManager';
 
+import { AdminHeader } from '../components/layout/AdminHeader';
+
 export function SettingsPage() {
     const healthQuery = useQuery({
         queryKey: ['health'],
@@ -35,12 +37,10 @@ export function SettingsPage() {
     return (
         <div className="flex flex-col h-full">
             {/* Header */}
-            <header className="px-4 md:px-6 py-3 md:py-4 border-b border-border">
-                <h1 className="text-xl font-semibold">Settings</h1>
-                <p className="text-sm text-muted-foreground">
-                    Configure AURA and view system status
-                </p>
-            </header>
+            <AdminHeader 
+                title="Settings" 
+                subtitle="Configure AURA and view system status" 
+            />
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6">

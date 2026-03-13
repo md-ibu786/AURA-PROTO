@@ -27,6 +27,7 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
+import { AdminHeader } from '../components/layout/AdminHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import '../styles/index.css';
 
@@ -609,28 +610,7 @@ export function AdminDashboard() {
     return (
         <div className="admin-dashboard">
             {/* Header */}
-            <header className="admin-header">
-                <div className="header-left">
-                    <h1>Admin Dashboard</h1>
-                    <span className="user-badge">
-                        Logged in as: {user?.displayName || user?.email}
-                    </span>
-                </div>
-                <div className="header-actions">
-                    <Link to="/settings" className="btn btn-primary">
-                        Settings
-                    </Link>
-                    <Link to="/usage" className="btn btn-primary">
-                        Usage
-                    </Link>
-                    <button
-                        className="btn btn-ghost"
-                        onClick={handleLogout}
-                    >
-                        Logout
-                    </button>
-                </div>
-            </header>
+            <AdminHeader title="Admin Dashboard" />
 
             {/* Tabs */}
             <div className="admin-tabs">
