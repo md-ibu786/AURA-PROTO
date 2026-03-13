@@ -27,6 +27,8 @@ import { useExplorerStore } from '../../stores';
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { FileSystemNode } from '../../types';
+import { renameNode } from '../../api/explorerApi';
+import { DuplicateError } from '../../api';
 import {
     Building2,
     Calendar,
@@ -90,14 +92,12 @@ export function ListView({ items }: ListViewProps) {
 
         try {
             const id = node.id;
-            const { renameNode } = await import('../../api/explorerApi');
             await renameNode(node.type, id, renameValue);
 
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
             setRenamingNodeId(null);
         } catch (error) {
-            const api = await import('../../api');
-            if (error instanceof api.DuplicateError) {
+            if (error instanceof DuplicateError) {
                 openWarningDialog('duplicate', error.message, renameValue);
             } else {
                 console.error("Rename failed", error);

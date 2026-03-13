@@ -32,13 +32,13 @@ interface StatCardProps {
 
 function StatCard({ label, value, subtext }: StatCardProps) {
     return (
-        <div className="bg-[#1A1A1A] rounded-lg p-4 border border-gray-800">
-            <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">
+        <div className="bg-[#1A1A1A] rounded-lg p-3 sm:p-4 border border-gray-800">
+            <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 truncate" title={label}>
                 {label}
             </p>
-            <p className="text-xl font-semibold text-white">{value}</p>
+            <p className="text-lg sm:text-xl font-semibold text-white truncate" title={value}>{value}</p>
             {subtext && (
-                <p className="text-xs text-gray-500 mt-1">{subtext}</p>
+                <p className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">{subtext}</p>
             )}
         </div>
     );
@@ -47,7 +47,7 @@ function StatCard({ label, value, subtext }: StatCardProps) {
 export function UsageSummaryCards({ summary, isLoading }: UsageSummaryCardsProps) {
     if (isLoading) {
         return (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <SkeletonCard />
                 <SkeletonCard />
                 <SkeletonCard />
@@ -68,7 +68,7 @@ export function UsageSummaryCards({ summary, isLoading }: UsageSummaryCardsProps
         : 0;
 
     return (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
                 label="Total Cost"
                 value={`$${totalCost.toFixed(4)}`}

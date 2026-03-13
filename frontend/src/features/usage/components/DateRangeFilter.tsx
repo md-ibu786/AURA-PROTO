@@ -33,32 +33,34 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
     ];
 
     return (
-        <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-                <label htmlFor="usage-start-date" className="text-sm text-gray-400">
-                    From
-                </label>
-                <input
-                    id="usage-start-date"
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => onChange(e.target.value, endDate)}
-                    className="bg-[#1A1A1A] border border-gray-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
-                />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                    <label htmlFor="usage-start-date" className="text-xs sm:text-sm text-gray-400">
+                        From
+                    </label>
+                    <input
+                        id="usage-start-date"
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => onChange(e.target.value, endDate)}
+                        className="bg-[#1A1A1A] border border-gray-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <label htmlFor="usage-end-date" className="text-xs sm:text-sm text-gray-400">
+                        To
+                    </label>
+                    <input
+                        id="usage-end-date"
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => onChange(startDate, e.target.value)}
+                        className="bg-[#1A1A1A] border border-gray-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
+                    />
+                </div>
             </div>
-            <div className="flex items-center gap-2">
-                <label htmlFor="usage-end-date" className="text-sm text-gray-400">
-                    To
-                </label>
-                <input
-                    id="usage-end-date"
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => onChange(startDate, e.target.value)}
-                    className="bg-[#1A1A1A] border border-gray-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
-                />
-            </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                 {presets.map(({ label, days }) => {
                     const preset = getPresetRange(days);
                     const isActive = startDate === preset.start && endDate === preset.end;

@@ -1,11 +1,11 @@
 // HierarchicalModelPicker.tsx
-// Renders a hierarchical list of models grouped by provider and vendor
+// Dropdown component for selecting models from a hierarchical list grouped by provider
 
-// Provides search functionality, expand/collapse sections, and model selection.
-// Supports 3-level hierarchy (Provider -> Vendor -> Model) for OpenRouter
-// and 2-level hierarchy (Provider -> Model) for others.
+// Provides a compact dropdown trigger that opens a floating panel with search,
+// expand/collapse sections, and model selection. Supports 3-level hierarchy
+// (Provider -> Vendor -> Model) for OpenRouter and 2-level for others.
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/cn';
@@ -25,12 +25,15 @@ export function HierarchicalModelPicker({
     value,
     onChange,
     isLoading = false,
-    placeholder = 'Search models...',
+    placeholder = 'Select model...',
     className
 }: HierarchicalModelPickerProps) {
+    const [isOpen, setIsOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
     const [expandedVendors, setExpandedVendors] = useState<Record<string, boolean>>({});
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     const toggleProvider = (provider: string) => {
         setExpandedProviders(prev => ({ ...prev, [provider]: !prev[provider] }));
@@ -39,6 +42,43 @@ export function HierarchicalModelPicker({
     const toggleVendor = (vendorId: string) => {
         setExpandedVendors(prev => ({ ...prev, [vendorId]: !prev[vendorId] }));
     };
+
+    // Handle click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+                setSearchQuery('');
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Focus search input when dropdown opens
+    useEffect(() => {
+        if (isOpen && searchInputRef.current) {
+            setTimeout(() => searchInputRef.current?.focus(), 50);
+        }
+    }, [isOpen]);
+
+    const handleSelect = (modelName: string) => {
+        onChange(modelName);
+        setIsOpen(false);
+        setSearchQuery('');
+    };
+
+    // Get selected model display name
+    const selectedModel = useMemo(() => {
+        if (!value) return null;
+        for (const group of groups) {
+            for (const vendor of group.vendors) {
+                const model = vendor.models.find(m => m.name === value);
+                if (model) return model;
+            }
+        }
+        return null;
+    }, [value, groups]);
 
     const filteredGroups = useMemo(() => {
         if (!searchQuery.trim()) return groups;
@@ -76,35 +116,59 @@ export function HierarchicalModelPicker({
 
     if (isLoading) {
         return (
-            <div data-testid="model-picker-skeleton" className={cn("flex flex-col gap-2 p-2 border border-border rounded-lg bg-card/50", className)}>
-                <div className="h-9 bg-muted/50 rounded animate-pulse mb-2"></div>
-                <div className="h-6 w-24 bg-muted/50 rounded animate-pulse ml-2 mb-1"></div>
-                <div className="h-8 bg-muted/50 rounded animate-pulse ml-4 mb-1"></div>
-                <div className="h-8 bg-muted/50 rounded animate-pulse ml-4 mb-2"></div>
-                <div className="h-6 w-24 bg-muted/50 rounded animate-pulse ml-2 mb-1"></div>
-                <div className="h-8 bg-muted/50 rounded animate-pulse ml-4 mb-1"></div>
+            <div className={cn("relative", className)}>
+                <div className="h-10 bg-muted/50 rounded-lg animate-pulse"></div>
             </div>
         );
     }
 
     return (
-        <div className={cn("flex flex-col border border-border rounded-lg bg-card/30 overflow-hidden", className)}>
-            {/* Search Input */}
-            <div className="p-2 border-b border-border/50 bg-card/50">
-                <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <input
-                        type="text"
-                        placeholder={placeholder}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 text-sm bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/50 rounded-md"
-                    />
-                </div>
-            </div>
+        <div className={cn("relative", className)} ref={dropdownRef}>
+            {/* Trigger Button */}
+            <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                    "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm",
+                    "bg-card border rounded-lg transition-all duration-200",
+                    isOpen
+                        ? "border-primary/50 ring-1 ring-primary/30"
+                        : "border-border hover:border-primary/30"
+                )}
+            >
+                <span className={cn("truncate", !selectedModel && "text-muted-foreground")}>
+                    {selectedModel?.display_name || selectedModel?.name || placeholder}
+                </span>
+                <ChevronDown className={cn("w-4 h-4 ml-2 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
+            </button>
 
-            {/* List */}
-            <div className="max-h-[360px] overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+            {/* Dropdown Panel */}
+            <AnimatePresence>
+                {isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                        transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+                        className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden"
+                    >
+                        {/* Search Input */}
+                        <div className="p-2 border-b border-border/50 bg-card/50">
+                            <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                <input
+                                    ref={searchInputRef}
+                                    type="text"
+                                    placeholder="Search models..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-2 text-sm bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary/50 rounded-md"
+                                />
+                            </div>
+                        </div>
+
+                        {/* List */}
+                        <div className="max-h-[360px] overflow-y-auto p-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                 {groups.length === 0 ? (
                     <div className="p-4 text-center text-sm text-muted-foreground">
                         No models available
@@ -176,7 +240,7 @@ export function HierarchicalModelPicker({
                                                                                 key={model.name}
                                                                                 model={model}
                                                                                 isSelected={value === model.name}
-                                                                                onClick={() => onChange(model.name)}
+                                                                                onClick={() => handleSelect(model.name)}
                                                                                 indentClass="pl-12"
                                                                             />
                                                                         ))}
@@ -194,7 +258,7 @@ export function HierarchicalModelPicker({
                                                             key={model.name}
                                                             model={model}
                                                             isSelected={value === model.name}
-                                                            onClick={() => onChange(model.name)}
+                                                            onClick={() => handleSelect(model.name)}
                                                             indentClass="pl-6"
                                                         />
                                                     ))}
@@ -207,7 +271,10 @@ export function HierarchicalModelPicker({
                         ))}
                     </div>
                 )}
-            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

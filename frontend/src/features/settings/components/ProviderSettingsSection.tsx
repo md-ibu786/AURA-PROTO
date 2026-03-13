@@ -20,7 +20,7 @@ export function ProviderSettingsSection() {
             {PROVIDERS.map(provider => {
                 const providerModels = models.filter(m => m.provider === provider.id);
                 return (
-                    <ProviderCard 
+                    <ProviderCard
                         key={provider.id}
                         provider={provider}
                         modelCount={providerModels.length}

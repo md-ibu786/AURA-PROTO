@@ -1,13 +1,11 @@
 // SettingsPage.tsx
-// Admin settings page with system status monitoring, about section, and provider configuration
+// Admin settings page with provider configuration, default models, API credentials, and system status
 
-// Mirrors AURA-CHAT SettingsPage.tsx structure exactly for visual and functional parity.
-// Features real-time health monitoring (30s auto-refresh), StatusBadge component, About
-// section, and three configuration sections: Provider Configuration, Default Models, API Credentials.
+// Mirrors AURA-CHAT SettingsPage.tsx structure with 2-column layout.
+// Features main content (2/3) + sidebar (1/3) with system status and about section.
 
 // @see: features/settings/components/ - ProviderSettingsSection, DefaultModelSection, ApiKeyManager
-// @see: api/client.ts - checkHealth function for health endpoint polling
-// @note: Layout uses 1/3 sidebar (Status + About) + 2/3 main config columns
+// @see: api/client.ts - checkHealth function for system status monitoring
 
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -21,7 +19,7 @@ import {
     Cpu,
     Key
 } from 'lucide-react';
-import { checkHealth } from '@/api/client';
+import { checkHealth } from '../api/client';
 import { cn } from '@/lib/cn';
 import { ProviderSettingsSection } from '../features/settings/components/ProviderSettingsSection';
 import { DefaultModelSection } from '../features/settings/components/DefaultModelSection';
@@ -83,19 +81,19 @@ export function SettingsPage() {
                                         />
                                     </div>
 
-                                    {/* Neo4j Status */}
+                                    {/* Firestore Status */}
                                     <div className="flex items-start justify-between gap-4">
                                         <div className="flex items-start gap-3">
                                             <Database className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground shrink-0 mt-1 sm:mt-0.5" />
                                             <div>
-                                                <p className="font-medium text-sm sm:text-base">Neo4j Database</p>
+                                                <p className="font-medium text-sm sm:text-base">Firestore Database</p>
                                                 <p className="text-xs sm:text-sm text-muted-foreground">
-                                                    Graph database connection
+                                                    Cloud database connection
                                                 </p>
                                             </div>
                                         </div>
                                         <StatusBadge
-                                            status={healthQuery.data?.neo4j_connected ? 'connected' : 'disconnected'}
+                                            status={healthQuery.data?.services_ready ? 'connected' : 'disconnected'}
                                         />
                                     </div>
 
@@ -106,12 +104,12 @@ export function SettingsPage() {
                                             <div>
                                                 <p className="font-medium text-sm sm:text-base">Backend Services</p>
                                                 <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                                                    GraphManager, RAGEngine, DocumentProcessor
+                                                    Firestore, Redis, AudioPipeline
                                                 </p>
                                             </div>
                                         </div>
                                         <StatusBadge
-                                            status={healthQuery.data?.services_ready ? 'ready' : 'not ready'}
+                                            status={healthQuery.data?.neo4j_connected ? 'ready' : 'not ready'}
                                         />
                                     </div>
                                 </div>
@@ -121,15 +119,15 @@ export function SettingsPage() {
                             <section className="bg-card rounded-xl border border-border p-4 sm:p-6">
                                 <h2 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">About AURA</h2>
                                 <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4 leading-relaxed">
-                                    AURA (Academic Research Assistant) is an AI-powered research tool that helps you
-                                    explore and understand your document collection through knowledge graphs and
-                                    conversational AI.
+                                    AURA Notes Manager is a staff portal for managing academic content,
+                                    organizing modules, processing documents into knowledge graphs, and
+                                    publishing materials for students.
                                 </p>
                                 <div className="space-y-2.5 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Upload research papers and documents (PDF, DOCX, TXT)</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Automatic entity extraction and knowledge graph construction</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Ask questions with RAG-powered answers and citations</span></p>
-                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Visualize document relationships and concepts</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Organize departments, semesters, and modules</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Upload and manage notes and documents</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Audio-to-notes pipeline with AI transcription</span></p>
+                                    <p className="flex items-start gap-2"><span className="mt-0.5 shrink-0">•</span> <span>Knowledge graph processing and publishing</span></p>
                                 </div>
                             </section>
                         </div>

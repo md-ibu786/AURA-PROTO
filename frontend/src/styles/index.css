@@ -1,39 +1,55 @@
 /**
- * AURA Explorer - Global Styles with Tailwind CSS v4
+ * AURA Notes Manager - Global Styles with Tailwind CSS v4
  * Theme: Black + Cyber Yellow (#FFD400)
  *
- * This file combines Tailwind CSS v4 with custom AURA theme configuration.
- * Tailwind utilities are available alongside custom CSS variables for
- * component-specific theming.
+ * Uses Tailwind v4 @theme for semantic color tokens that auto-generate
+ * utility classes (bg-card, text-muted-foreground, etc.).
  */
 
 /* ===== Tailwind CSS v4 Import ===== */
 @import "tailwindcss";
 
 /* ===== Custom Theme Configuration ===== */
+/* Tailwind v4 @theme: these --color-* tokens auto-generate utility classes.
+   e.g. --color-card → bg-card, --color-muted-foreground → text-muted-foreground */
 @theme {
+  /* Base colors */
+  --color-background: #000000;
+  --color-foreground: #f2f2f2;
+
+  /* Card */
+  --color-card: #0d0d0d;
+  --color-card-foreground: #f2f2f2;
+
   /* Primary - Cyber Yellow */
   --color-primary: #FFD400;
+  --color-primary-foreground: #000000;
+
+  /* Secondary */
+  --color-secondary: #1a1a1a;
+  --color-secondary-foreground: #f2f2f2;
+
+  /* Muted */
+  --color-muted: #262626;
+  --color-muted-foreground: #a6a6a6;
+
+  /* Accent */
+  --color-accent: #FFD400;
+  --color-accent-foreground: #000000;
+
+  /* Destructive */
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #f2f2f2;
+
+  /* Borders & Inputs */
+  --color-border: #333333;
+  --color-input: #262626;
+  --color-ring: #FFD400;
+
+  /* Extended palette (custom, not auto-utility) */
   --color-primary-hover: #E6BF00;
   --color-primary-dim: rgba(255, 212, 0, 0.15);
   --color-primary-glow: rgba(255, 212, 0, 0.3);
-
-  /* Dark Backgrounds */
-  --color-bg-primary: #0a0a0a;
-  --color-bg-secondary: #111111;
-  --color-bg-tertiary: #1a1a1a;
-  --color-bg-hover: #252525;
-  --color-bg-selected: rgba(255, 212, 0, 0.12);
-  --color-bg-active: rgba(255, 212, 0, 0.08);
-
-  /* Text */
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #b0b0b0;
-  --color-text-muted: #666666;
-  --color-text-accent: #FFD400;
-
-  /* Borders */
-  --color-border: #2a2a2a;
   --color-border-light: #333333;
   --color-border-hover: #FFD400;
 
@@ -43,94 +59,42 @@
   --color-warning: #f59e0b;
   --color-info: #3b82f6;
 
+  /* Cyber Yellow palette */
+  --color-cyber-yellow-50: #FFFBEB;
+  --color-cyber-yellow-100: #FFF3C4;
+  --color-cyber-yellow-200: #FCE588;
+  --color-cyber-yellow-300: #FADB5F;
+  --color-cyber-yellow-400: #FFD400;
+  --color-cyber-yellow-500: #F0B429;
+  --color-cyber-yellow: #FFD400;
+
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 20px rgba(255, 212, 0, 0.2);
 
-  /* Spacing */
-  --spacing-xs: 4px;
-  --spacing-sm: 8px;
-  --spacing-md: 16px;
-  --spacing-lg: 24px;
-  --spacing-xl: 32px;
+  /* Fonts — Inter for clean modern UI */
+  --font-sans: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
 
-  /* Border Radius */
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-normal: 250ms ease;
-
-  /* Fonts */
-  --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
-  --font-mono: 'Consolas', 'Monaco', monospace;
-
-  /* Legacy CSS Variables for backwards compatibility */
-  --color-primary: #FFD400;
-  --color-primary-hover: #E6BF00;
-  --color-primary-dim: rgba(255, 212, 0, 0.15);
-  --color-primary-glow: rgba(255, 212, 0, 0.3);
-  --color-bg-primary: #0a0a0a;
-  --color-bg-secondary: #111111;
-  --color-bg-tertiary: #1a1a1a;
-  --color-bg-hover: #252525;
-  --color-bg-selected: rgba(255, 212, 0, 0.12);
-  --color-bg-active: rgba(255, 212, 0, 0.08);
-  --color-text-primary: #ffffff;
-  --color-text-secondary: #b0b0b0;
-  --color-text-muted: #666666;
-  --color-text-accent: #FFD400;
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
-  --color-border-hover: #FFD400;
-  --color-success: #22c55e;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-info: #3b82f6;
+  /* Custom easing */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ===== CSS Variables for Component Use ===== */
+/* ===== Legacy CSS Variables for Component Use ===== */
 :root {
-  /* Primary - Cyber Yellow */
-  --color-primary: #FFD400;
-  --color-primary-hover: #E6BF00;
-  --color-primary-dim: rgba(255, 212, 0, 0.15);
-  --color-primary-glow: rgba(255, 212, 0, 0.3);
-
-  /* Dark Backgrounds */
-  --color-bg-primary: #0a0a0a;
-  --color-bg-secondary: #111111;
+  /* Map legacy names to theme tokens for backwards compatibility */
+  --color-bg-primary: #000000;
+  --color-bg-secondary: #0d0d0d;
   --color-bg-tertiary: #1a1a1a;
   --color-bg-hover: #252525;
   --color-bg-selected: rgba(255, 212, 0, 0.12);
   --color-bg-active: rgba(255, 212, 0, 0.08);
-
-  /* Text */
   --color-text-primary: #ffffff;
   --color-text-secondary: #b0b0b0;
   --color-text-muted: #666666;
   --color-text-accent: #FFD400;
-
-  /* Borders */
-  --color-border: #2a2a2a;
-  --color-border-light: #333333;
-  --color-border-hover: #FFD400;
-
-  /* Status Colors */
-  --color-success: #22c55e;
-  --color-error: #ef4444;
-  --color-warning: #f59e0b;
-  --color-info: #3b82f6;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px rgba(255, 212, 0, 0.2);
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -148,17 +112,12 @@
   --transition-fast: 150ms ease;
   --transition-normal: 250ms ease;
 
-  /* Fonts */
-  --font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
-  --font-mono: 'Consolas', 'Monaco', monospace;
+  /* Legacy font ref */
+  --font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-/* ===== Reset & Base ===== */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ===== Base ===== */
+/* Tailwind v4 preflight handles box-sizing, margin, padding resets */
 
 html, body {
   height: 100%;
@@ -166,11 +125,9 @@ html, body {
 }
 
 body {
-  font-family: var(--font-family);
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-text-primary);
-  background-color: var(--color-bg-primary);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -181,6 +138,17 @@ body {
   flex-direction: column;
 }
 
+/* ===== Global image constraint ===== */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ===== CRITICAL: Prevent iOS Safari auto-zoom on input focus ===== */
+input, textarea, select {
+  font-size: max(16px, 1em);
+}
+
 /* ===== Scrollbar ===== */
 ::-webkit-scrollbar {
   width: 8px;
@@ -188,49 +156,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
+  background: var(--color-background);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-light);
+  background: var(--color-muted);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary-dim);
-}
-
-/* ===== Selection ===== */
-::selection {
-  background: var(--color-primary);
-  color: var(--color-bg-primary);
-}
-
-/* ===== Focus ===== */
-:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* ===== Links ===== */
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-  transition: color var(--transition-fast);
-}
-
-a:hover {
-  color: var(--color-primary-hover);
-}
-
-/* ===== Buttons ===== */
-button {
-  font-family: inherit;
-  font-size: inherit;
-  cursor: pointer;
-  border: none;
-  background: none;
-  color: inherit;
+  background: var(--color-muted-foreground);
 }
 
 /* Legacy button classes - maintained for compatibility */
@@ -247,7 +182,7 @@ button {
 
 .btn-primary {
   background: var(--color-primary);
-  color: var(--color-bg-primary);
+  color: var(--color-background);
 }
 
 .btn-primary:hover {
@@ -256,8 +191,8 @@ button {
 }
 
 .btn-secondary {
-  background: var(--color-bg-tertiary);
-  color: var(--color-text-primary);
+  background: var(--color-secondary);
+  color: var(--color-foreground);
   border: 1px solid var(--color-border);
 }
 
@@ -268,12 +203,12 @@ button {
 
 .btn-ghost {
   background: transparent;
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
 }
 
 .btn-ghost:hover {
   background: var(--color-bg-hover);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
 }
 
 .btn-icon {
@@ -281,141 +216,16 @@ button {
   border-radius: var(--radius-sm);
 }
 
-/* ===== Inputs ===== */
-input, textarea, select {
-  font-family: inherit;
-  font-size: inherit;
-  color: var(--color-text-primary);
-  background: var(--color-bg-tertiary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  transition: border-color var(--transition-fast);
-}
-
-input:focus, textarea:focus, select:focus {
-  border-color: var(--color-primary);
-  outline: none;
-}
-
-input::placeholder {
-  color: var(--color-text-muted);
-}
+/* Inputs: styled via Tailwind utilities on individual components */
 
 /* ===== Card Component (Legacy) ===== */
 .card {
-  background: var(--color-bg-secondary);
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
 }
 
-/* ===== Shadcn/UI-style Utility Classes ===== */
-/* Background colors */
-.bg-card {
-  background-color: var(--color-bg-secondary);
-}
-
-.bg-muted {
-  background-color: var(--color-bg-tertiary);
-}
-
-.bg-background {
-  background-color: var(--color-bg-primary);
-}
-
-.bg-destructive {
-  background-color: var(--color-error);
-}
-
-.bg-primary {
-  background-color: var(--color-primary);
-}
-
-/* Text colors */
-.text-foreground {
-  color: var(--color-text-primary);
-}
-
-.text-muted-foreground {
-  color: var(--color-text-secondary);
-}
-
-.text-destructive {
-  color: var(--color-error);
-}
-
-.text-destructive-foreground {
-  color: #ffffff;
-}
-
-.text-primary-foreground {
-  color: var(--color-bg-primary);
-}
-
-/* Border colors */
-.border-border {
-  border-color: var(--color-border);
-}
-
-.border-primary {
-  border-color: var(--color-primary);
-}
-
-/* Utility backgrounds with opacity */
-.bg-primary\\/10 {
-  background-color: rgba(255, 212, 0, 0.1);
-}
-
-.bg-primary\\/20 {
-  background-color: rgba(255, 212, 0, 0.2);
-}
-
-.bg-muted\\/20 {
-  background-color: rgba(26, 26, 26, 0.2);
-}
-
-.bg-muted\\/30 {
-  background-color: rgba(26, 26, 26, 0.3);
-}
-
-.bg-muted\\/50 {
-  background-color: rgba(26, 26, 26, 0.5);
-}
-
-.bg-card\\/30 {
-  background-color: rgba(17, 17, 17, 0.3);
-}
-
-.bg-card\\/50 {
-  background-color: rgba(17, 17, 17, 0.5);
-}
-
-.bg-destructive\\/10 {
-  background-color: rgba(239, 68, 68, 0.1);
-}
-
-.bg-destructive\\/20 {
-  background-color: rgba(239, 68, 68, 0.2);
-}
-
-.bg-white\\/5 {
-  background-color: rgba(255, 255, 255, 0.05);
-}
-
-.bg-white\\/10 {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.bg-background\\/50 {
-  background-color: rgba(10, 10, 10, 0.5);
-}
-
-/* Backdrop blur */
-.backdrop-blur-\\[1px\\] {
-  backdrop-filter: blur(1px);
-}
-
-/* Scrollbar utilities */
+/* ===== Scrollbar utilities ===== */
 .scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -432,6 +242,56 @@ input::placeholder {
 
 .scrollbar-track-transparent::-webkit-scrollbar-track {
   background-color: transparent;
+}
+
+/* ===== Component utility classes ===== */
+.sidebar {
+  background-color: var(--color-card);
+  border-right: 1px solid var(--color-border);
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  color: var(--color-muted-foreground);
+}
+
+.sidebar-item:hover {
+  color: var(--color-foreground);
+  background-color: var(--color-muted);
+}
+
+.sidebar-item.active {
+  background-color: rgba(255, 212, 0, 0.1);
+  color: var(--color-primary);
+  border-left: 2px solid var(--color-primary);
+}
+
+/* Card glow effect */
+.card-glow {
+  transition: box-shadow 0.3s;
+}
+
+.card-glow:hover {
+  box-shadow: 0 0 20px rgba(255, 212, 0, 0.2);
+}
+
+/* Glow utility */
+.glow {
+  box-shadow: 0 0 10px rgba(255, 212, 0, 0.2);
+}
+
+.glow-lg {
+  box-shadow: 0 0 30px rgba(255, 212, 0, 0.2);
+}
+
+/* Spring easing */
+.ease-spring {
+  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ===== Mobile Overflow Prevention ===== */
@@ -455,7 +315,7 @@ input::placeholder {
 }
 
 .modal-content {
-  background: var(--color-bg-secondary);
+  background: var(--color-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
@@ -470,7 +330,7 @@ input::placeholder {
 }
 
 .modal-subtitle {
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
   margin-bottom: var(--spacing-md);
   font-size: 0.9rem;
 }
@@ -494,28 +354,28 @@ input::placeholder {
   display: block;
   font-weight: 500;
   margin-bottom: var(--spacing-xs);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
 }
 
 .panel-subheading {
   font-size: 0.9rem;
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
   margin: var(--spacing-md) 0 var(--spacing-sm);
 }
 
 .panel-heading {
   font-size: 1rem;
   margin-bottom: var(--spacing-sm);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
 }
 
 .dept-select-modal {
   width: 100%;
   padding: var(--spacing-sm);
-  background: var(--color-bg-tertiary);
+  background: var(--color-input);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
   font-size: 0.9rem;
 }
 
@@ -556,7 +416,7 @@ input::placeholder {
 }
 
 .no-selection-msg {
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -582,13 +442,13 @@ input::placeholder {
   align-items: center;
   padding: var(--spacing-xs);
   font-size: 0.85rem;
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
 }
 
 .btn-remove {
   background: none;
   border: none;
-  color: var(--color-text-secondary);
+  color: var(--color-muted-foreground);
   cursor: pointer;
   font-size: 1rem;
   padding: 2px 6px;
@@ -597,7 +457,7 @@ input::placeholder {
 
 .btn-remove:hover {
   background: var(--color-bg-hover);
-  color: var(--color-text-primary);
+  color: var(--color-foreground);
 }
 
 /* ===== Mobile Modal Styles ===== */

@@ -7,6 +7,13 @@ import path from 'path'
 // https://vite.dev/config/
 export default defineConfig({
     plugins: [react(), tailwindcss()],
+    css: {
+        // Suppress warnings about escaped characters in Tailwind utility classes
+        // (e.g., .bg-primary\/10, .backdrop-blur-\[1px\])
+        lightningcss: {
+            unusedSymbols: [],
+        } as unknown,
+    },
     resolve: {
         alias: {
             '@': path.resolve(__dirname, './src'),
@@ -55,5 +62,8 @@ export default defineConfig({
                 'src/vite-env.d.ts',
             ],
         },
+    },
+    build: {
+        chunkSizeWarningLimit: 1200, // Suppress chunk size warning (KB)
     },
 })

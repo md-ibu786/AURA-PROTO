@@ -54,27 +54,25 @@ export function UsagePage() {
     const hasAnyData = (summaryData?.total_requests ?? 0) > 0;
 
     return (
-        <div className="min-h-screen bg-[#0A0A0A] text-foreground p-4 sm:p-6">
-            <div className="max-w-6xl mx-auto space-y-6 pb-12">
+        <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="min-h-screen bg-[#0A0A0A] text-white p-4 sm:p-6 space-y-6">
                 {/* Header */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-6">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 mb-2">
-                            <button
-                                onClick={() => navigate(-1)}
-                                className="p-2 hover:bg-white/10 rounded-full transition-colors"
-                                title="Back"
-                            >
-                                <ArrowLeft className="w-5 h-5 text-muted-foreground" />
-                            </button>
-                            <h1 className="text-xl sm:text-2xl font-bold text-white">
-                                Usage & Cost Dashboard
-                            </h1>
-                        </div>
-                        <p className="text-gray-400 text-xs sm:text-sm mt-1">
-                            Track LLM usage and estimated costs across providers
-                        </p>
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="p-2 hover:bg-white/10 rounded-full transition-colors -ml-2"
+                            title="Back"
+                        >
+                            <ArrowLeft className="w-5 h-5 text-muted-foreground" />
+                        </button>
+                        <h1 className="text-xl sm:text-2xl font-bold text-white">
+                            Usage & Cost Dashboard
+                        </h1>
                     </div>
+                    <p className="text-gray-400 text-xs sm:text-sm mt-1 sm:ml-10">
+                        Track LLM usage and estimated costs across providers
+                    </p>
                 </div>
 
                 {/* Date Range Filter */}

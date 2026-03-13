@@ -36,7 +36,7 @@ export function DefaultModelSection() {
     return (
         <div className="space-y-8">
             {USE_CASES.map(useCase => (
-                <UseCaseSection 
+                <UseCaseSection
                     key={useCase.id}
                     useCase={useCase}
                     currentValue={defaults?.[useCase.id]?.model || ''}
