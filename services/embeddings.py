@@ -1,12 +1,36 @@
-# embeddings.py
-# Embedding service façade backed by the shared model router.
+"""
+============================================================================
+FILE: embeddings.py
+LOCATION: services/embeddings.py
+============================================================================
 
-# Preserves NOTES batching, retry, rate limiting, and convenience helpers while
-# delegating the actual embedding request to model_router. This keeps existing
-# kg_processor and service call sites unchanged while removing SDK imports.
+PURPOSE:
+    Embedding service façade backed by the shared model router with batching,
+    retry logic, rate limiting, and convenience helpers for generating text embeddings.
 
-# @see: api/kg_processor.py
-# @note: Embeddings remain locked to Vertex AI through model_router.
+ROLE IN PROJECT:
+    Central service for generating embeddings used by knowledge graph processing
+    and entity deduplication. Delegates actual requests to model_router while
+    preserving existing API contracts for backward compatibility.
+    - Key responsibility 1: Batch embedding generation with retry logic
+    - Key responsibility 2: Rate limiting and error handling for embedding requests
+
+KEY COMPONENTS:
+    - EmbeddingService: Main class for embedding generation with caching
+    - batch_embed: Batch processing with configurable batch size
+    - embed: Single text embedding with retry logic
+    - cosine_similarity: Utility for computing similarity between embeddings
+
+DEPENDENCIES:
+    - External: model_router (internal router for Vertex AI)
+    - Internal: None (standalone service)
+
+USAGE:
+    from services.embeddings import EmbeddingService
+    service = EmbeddingService()
+    embedding = service.embed("text to embed")
+============================================================================
+"""
 
 from __future__ import annotations
 

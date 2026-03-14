@@ -1,11 +1,36 @@
-// SettingsPage.tsx
-// Admin settings page with provider configuration, default models, API credentials, and system status
-
-// Mirrors AURA-CHAT SettingsPage.tsx structure with 2-column layout.
-// Features main content (2/3) + sidebar (1/3) with system status and about section.
-
-// @see: features/settings/components/ - ProviderSettingsSection, DefaultModelSection, ApiKeyManager
-// @see: api/client.ts - checkHealth function for system status monitoring
+/**
+ * ============================================================================
+ * FILE: SettingsPage.tsx
+ * LOCATION: frontend/src/pages/SettingsPage.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Admin settings page for configuring AURA-NOTES-MANAGER system settings,
+ *    provider configurations, and monitoring system health status.
+ *
+ * ROLE IN PROJECT:
+ *    Central configuration hub for administrators to:
+ *    - Configure AI provider settings (Vertex AI, OpenRouter, Ollama)
+ *    - Set default models for different use cases (chat, embeddings, entity extraction)
+ *    - Manage API keys for external providers
+ *    - Monitor system health and service statuses
+ *    - View real-time status of connected services
+ *
+ * KEY COMPONENTS:
+ *    - ProviderSettingsSection: Provider status and model count cards
+ *    - DefaultModelSection: Default model selection per use case
+ *    - ApiKeyManager: API key storage and validation
+ *    - StatusBadge: Service health indicator component
+ *
+ * DEPENDENCIES:
+ *    - External: @tanstack/react-query, lucide-react
+ *    - Internal: api/client, features/settings/components/*, lib/cn,
+ *                components/layout/AdminHeader
+ *
+ * USAGE:
+ *    Route: /settings (protected, admin-only)
+ * ============================================================================
+ */
 
 import { useQuery } from '@tanstack/react-query';
 import {

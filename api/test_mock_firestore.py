@@ -1,3 +1,40 @@
+"""
+============================================================================
+FILE: test_mock_firestore.py
+LOCATION: api/test_mock_firestore.py
+============================================================================
+
+PURPOSE:
+    Unit tests for the mock Firestore client implementation.
+    Validates CRUD operations, querying, and authentication mocking.
+
+ROLE IN PROJECT:
+    Testing infrastructure for Firestore-dependent components.
+    - Ensures mock Firestore behaves like real Firestore
+    - Tests document set/get/update operations
+    - Validates query filtering and collection groups
+    - Verifies mock authentication token handling
+
+KEY COMPONENTS:
+    - test_document_set_and_get: Basic CRUD operations
+    - test_document_update: Partial document updates
+    - test_query_where_equals: Filtered queries
+    - test_collection_group: Subcollection queries
+    - test_mock_auth_verify_token: JWT token validation mocking
+
+DEPENDENCIES:
+    - External: pytest, json
+    - Internal: mock_firestore (MockFirestoreClient, MockAuth)
+
+USAGE:
+    Run from project root with pytest:
+        pytest api/test_mock_firestore.py -v
+
+    Or run all api tests:
+        pytest api/ -v
+============================================================================
+"""
+
 import json
 
 import pytest
@@ -15,11 +52,7 @@ def db(tmp_path):
 def test_document_set_and_get(db):
     doc_ref = db.collection("test_collection").document("test_doc_1")
 
-    test_data = {
-        "name": "Test Document",
-        "value": 42,
-        "active": True
-    }
+    test_data = {"name": "Test Document", "value": 42, "active": True}
 
     doc_ref.set(test_data)
     doc_snapshot = doc_ref.get()
@@ -38,11 +71,7 @@ def test_document_update(db):
     doc_ref.update({"count": 2, "updated": True})
 
     doc_snapshot = doc_ref.get()
-    assert doc_snapshot.to_dict() == {
-        "name": "Original",
-        "count": 2,
-        "updated": True
-    }
+    assert doc_snapshot.to_dict() == {"name": "Original", "count": 2, "updated": True}
 
 
 def test_query_where_equals(db):

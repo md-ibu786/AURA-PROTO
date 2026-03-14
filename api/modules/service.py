@@ -1,34 +1,33 @@
-# service.py
-# =========================
-#
-# Business logic for M2KG Module CRUD operations with Firestore.
-# Provides ModuleService class that handles all module data operations.
-# Modules are stored in Firestore 'm2kg_modules' collection with ID format:
-# {code}_{year}_S{semester} (e.g., CS201_2026_S1)
-#
-# Features:
-# ----------
-# - Deterministic module ID generation
-# - Full CRUD operations with pagination
-# - Soft delete via status archival
-# - Document count tracking
-# - Published status management
-#
-# Classes/Functions:
-# ------------------
-# - ModuleService: Main service class for module CRUD operations
-# - create(): Create new module with generated ID
-# - get_by_id(): Retrieve module by ID
-# - list(): List modules with filters and pagination
-# - update(): Update module fields
-# - delete(): Soft delete (archive) module
-# - increment_document_count(): Track document assignments
-# - publish(): Publish module for student access
-#
-# @see: models.py - Pydantic schemas used by this service
-# @see: router.py - FastAPI endpoints that call this service
-# @note: Uses sync Firestore client, but methods follow async pattern for future flexibility
-# @note: Uses 'm2kg_modules' collection to avoid collision with hierarchy modules
+"""
+============================================================================
+FILE: service.py
+LOCATION: api/modules/service.py
+============================================================================
+
+PURPOSE:
+    Business logic layer for M2KG Module CRUD operations with Firestore,
+    providing ModuleService class that handles all module data operations.
+
+ROLE IN PROJECT:
+    Core service for module management stored in Firestore 'm2kg_modules'
+    collection. Handles deterministic ID generation and module lifecycle.
+    - Key responsibility 1: Full CRUD operations with pagination
+    - Key responsibility 2: Soft delete via status archival and document tracking
+
+KEY COMPONENTS:
+    - ModuleService: Main service class for module CRUD operations
+    - create(), get_by_id(), list(), update(), delete(): CRUD methods
+    - increment_document_count(): Track document assignments
+    - publish(): Publish module for student access
+
+DEPENDENCIES:
+    - External: google.cloud.firestore
+    - Internal: .models, config
+
+USAGE:
+    Used by router.py. Instantiated via dependency injection.
+============================================================================
+"""
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
@@ -61,26 +60,28 @@ class ModuleService:
     def create(self, user_id: str, module_data: ModuleCreate) -> Dict[str, Any]:
         """
         Create a new module.
-        
+
         Args:
             user_id: ID of staff user creating the module
             module_data: Module creation data
-            
+
         Returns:
             Created module document as dict
-            
+
         Raises:
             ValueError: If module with same ID already exists
         """
         # Generate deterministic module ID
-        module_id = f"{module_data.code.upper()}_{module_data.year}_S{module_data.semester}"
-        
+        module_id = (
+            f"{module_data.code.upper()}_{module_data.year}_S{module_data.semester}"
+        )
+
         doc_ref = self.collection.document(module_id)
-        
+
         # Check if already exists
         if doc_ref.get().exists:
             raise ValueError(f"Module with ID '{module_id}' already exists")
-        
+
         now = datetime.utcnow()
         module_doc = {
             "id": module_id,
@@ -93,32 +94,32 @@ class ModuleService:
             "document_count": 0,
             "created_by": user_id,
             "created_at": now,
-            "updated_at": now
+            "updated_at": now,
         }
-        
+
         doc_ref.set(module_doc)
         return module_doc
 
     def get_by_id(self, module_id: str) -> Optional[Dict[str, Any]]:
         """
         Get module by ID.
-        
+
         Args:
             module_id: Module ID (e.g., CS201_2026_S1)
-            
+
         Returns:
             Module document as dict, or None if not found
         """
         doc = self.collection.document(module_id).get()
         if not doc.exists:
             return None
-        
+
         data = doc.to_dict()
         # Convert Firestore Timestamps to datetime
-        if hasattr(data.get('created_at'), 'timestamp'):
-            data['created_at'] = data['created_at'].timestamp()
-        if hasattr(data.get('updated_at'), 'timestamp'):
-            data['updated_at'] = data['updated_at'].timestamp()
+        if hasattr(data.get("created_at"), "timestamp"):
+            data["created_at"] = data["created_at"].timestamp()
+        if hasattr(data.get("updated_at"), "timestamp"):
+            data["updated_at"] = data["updated_at"].timestamp()
         return data
 
     def list(
@@ -127,18 +128,18 @@ class ModuleService:
         status: Optional[ModuleStatus] = None,
         year: Optional[int] = None,
         page: int = 1,
-        page_size: int = 20
+        page_size: int = 20,
     ) -> Dict[str, Any]:
         """
         List modules with filters and pagination.
-        
+
         Args:
             user_id: Filter by creator (optional)
             status: Filter by status (optional)
             year: Filter by year (optional)
             page: Page number (1-indexed)
             page_size: Items per page
-            
+
         Returns:
             Dict with modules list, total, page, page_size
         """
@@ -161,13 +162,13 @@ class ModuleService:
 
         # Apply pagination
         offset = (page - 1) * page_size
-        paginated_docs = all_docs[offset:offset + page_size]
+        paginated_docs = all_docs[offset : offset + page_size]
 
         modules = []
         for doc in paginated_docs:
             data = doc.to_dict()
             # Ensure datetime serialization
-            if hasattr(data.get('created_at'), 'isoformat'):
+            if hasattr(data.get("created_at"), "isoformat"):
                 pass  # Already datetime
             modules.append(data)
 
@@ -175,17 +176,19 @@ class ModuleService:
             "modules": modules,
             "total": total,
             "page": page,
-            "page_size": page_size
+            "page_size": page_size,
         }
 
-    def update(self, module_id: str, update_data: ModuleUpdate) -> Optional[Dict[str, Any]]:
+    def update(
+        self, module_id: str, update_data: ModuleUpdate
+    ) -> Optional[Dict[str, Any]]:
         """
         Update module fields.
-        
+
         Args:
             module_id: Module ID to update
             update_data: Fields to update
-            
+
         Returns:
             Updated module dict, or None if not found
         """
@@ -203,11 +206,11 @@ class ModuleService:
             update_fields["description"] = update_data.description
         if update_data.status is not None:
             update_fields["status"] = update_data.status.value
-        
+
         if not update_fields:
             # Nothing to update, return current state
             return doc.to_dict()
-            
+
         update_fields["updated_at"] = datetime.utcnow()
 
         doc_ref.update(update_fields)
@@ -216,10 +219,10 @@ class ModuleService:
     def delete(self, module_id: str) -> bool:
         """
         Soft delete module by archiving.
-        
+
         Args:
             module_id: Module ID to delete
-            
+
         Returns:
             True if deleted, False if not found
         """
@@ -229,22 +232,21 @@ class ModuleService:
         if not doc.exists:
             return False
 
-        doc_ref.update({
-            "status": ModuleStatus.ARCHIVED.value,
-            "updated_at": datetime.utcnow()
-        })
+        doc_ref.update(
+            {"status": ModuleStatus.ARCHIVED.value, "updated_at": datetime.utcnow()}
+        )
         return True
 
     def increment_document_count(self, module_id: str, delta: int = 1) -> bool:
         """
         Increment or decrement document count for module.
-        
+
         Called when documents are assigned/removed from module.
-        
+
         Args:
             module_id: Module ID
             delta: Amount to change (positive or negative)
-            
+
         Returns:
             True if updated, False if module not found
         """
@@ -256,20 +258,17 @@ class ModuleService:
 
         current_count = doc.to_dict().get("document_count", 0)
         new_count = max(0, current_count + delta)  # Prevent negative counts
-        
-        doc_ref.update({
-            "document_count": new_count,
-            "updated_at": datetime.utcnow()
-        })
+
+        doc_ref.update({"document_count": new_count, "updated_at": datetime.utcnow()})
         return True
 
     def publish(self, module_id: str) -> Optional[Dict[str, Any]]:
         """
         Publish a module (change status from draft to published).
-        
+
         Args:
             module_id: Module ID to publish
-            
+
         Returns:
             Updated module dict, or None if not found
         """
@@ -280,9 +279,11 @@ class ModuleService:
             return None
 
         now = datetime.utcnow()
-        doc_ref.update({
-            "status": ModuleStatus.PUBLISHED.value,
-            "published_at": now,
-            "updated_at": now
-        })
+        doc_ref.update(
+            {
+                "status": ModuleStatus.PUBLISHED.value,
+                "published_at": now,
+                "updated_at": now,
+            }
+        )
         return doc_ref.get().to_dict()

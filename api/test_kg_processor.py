@@ -1,15 +1,40 @@
-# test_kg_processor.py
-# Integration test for KnowledgeGraphProcessor with Phase 2 services
+"""
+============================================================================
+FILE: test_kg_processor.py
+LOCATION: api/test_kg_processor.py
+============================================================================
 
-# Tests basic processing flow including:
-# - Entity-aware chunking
-# - Embedding generation (mocked in test mode)
-# - Entity extraction (mocked in test mode)
+PURPOSE:
+    Integration test for KnowledgeGraphProcessor with Phase 2 services.
+    Tests the complete document processing flow including chunking,
+    embedding generation, and entity extraction.
 
-# @see: kg_processor.py - Main processor implementation
-# @note: Run with Neo4j running or set AURA_TEST_MODE=true
+ROLE IN PROJECT:
+    Validates Phase 2 AI Enablement integration in the knowledge graph pipeline.
+    - Tests entity-aware chunking functionality
+    - Validates embedding service integration
+    - Verifies LLM entity extractor usage
+    - Confirms document-to-KG conversion pipeline
 
-"""Test KnowledgeGraphProcessor integration with Phase 2 services."""
+KEY COMPONENTS:
+    - test_imports: Validates Phase 2 service imports work correctly
+    - test_chunker_integration: Tests EntityAwareChunker with sample documents
+    - test_kg_processor_initialization: Verifies processor setup with services
+    - test_document_processing: End-to-end document processing test
+
+DEPENDENCIES:
+    - External: pytest, asyncio, os, sys
+    - Internal: api.kg_processor, services.entity_aware_chunker,
+                services.llm_entity_extractor, services.embeddings
+
+USAGE:
+    Run with Neo4j running:
+        pytest api/test_kg_processor.py -v
+
+    Run in test mode (mocks external calls):
+        AURA_TEST_MODE=true pytest api/test_kg_processor.py -v
+============================================================================
+"""
 
 import os
 import sys

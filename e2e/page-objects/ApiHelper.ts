@@ -3,9 +3,36 @@ import { APIRequestContext, expect } from '@playwright/test';
 const API_BASE = 'http://127.0.0.1:8001';
 
 /**
- * API Helper
- * Provides programmatic access to API for test setup/teardown
- * All methods include validation and error handling
+ * ============================================================================
+ * FILE: ApiHelper.ts
+ * LOCATION: e2e/page-objects/ApiHelper.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Programmatic API client for E2E test setup, teardown, and assertions.
+ *    Provides typed methods for all backend CRUD operations.
+ *
+ * ROLE IN PROJECT:
+ *    Core helper class used by all E2E tests to interact with the backend API.
+ *    Handles authentication, data creation, cleanup, and validation with
+ *    built-in error handling and retry logic.
+ *
+ * KEY COMPONENTS:
+ *    - CRUD operations: create, read, update, delete for all entity types
+ *    - Hierarchy management: createTestHierarchy, cleanupHierarchy utilities
+ *    - Audio processing: uploadDocument, startAudioPipeline, getPipelineStatus
+ *    - Explorer API: getExplorerTree, getExplorerChildren, moveNode
+ *    - Utilities: findNodeByLabel, waitForNoteProcessing, retry logic
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test (APIRequestContext, expect)
+ *    - Internal: None
+ *
+ * USAGE:
+ *    const api = new ApiHelper(request);
+ *    const deptId = await api.createDepartment('CS', 'CS101');
+ *    await api.deleteDepartment(deptId);
+ * ============================================================================
  */
 export class ApiHelper {
     readonly request: APIRequestContext;

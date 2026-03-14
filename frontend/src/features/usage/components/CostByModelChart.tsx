@@ -1,12 +1,30 @@
-// CostByModelChart.tsx
-// Horizontal bar chart displaying cost breakdown by LLM model
-
-// Renders a Recharts horizontal BarChart with Cyber Yellow (#FFD400) bars.
-// Shows top 10 models sorted by cost descending. Dynamic height scales
-// with the number of models displayed.
-
-// @see: types/usage.ts - ModelCost type definition
-// @note: Model names are truncated on the Y-axis to prevent overflow
+/**
+ * ============================================================================
+ * FILE: CostByModelChart.tsx
+ * LOCATION: frontend/src/features/usage/components/CostByModelChart.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Horizontal bar chart displaying cost breakdown by LLM model.
+ *
+ * ROLE IN PROJECT:
+ *    Renders a Recharts horizontal BarChart with Cyber Yellow (#FFD400) bars.
+ *    Shows top 10 models sorted by cost descending. Dynamic height scales
+ *    with the number of models displayed. Model names are truncated on
+ *    Y-axis to prevent overflow in the usage dashboard.
+ *
+ * KEY COMPONENTS:
+ *    - CostByModelChart: Horizontal bar chart for model cost comparison
+ *    - CostByModelChartProps: Interface for component props
+ *
+ * DEPENDENCIES:
+ *    - External: recharts
+ *    - Internal: @/types/usage
+ *
+ * USAGE:
+ *    <CostByModelChart data={modelCosts} />
+ * ============================================================================
+ */
 
 import {
     BarChart,

@@ -1,14 +1,35 @@
-# processor.py
-# Unified multimodal document processor for KG pipeline integration
+"""
+============================================================================
+FILE: processor.py
+LOCATION: services/multimodal/processor.py
+============================================================================
 
-# Provides a single entry point for processing any multimodal content into
-# KG-ready format. Coordinates audio transcription, OCR text extraction,
-# and image/diagram analysis services to produce unified documents ready
-# for entity extraction and knowledge graph ingestion.
+PURPOSE:
+    Unified multimodal document processor that coordinates audio, OCR, and
+    image processing into KG-ready documents for the knowledge graph pipeline.
 
-# @see: audio.py, ocr.py, image.py - Individual service implementations
-# @see: config.py - MultimodalConfig for provider settings
-# @note: Methods raise NotImplementedError - full implementation in future phase
+ROLE IN PROJECT:
+    Main entry point for processing multimodal content in AURA-NOTES-MANAGER.
+    - Coordinates audio transcription, OCR text extraction, and image analysis
+    - Produces unified documents ready for entity extraction and KG ingestion
+    - Supports mixed content types with automatic detection
+
+KEY COMPONENTS:
+    - ContentType: Enum for content type detection
+    - ProcessingOptions: Configuration for processing behavior
+    - MultimodalDocumentProcessor: Main processor coordinating all services
+    - DocumentSection: Individual section within a multimodal document
+
+DEPENDENCIES:
+    - External: datetime, enum, typing, pydantic
+    - Internal: .audio, .config, .image, .ocr
+
+USAGE:
+    from services.multimodal import MultimodalDocumentProcessor
+    processor = MultimodalDocumentProcessor(config)
+    result = await processor.process_document(file_path)
+============================================================================
+"""
 
 from datetime import datetime
 from enum import Enum

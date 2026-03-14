@@ -1,14 +1,44 @@
-# feedback_manager.py
-# Service for storing and retrieving user feedback in Neo4j
+"""
+============================================================================
+FILE: feedback_manager.py
+LOCATION: api/feedback_manager.py
+============================================================================
 
-# Manages persistence of user feedback on search results and answers to enable
-# continuous improvement of the RAG system. Stores feedback as Feedback nodes
-# in Neo4j with relationships to the rated content. Supports analytics queries
-# for identifying low-quality content and tracking system performance.
+PURPOSE:
+    Service for storing and retrieving user feedback in Neo4j.
+    Manages persistence of user feedback on search results and answers
+    to enable continuous improvement of the RAG system.
 
-# @see: api/schemas/feedback.py - Feedback schema definitions
-# @see: api/routers/query.py - Feedback API endpoints
-# @note: Feedback nodes are linked to results via FEEDBACK_FOR relationships
+ROLE IN PROJECT:
+    Core feedback collection and analytics component.
+    - Stores explicit feedback (ratings, comments) on search results
+    - Records implicit feedback (clicks, dwell time)
+    - Tracks answer quality ratings
+    - Provides analytics for identifying low-quality content
+    - Links feedback to knowledge graph entities via relationships
+
+KEY COMPONENTS:
+    - FeedbackManager: Main service class for feedback operations
+    - submit_result_feedback: Store feedback on search result relevance
+    - submit_answer_feedback: Store feedback on generated answers
+    - record_implicit_feedback: Track user interactions
+    - get_feedback_stats: Aggregate feedback analytics
+    - get_low_quality_results: Identify poorly-rated content
+
+DEPENDENCIES:
+    - External: neo4j, logging, uuid, datetime
+    - Internal: api.schemas.feedback (Feedback types)
+
+USAGE:
+    from api.feedback_manager import FeedbackManager
+    from api.neo4j_config import neo4j_driver
+
+    manager = FeedbackManager(neo4j_driver)
+    feedback_id = await manager.submit_result_feedback(
+        ResultFeedback(query="...", result_id="...", relevance_score=0.9)
+    )
+============================================================================
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,33 @@
 /**
+ * ============================================================================
+ * FILE: WarningDialog.test.tsx
+ * LOCATION: frontend/src/components/ui/WarningDialog.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Unit tests for WarningDialog UI component.
+ *
+ * ROLE IN PROJECT:
+ *    Tests WarningDialog component rendering, visibility states, and
+ *    user interactions. Verifies correct behavior for open/close states,
+ *    message display, and store state synchronization using Vitest
+ *    and React Testing Library.
+ *
+ * KEY COMPONENTS:
+ *    - WarningDialog tests: Component unit test suite
+ *    - WarningDialog: UI component under test
+ *    - useExplorerStore: Store for dialog state management
+ *
+ * DEPENDENCIES:
+ *    - External: @testing-library/react, vitest, lucide-react
+ *    - Internal: @/components/ui/WarningDialog, @/stores
+ *
+ * USAGE:
+ *    npm test -- WarningDialog.test.tsx
+ * ============================================================================
+ */
+
+/**
  * @vitest-environment jsdom
  */
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';

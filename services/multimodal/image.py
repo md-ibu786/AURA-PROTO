@@ -1,14 +1,34 @@
-# image.py
-# Image extraction service for diagrams and figures from documents
+"""
+============================================================================
+FILE: image.py
+LOCATION: services/multimodal/image.py
+============================================================================
 
-# Extracts and analyzes images/diagrams from documents using PyMuPDF for
-# extraction and Gemini Vision for description generation. Supports diagram
-# classification (flowchart, chart, table, etc.) and produces KG-ready
-# images with embeddings for multimodal search capabilities.
+PURPOSE:
+    Image extraction service for extracting and analyzing diagrams and figures
+    from documents using PyMuPDF and Gemini Vision.
 
-# @see: base.py - ImageProcessor abstract base class
-# @see: config.py - MultimodalConfig for provider settings
-# @note: Methods raise NotImplementedError - full implementation in future phase
+ROLE IN PROJECT:
+    Part of the multimodal processing pipeline for AURA-NOTES-MANAGER.
+    - Extracts images/diagrams from PDF documents
+    - Generates AI descriptions using Gemini Vision
+    - Produces KG-ready images with embeddings for multimodal search
+
+KEY COMPONENTS:
+    - KGReadyImage: Image prepared for KG as visual content node
+    - ImageExtractionService: Main service for extraction and analysis
+    - DiagramInfo: Classification and metadata for diagram types
+
+DEPENDENCIES:
+    - External: datetime, typing, pydantic
+    - Internal: .base (ImageProcessor, ProcessConfig, ProcessResult)
+
+USAGE:
+    from services.multimodal import ImageExtractionService
+    image_service = ImageExtractionService(config)
+    images = await image_service.extract_images(document_path)
+============================================================================
+"""
 
 from datetime import datetime
 from typing import Any, List, Optional, Tuple, Union

@@ -1,9 +1,32 @@
-// useModelList.ts
-// Pure function to group models and hook to use them
-
-// Provides groupModelsByProvider to convert flat model lists into 
-// provider/vendor hierarchies for UI selection.
-
+/**
+ * ============================================================================
+ * FILE: useModelList.ts
+ * LOCATION: frontend/src/features/settings/hooks/useModelList.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Pure function to group models and React hook to use them
+ *
+ * ROLE IN PROJECT:
+ *    Provides groupModelsByProvider function to convert flat model lists into
+ *    hierarchical provider/vendor structures for UI selection components.
+ *    Also exports a convenience hook useGroupedModels for React components
+ *
+ * KEY COMPONENTS:
+ *    - groupModelsByProvider: Pure function grouping models hierarchically
+ *    - useGroupedModels: React hook returning grouped models
+ *    - PROVIDER_LABELS: Display names for each provider type
+ *    - KNOWN_VENDORS: Mapping of vendor IDs to display labels
+ *
+ * DEPENDENCIES:
+ *    - External: react (useMemo)
+ *    - Internal: @/types/settings
+ *
+ * USAGE:
+ *    const grouped = groupModelsByProvider(models);
+ *    const grouped = useGroupedModels(models);
+ * ============================================================================
+ */
 import { useMemo } from 'react';
 import type { ModelInfo, ModelGroup, VendorGroup, ProviderType } from '@/types/settings';
 

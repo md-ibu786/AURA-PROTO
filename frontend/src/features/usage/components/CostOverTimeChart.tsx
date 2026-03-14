@@ -1,12 +1,30 @@
-// CostOverTimeChart.tsx
-// Area chart displaying daily cost trends over a selected time period
-
-// Renders a Recharts AreaChart with Cyber Yellow (#FFD400) theming
-// on a dark background. Shows "No data available" when data is empty.
-// Uses ResponsiveContainer for automatic width/height adaptation.
-
-// @see: types/usage.ts - DailyCost type definition
-// @note: Y-axis formats values as USD currency
+/**
+ * ============================================================================
+ * FILE: CostOverTimeChart.tsx
+ * LOCATION: frontend/src/features/usage/components/CostOverTimeChart.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Area chart displaying daily cost trends over a selected time period.
+ *
+ * ROLE IN PROJECT:
+ *    Renders a Recharts AreaChart with Cyber Yellow (#FFD400) theming
+ *    on a dark background. Shows "No data available" when data is empty.
+ *    Uses ResponsiveContainer for automatic width/height adaptation on
+ *    the usage dashboard.
+ *
+ * KEY COMPONENTS:
+ *    - CostOverTimeChart: Area chart component for cost visualization
+ *    - CostOverTimeChartProps: Interface for component props
+ *
+ * DEPENDENCIES:
+ *    - External: recharts
+ *    - Internal: @/types/usage
+ *
+ * USAGE:
+ *    <CostOverTimeChart data={dailyCosts} />
+ * ============================================================================
+ */
 
 import {
     AreaChart,

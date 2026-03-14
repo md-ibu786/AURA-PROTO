@@ -1,5 +1,36 @@
-// ApiKeyManager.tsx
-// Manages API keys for providers that require them
+/**
+ * ============================================================================
+ * FILE: ApiKeyManager.tsx
+ * LOCATION: frontend/src/features/settings/components/ApiKeyManager.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Component for managing API keys for AI providers that require authentication.
+ *    Supports storing, validating, and deleting API keys securely.
+ *
+ * ROLE IN PROJECT:
+ *    Part of the settings configuration system:
+ *    - Displays API key status for each provider (configured/not configured)
+ *    - Allows secure storage of API keys (masked display)
+ *    - Provides key validation against provider APIs
+ *    - Supports key deletion with confirmation
+ *    - Handles loading and error states gracefully
+ *
+ * KEY COMPONENTS:
+ *    - ApiKeyManager: Main container component rendering provider key cards
+ *    - ProviderKeyCard: Individual provider card with key management UI
+ *    - PROVIDERS: Configuration array for supported providers
+ *    - useApiKeyStatus, useStoreApiKey, useDeleteApiKey, useValidateApiKey: Custom hooks
+ *
+ * DEPENDENCIES:
+ *    - External: react, lucide-react
+ *    - Internal: features/settings/hooks/useSettingsApi, lib/cn, types/settings
+ *
+ * USAGE:
+ *    <ApiKeyManager />
+ *    Used within SettingsPage for API key management section
+ * ============================================================================
+ */
 
 import React, { useState } from 'react';
 import { 

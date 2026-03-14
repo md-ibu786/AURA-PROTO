@@ -1,12 +1,38 @@
-# verify_neo4j_data.py
-# Standalone verification script for Neo4j knowledge graph data
-#
-# Validates stored documents, chunks, entities, and relationships after
-# document processing. Provides statistics, recent document summaries,
-# document-specific diagnostics, and data quality checks.
-#
-# @see: api/config.py - Neo4j connection configuration
-# @note: Uses Document.id and HAS_CHUNK/CONTAINS_ENTITY relationships
+"""
+============================================================================
+FILE: verify_neo4j_data.py
+LOCATION: api/verify_neo4j_data.py
+============================================================================
+
+PURPOSE:
+    Standalone verification script for Neo4j knowledge graph data.
+    Validates stored documents, chunks, entities, and relationships
+    after document processing pipeline execution.
+
+ROLE IN PROJECT:
+    Diagnostic and validation tool for knowledge graph data quality.
+    Provides insights into processed data and identifies issues.
+    - Displays statistics on documents, chunks, and entities
+    - Shows recent document summaries for quick review
+    - Runs data quality checks on relationships and properties
+
+KEY COMPONENTS:
+    - verify_connection: Tests Neo4j database connectivity
+    - get_statistics: Retrieves counts of all node and relationship types
+    - get_recent_documents: Lists recently processed documents
+    - diagnose_document: Deep inspection of specific document data
+    - check_data_quality: Validates relationship integrity and constraints
+
+DEPENDENCIES:
+    - External: neo4j (GraphDatabase), dotenv, argparse, pathlib
+    - Internal: None
+
+USAGE:
+    python api/verify_neo4j_data.py
+    python api/verify_neo4j_data.py --document-id <doc_id>
+    python api/verify_neo4j_data.py --stats-only
+============================================================================
+"""
 
 from __future__ import annotations
 

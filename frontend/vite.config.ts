@@ -1,4 +1,32 @@
 /// <reference types="vitest/config" />
+/**
+ * ============================================================================
+ * FILE: vite.config.ts
+ * LOCATION: frontend/vite.config.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Vite configuration with React, Tailwind CSS, and API proxy setup
+ *
+ * ROLE IN PROJECT:
+ *    Configures the frontend build tool with plugins, path aliases, and
+ *    development server settings. Proxies API requests to backend on port 8001
+ *
+ * KEY COMPONENTS:
+ *    - React plugin: JSX/TSX transformation and HMR
+ *    - TailwindCSS plugin: JIT compilation of utility classes
+ *    - Path alias @: Maps to src/ directory
+ *    - Proxy: Routes /api and /chat-api to backend server
+ *
+ * DEPENDENCIES:
+ *    - External: vite, @vitejs/plugin-react, @tailwindcss/vite
+ *    - Internal: None
+ *
+ * USAGE:
+ *    npm run dev     - Start dev server on port 5174
+ *    npm run build   - Production build
+ * ============================================================================
+ */
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'

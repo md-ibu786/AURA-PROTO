@@ -1,24 +1,33 @@
-# chunking_utils.py
-# Reusable text chunking utilities for KG processing
-
-# Utility functions for token counting, sentence splitting, and text chunking.
-# Uses tiktoken for accurate GPT-4 compatible token counting.
-# Stateless module - no dependencies on Neo4j or embedding services.
-
-# @see: api/kg_processor.py - Main consumer of these utilities
-# @note: Falls back to whitespace tokenization if tiktoken unavailable
-
 """
-Text chunking utilities for AURA-NOTES-MANAGER knowledge graph processing.
+============================================================================
+FILE: chunking_utils.py
+LOCATION: services/chunking_utils.py
+============================================================================
 
-Provides stateless utility functions for:
-- Token counting (tiktoken with cl100k_base encoding)
-- Sentence splitting with abbreviation handling
-- Token-aware text chunking with overlap
-- Text normalization (whitespace, unicode)
+PURPOSE:
+    Reusable text chunking utilities for knowledge graph processing.
+    Provides token counting, sentence splitting, and text chunking functions.
 
-Ported from AURA-CHAT/backend/document_processor.py for consistency across
-both applications in the AURA monorepo.
+ROLE IN PROJECT:
+    Stateless utility module used by the KG pipeline for document processing.
+    - Token counting with tiktoken for GPT-4 compatible counting
+    - Sentence-aware text chunking with configurable overlap
+    - Text normalization (whitespace, unicode handling)
+
+KEY COMPONENTS:
+    - count_tokens(): Count tokens using tiktoken encoding
+    - chunk_text(): Split text into chunks with sentence boundary awareness
+    - split_sentences(): Split text into sentences with abbreviation handling
+
+DEPENDENCIES:
+    - External: typing, re, unicodedata, tiktoken (optional)
+    - Internal: None (stateless utility module)
+
+USAGE:
+    from services.chunking_utils import count_tokens, chunk_text
+    token_count = count_tokens(text)
+    chunks = chunk_text(text, max_tokens=512, overlap_tokens=50)
+============================================================================
 """
 
 from typing import List, Optional

@@ -1,21 +1,30 @@
 /**
- * Components Index
- * ========================
+ * ============================================================================
+ * FILE: index.ts
+ * LOCATION: frontend/src/components/explorer/index.ts
+ * ============================================================================
  *
- * Barrel export module for explorer components.
- * Re-exports all explorer UI components for convenient imports.
+ * PURPOSE:
+ *    Barrel export module for all explorer-related UI components
  *
- * Components:
- * -----------
- * - SidebarTree: Recursive tree navigation
- * - GridView: Icon grid view for folder contents
- * - ListView: Table list view for folder contents
- * - ContextMenu: Right-click context menu
- * - UploadDialog: Audio/document upload modal
+ * ROLE IN PROJECT:
+ *    Centralizes exports for explorer view components including tree navigation,
+ *    grid/list views, context menus, and file upload dialogs
  *
- * @see: explorer/SidebarTree.tsx - Tree navigation component
- * @see: explorer/GridView.tsx - Grid view component
- * @see: explorer/ContextMenu.tsx - Context menu component
+ * KEY COMPONENTS:
+ *    - SidebarTree: Recursive tree navigation for hierarchy
+ *    - GridView: Icon-based grid display for folder contents
+ *    - ListView: Table-based list display for folder contents
+ *    - ContextMenu: Right-click context menu for file operations
+ *    - UploadDialog: Modal for audio and document uploads
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ./SidebarTree, ./GridView, ./ListView, ./ContextMenu, ./UploadDialog
+ *
+ * USAGE:
+ *    import { SidebarTree, GridView, ListView } from '@/components/explorer';
+ * ============================================================================
  */
 export { SidebarTree } from './SidebarTree';
 export { GridView } from './GridView';

@@ -1,15 +1,33 @@
-# usage.py
-# Usage query API endpoints for the AURA-NOTES-MANAGER application.
+"""
+============================================================================
+FILE: usage.py
+LOCATION: api/routers/usage.py
+============================================================================
 
-# Exposes REST endpoints for querying aggregated usage data including
-# cost summaries, per-session breakdowns, and provider/model/daily
-# drill-downs. Wires into the shared UsageTracker via FastAPI Depends
-# injection using the same Redis client pattern as settings.py.
+PURPOSE:
+    REST API endpoints for querying aggregated AI model usage data including
+    cost summaries, per-session breakdowns, and provider/model/daily drill-downs.
 
-# @see: shared/model_router/src/model_router/usage_tracker.py
-# @note: All date params default to a 30-day window when omitted.
+ROLE IN PROJECT:
+    Part of the routers package that exposes usage analytics to the frontend
+    and other services. Wires into the shared UsageTracker via FastAPI Depends
+    injection using the same Redis client pattern.
+    - Key responsibility 1: Provides REST endpoints for usage queries
+    - Key responsibility 2: Aggregates usage data for cost tracking and analytics
 
-"""Usage query API endpoints for the AURA-NOTES-MANAGER application."""
+KEY COMPONENTS:
+    - router: FastAPI router with /api/v1/usage prefix
+    - get_usage_tracker: Dependency injection for UsageTracker
+    - Various endpoints: cost summaries, per-session breakdowns, provider stats
+
+DEPENDENCIES:
+    - External: fastapi, redis.asyncio, model_router
+    - Internal: routers.settings (get_redis)
+
+USAGE:
+    Imported in main.py. Access via /api/v1/usage/* endpoints.
+============================================================================
+"""
 
 from __future__ import annotations
 

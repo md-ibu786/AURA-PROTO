@@ -1,12 +1,31 @@
-// SelectionOverlay.test.tsx
-// Integration tests for the Rubber-Band Selection behavior
-
-// Tests the mouse drag interactions (mousedown, mousemove, mouseup) to ensure
-// they correctly calculate intersections with DOM elements and update the
-// explorer store with selected IDs.
-
-// @see: SelectionOverlay.tsx - The component being tested
-// @see: useExplorerStore.ts - The state store being mocked
+/**
+ * ============================================================================
+ * FILE: SelectionOverlay.test.tsx
+ * LOCATION: frontend/src/components/explorer/__tests__/SelectionOverlay.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Integration tests for rubber-band selection behavior and mouse interactions.
+ *
+ * ROLE IN PROJECT:
+ *    Tests the mouse drag interactions (mousedown, mousemove, mouseup) to ensure
+ *    they correctly calculate intersections with DOM elements and update the
+ *    explorer store with selected IDs. Validates the SelectionOverlay component's
+ *    core functionality in isolation.
+ *
+ * KEY COMPONENTS:
+ *    - Mouse event simulation: fireEvent for drag operations
+ *    - getBoundingClientRect mocking: Required for JSDOM intersection tests
+ *    - Store verification: Ensures selectAll/clearSelection are called correctly
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react
+ *    - Internal: SelectionOverlay component, useExplorerStore
+ *
+ * USAGE:
+ *    Run with: npm test -- SelectionOverlay.test.tsx
+ * ============================================================================
+ */
 
 /**
  * @vitest-environment jsdom

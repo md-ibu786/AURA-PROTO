@@ -1,4 +1,32 @@
 /**
+ * ============================================================================
+ * FILE: StateSync.test.tsx
+ * LOCATION: frontend/src/integration/StateSync.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Unit tests for Zustand store state synchronization in the explorer.
+ *
+ * ROLE IN PROJECT:
+ *    Tests explorer store navigation actions including navigateTo, navigateUp,
+ *    and state synchronization. Ensures currentPath and activeNodeId are
+ *    correctly managed when traversing the hierarchy tree using Vitest.
+ *
+ * KEY COMPONENTS:
+ *    - StateSync tests: Store behavior verification suite
+ *    - useExplorerStore: Zustand store under test
+ *    - FileSystemNode: Type definitions for tree nodes
+ *
+ * DEPENDENCIES:
+ *    - External: vitest
+ *    - Internal: @/stores, @/types
+ *
+ * USAGE:
+ *    npm test -- StateSync.test.tsx
+ * ============================================================================
+ */
+
+/**
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach } from 'vitest';

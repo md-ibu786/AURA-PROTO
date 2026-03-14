@@ -1,38 +1,50 @@
-# pdf_generator.py
-# =========================
-#
-# Generates formatted PDF documents from lecture notes text with Markdown-like formatting support.
-#
-# Features:
-# ---------
-# - Converts text with Markdown headers (#, ##, ###) to formatted PDF sections
-# - Supports inline bold text (**text**) formatting
-# - Handles bullet points with proper indentation
-# - Normalizes Unicode characters for PDF compatibility
-# - Provides both file output and in-memory bytes output
-#
-# Classes/Functions:
-# ------------------
-# - preprocess_text_for_pdf(text): Normalizes Unicode characters for FPDF compatibility
-# - LectureNotesPDF: Custom FPDF class with header/footer support
-# - _build_pdf(summary_text, title): Internal PDF builder that renders formatted content
-# - create_pdf(summary_text, title, output_filename): Generates PDF file on disk
-# - create_pdf_bytes(summary_text, title): Generates PDF as bytes for streaming
-#
-# @see summarizer.py - Notes source for PDF generation
-# @note Requires fpdf or fpdf2 library; fpdf2 preferred for better Unicode support
+"""
+============================================================================
+FILE: pdf_generator.py
+LOCATION: services/pdf_generator.py
+============================================================================
+
+PURPOSE:
+    Generates formatted PDF documents from lecture notes text with Markdown-like
+    formatting support including headers, bold text, and bullet points.
+
+ROLE IN PROJECT:
+    Converts structured lecture notes into downloadable PDF documents with
+    proper formatting, Unicode normalization, and professional layout.
+    - Key responsibility 1: Convert Markdown-formatted notes to PDF
+    - Key responsibility 2: Handle Unicode normalization for PDF compatibility
+
+KEY COMPONENTS:
+    - LectureNotesPDF: Custom FPDF class with header/footer support
+    - create_pdf: Generate PDF file on disk
+    - create_pdf_bytes: Generate PDF as bytes for streaming/download
+    - preprocess_text_for_pdf: Normalize Unicode for FPDF compatibility
+
+DEPENDENCIES:
+    - External: fpdf or fpdf2 (fpdf2 preferred for Unicode support)
+    - Internal: None (standalone utility)
+
+USAGE:
+    from services.pdf_generator import create_pdf, create_pdf_bytes
+    create_pdf(notes_text, title="Lecture Notes", output_filename="notes.pdf")
+============================================================================
+"""
 
 from typing import Optional
 
 try:
     from fpdf import FPDF
-    FPDF_LIBRARY = 'fpdf'
+
+    FPDF_LIBRARY = "fpdf"
 except ImportError:
     try:
         from fpdf2 import FPDF
-        FPDF_LIBRARY = 'fpdf2'
+
+        FPDF_LIBRARY = "fpdf2"
     except ImportError:
-        raise ImportError("Neither fpdf nor fpdf2 libraries are available. Please install one of them.")
+        raise ImportError(
+            "Neither fpdf nor fpdf2 libraries are available. Please install one of them."
+        )
 
 
 def preprocess_text_for_pdf(text: str) -> str:
@@ -41,21 +53,29 @@ def preprocess_text_for_pdf(text: str) -> str:
         return text
 
     replacements = {
-        '\u2014': '--', '\u2013': '-', '\u2018': "'", '\u2019': "'",
-        '\u201C': '"', '\u201D': '"', '\u2192': '->', '\u2026': '...',
-        '\u00A0': ' ', '\u00AD': '', '\u200B': '',
+        "\u2014": "--",
+        "\u2013": "-",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u2192": "->",
+        "\u2026": "...",
+        "\u00a0": " ",
+        "\u00ad": "",
+        "\u200b": "",
     }
     for k, v in replacements.items():
         text = text.replace(k, v)
 
-    if FPDF_LIBRARY == 'fpdf2':
+    if FPDF_LIBRARY == "fpdf2":
         return text
 
     try:
-        text.encode('latin-1')
+        text.encode("latin-1")
         return text
     except UnicodeEncodeError:
-        return text.encode('latin-1', 'replace').decode('latin-1')
+        return text.encode("latin-1", "replace").decode("latin-1")
 
 
 class LectureNotesPDF(FPDF):
@@ -64,12 +84,12 @@ class LectureNotesPDF(FPDF):
         self.title_text = title_text or ""
 
     def header(self):
-        self.set_font('Helvetica', 'B', 15)
+        self.set_font("Helvetica", "B", 15)
 
     def footer(self):
         self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 10, f"Page {self.page_no()}/{{nb}}", align="C")
 
 
 def _build_pdf(summary_text: str, title: str) -> FPDF:
@@ -80,42 +100,42 @@ def _build_pdf(summary_text: str, title: str) -> FPDF:
     pdf.alias_nb_pages()
     pdf.add_page()
 
-    pdf.set_font('Helvetica', 'B', 15)
-    pdf.cell(0, 10, title, align='C')
+    pdf.set_font("Helvetica", "B", 15)
+    pdf.cell(0, 10, title, align="C")
     pdf.ln(20)
 
-    pdf.set_font('Times', '', 12)
+    pdf.set_font("Times", "", 12)
 
     def write_formatted_text(pdf_obj, text_line, line_height=6):
-        parts = text_line.split('**')
+        parts = text_line.split("**")
         for i, part in enumerate(parts):
             if i % 2 == 1:
-                pdf_obj.set_font('Times', 'B', 12)
+                pdf_obj.set_font("Times", "B", 12)
                 pdf_obj.write(line_height, part)
             else:
-                pdf_obj.set_font('Times', '', 12)
+                pdf_obj.set_font("Times", "", 12)
                 pdf_obj.write(line_height, part)
 
-    for line in summary_text.split('\n'):
+    for line in summary_text.split("\n"):
         line = line.strip()
         if not line:
             pdf.ln(4)
             continue
 
-        if line.startswith('# '):
-            pdf.set_font('Helvetica', 'B', 16)
-            pdf.multi_cell(0, 8, line[2:], align='L')
-            pdf.set_font('Times', '', 12)
-        elif line.startswith('## '):
-            pdf.set_font('Helvetica', 'B', 14)
-            pdf.multi_cell(0, 7, line[3:], align='L')
-            pdf.set_font('Times', '', 12)
-        elif line.startswith('### '):
-            pdf.set_font('Helvetica', 'B', 13)
-            pdf.multi_cell(0, 6, line[4:], align='L')
-            pdf.set_font('Times', '', 12)
-        elif line.startswith('- ') or line.startswith('* '):
-            bullet_marker = line[0] + ' '
+        if line.startswith("# "):
+            pdf.set_font("Helvetica", "B", 16)
+            pdf.multi_cell(0, 8, line[2:], align="L")
+            pdf.set_font("Times", "", 12)
+        elif line.startswith("## "):
+            pdf.set_font("Helvetica", "B", 14)
+            pdf.multi_cell(0, 7, line[3:], align="L")
+            pdf.set_font("Times", "", 12)
+        elif line.startswith("### "):
+            pdf.set_font("Helvetica", "B", 13)
+            pdf.multi_cell(0, 6, line[4:], align="L")
+            pdf.set_font("Times", "", 12)
+        elif line.startswith("- ") or line.startswith("* "):
+            bullet_marker = line[0] + " "
             content = line[2:]
             original_margin = pdf.l_margin
             pdf.cell(5, 6, bullet_marker)
@@ -130,7 +150,9 @@ def _build_pdf(summary_text: str, title: str) -> FPDF:
     return pdf
 
 
-def create_pdf(summary_text: str, title: str, output_filename: str = "lecture_notes.pdf") -> str:
+def create_pdf(
+    summary_text: str, title: str, output_filename: str = "lecture_notes.pdf"
+) -> str:
     pdf = _build_pdf(summary_text, title)
     pdf.output(output_filename)
     return output_filename
@@ -138,10 +160,10 @@ def create_pdf(summary_text: str, title: str, output_filename: str = "lecture_no
 
 def create_pdf_bytes(summary_text: str, title: str) -> bytes:
     pdf = _build_pdf(summary_text, title)
-    s = pdf.output(dest='S')
+    s = pdf.output(dest="S")
     if isinstance(s, str):
-        return s.encode('latin-1')
+        return s.encode("latin-1")
     return s
 
 
-__all__ = ['preprocess_text_for_pdf', '_build_pdf', 'create_pdf', 'create_pdf_bytes']
+__all__ = ["preprocess_text_for_pdf", "_build_pdf", "create_pdf", "create_pdf_bytes"]

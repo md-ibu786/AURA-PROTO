@@ -1,10 +1,37 @@
+/**
+ * ============================================================================
+ * FILE: index.ts
+ * LOCATION: e2e/page-objects/index.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Central export file for page objects and test utilities. Provides
+ *    reusable helper functions and test data fixtures for E2E tests.
+ *
+ * ROLE IN PROJECT:
+ *    Barrel file that consolidates all page object exports and shared utilities.
+ *    Used by test files to import page objects and common testing utilities
+ *    like data generators, retry logic, and test file creation helpers.
+ *
+ * KEY COMPONENTS:
+ *    - Exports: ExplorerPage, ApiHelper page objects
+ *    - Utilities: generateUniqueTestData, delay, retry functions
+ *    - File helpers: createTestPdfBuffer, createTestAudioBuffer
+ *    - Test data: TestData fixtures for departments, semesters, subjects, modules, notes
+ *    - Validation: validateTestEnvironment for pre-test checks
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ExplorerPage, ApiHelper (page objects)
+ *
+ * USAGE:
+ *    import { ExplorerPage, ApiHelper, generateUniqueTestData } from './page-objects';
+ *    const data = generateUniqueTestData('dept');
+ * ============================================================================
+ */
+
 export { ExplorerPage } from './ExplorerPage';
 export { ApiHelper } from './ApiHelper';
-
-/**
- * Test Utilities and Fixtures
- * Common helpers for e2e tests
- */
 
 /**
  * Generates unique test data to avoid conflicts

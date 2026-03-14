@@ -1,15 +1,32 @@
-// kg-processing.spec.ts
-// kg-processing.spec.ts
-// Playwright E2E tests for KG processing flows in AURA-NOTES-MANAGER.
-
-// Longer description (2-4 lines):
-// - Exercises selection mode, processing dialogs, queue display, and error handling.
-// - Validates selection-driven processing UX and status indicators.
-// - Covers queue rendering with mocked KG processing endpoints.
-
-// @see: AURA-NOTES-MANAGER/frontend/src/features/kg
-// @note: Uses mocked API responses for speed and determinism
-
+/**
+ * ============================================================================
+ * FILE: kg-processing.spec.ts
+ * LOCATION: frontend/e2e/kg-processing.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Playwright E2E tests for Knowledge Graph processing flows.
+ *
+ * ROLE IN PROJECT:
+ *    Exercises selection mode, processing dialogs, queue display, and error
+ *    handling. Validates selection-driven processing UX and status indicators.
+ *    Covers queue rendering with mocked KG processing endpoints.
+ *
+ * KEY TESTS:
+ *    - Navigation to modules with notes
+ *    - Selection mode activation and file selection
+ *    - Processing dialog interactions
+ *    - Queue display and status monitoring
+ *    - Error handling and recovery
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: fixtures.ts (test fixtures, mock helpers)
+ *
+ * USAGE:
+ *    npx playwright test e2e/kg-processing.spec.ts
+ * ============================================================================
+ */
 import { test, expect, mockTreeResponse, mockCrudResponses, mockKGProcessingResponses, waitForLoading } from './fixtures';
 
 test.describe('Knowledge Graph Processing @critical', { tag: '@critical' }, () => {

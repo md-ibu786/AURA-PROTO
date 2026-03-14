@@ -1,15 +1,33 @@
-// useUsageApi.ts
-// TanStack Query hooks for usage tracking API endpoints
-
-// Provides query hooks for fetching usage summaries and session costs.
-// The summary endpoint returns all breakdowns (daily, by-provider,
-// by-model) in a single response — derived hooks select from that
-// cached result to avoid redundant Redis scans.
-
-// @see: types/usage.ts - Type definitions for usage API responses
-// @see: features/settings/hooks/useSettingsApi.ts - Equivalent pattern for settings
-// @note: staleTime is 2 minutes for usage data (more volatile than settings)
-
+/**
+ * ============================================================================
+ * FILE: useUsageApi.ts
+ * LOCATION: frontend/src/features/usage/hooks/useUsageApi.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    TanStack Query hooks for usage tracking API endpoints
+ *
+ * ROLE IN PROJECT:
+ *    Provides query hooks for fetching AI usage summaries and session costs.
+ *    The summary endpoint returns all breakdowns (daily, by-provider, by-model)
+ *    in a single response - derived hooks select from cached result to avoid
+ *    redundant Redis scans on the backend
+ *
+ * KEY COMPONENTS:
+ *    - usageKeys: Query key factory for cache invalidation
+ *    - useUsageSummary: Hook for complete usage breakdowns
+ *    - useSessionUsage: Hook for specific session cost details
+ *    - useDailyUsage, useProviderUsage, useModelUsage: Derived selectors
+ *
+ * DEPENDENCIES:
+ *    - External: @tanstack/react-query
+ *    - Internal: @/api/client, @/types/usage
+ *
+ * USAGE:
+ *    const { data: summary } = useUsageSummary();
+ *    const { data: session } = useSessionUsage(sessionId);
+ * ============================================================================
+ */
 import { useQuery } from '@tanstack/react-query';
 import { fetchApi } from '@/api/client';
 import type {

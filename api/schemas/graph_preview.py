@@ -1,13 +1,34 @@
-# graph_preview.py
-# Response schemas for graph preview API endpoints
+"""
+============================================================================
+FILE: graph_preview.py
+LOCATION: api/schemas/graph_preview.py
+============================================================================
 
-# Provides Pydantic models for graph visualization data returned to staff
-# for module preview. Matches frontend expectations from FRONTEND-DEPENDENCIES.md
-# with GraphNode, GraphEdge, and GraphPreviewResponse types.
+PURPOSE:
+    Response schemas for graph preview API endpoints. Provides Pydantic
+    models for graph visualization data returned to staff for module preview.
 
-# @see: api/routers/graph_preview.py - API endpoints using these schemas
-# @see: api/graph_manager.py - Graph data source
-# @note: Properties field allows flexible entity/relationship metadata
+ROLE IN PROJECT:
+    Defines data structures for knowledge graph visualization that match
+    frontend expectations from FRONTEND-DEPENDENCIES.md.
+    - Structures graph nodes and edges for frontend rendering
+    - Supports flexible metadata through properties fields
+    - Enables staff to preview knowledge graph modules
+
+KEY COMPONENTS:
+    - GraphNode: Single node with id, label, name, type, and properties
+    - GraphEdge: Relationship between nodes with source, target, and type
+    - GraphPreviewResponse: Complete graph data for visualization
+
+DEPENDENCIES:
+    - External: pydantic (BaseModel, Field), typing
+    - Internal: None
+
+USAGE:
+    from api.schemas.graph_preview import GraphNode, GraphEdge
+    node = GraphNode(id="n1", label="Person", name="Alice", type="Entity")
+============================================================================
+"""
 
 from __future__ import annotations
 

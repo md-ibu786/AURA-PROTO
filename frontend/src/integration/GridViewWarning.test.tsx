@@ -1,4 +1,35 @@
 /**
+ * ============================================================================
+ * FILE: GridViewWarning.test.tsx
+ * LOCATION: frontend/src/integration/GridViewWarning.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Integration tests for warning dialogs in GridView component.
+ *
+ * ROLE IN PROJECT:
+ *    Tests warning dialog interactions specific to GridView including
+ *    error handling on create and rename operations. Verifies integration
+ *    between GridView component, WarningDialog, and API error states
+ *    using React Testing Library and Vitest.
+ *
+ * KEY COMPONENTS:
+ *    - GridViewWarning tests: GridView warning integration test suite
+ *    - GridView: Component under test
+ *    - WarningDialog: Dialog for displaying errors
+ *    - useExplorerStore: State management
+ *
+ * DEPENDENCIES:
+ *    - External: @testing-library/react, vitest, @tanstack/react-query
+ *    - Internal: @/components/explorer/GridView, @/components/ui/WarningDialog,
+ *                @/stores, @/api
+ *
+ * USAGE:
+ *    npm test -- GridViewWarning.test.tsx
+ * ============================================================================
+ */
+
+/**
  * @vitest-environment jsdom
  */
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';

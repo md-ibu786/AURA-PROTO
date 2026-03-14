@@ -1,15 +1,47 @@
+"""
+============================================================================
+FILE: test_women_empowerment.py
+LOCATION: test_women_empowerment.py
+============================================================================
+
+PURPOSE:
+    Integration test for the summarizer service using women empowerment topic.
+
+ROLE IN PROJECT:
+    Tests the summarizer's ability to generate university-grade notes from
+    lecture transcripts. Validates end-to-end summarization functionality
+    with real-world educational content.
+    - Tests generate_university_notes function
+    - Uses realistic lecture transcript data
+    - Validates output quality and format
+
+KEY COMPONENTS:
+    - _run_women_empowerment_essay: Main test function
+    - Sample women empowerment lecture transcript
+    - Output validation and error handling
+
+DEPENDENCIES:
+    - External: None
+    - Internal: services.summarizer (generate_university_notes)
+
+USAGE:
+    Run with: pytest test_women_empowerment.py -v
+    Or directly: python test_women_empowerment.py
+============================================================================
+"""
+
 import sys
 import os
 
 # Add the project root to the path
-sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath("."))
 
 from services.summarizer import generate_university_notes
 
 
 def _run_women_empowerment_essay():
     """Test the summarizer with a women empowerment topic."""
-    
+
     print("Generating Women Empowerment Essay using the configured model...")
     print("-" * 60)
 
@@ -60,7 +92,11 @@ def _run_women_empowerment_essay():
         print(f"   - Generated content length: {len(essay)} characters")
         print(f"   - Content starts with: '{essay[:50]}...'")
 
-        if "Women Empowerment" in essay or "women" in essay.lower() or "empowerment" in essay.lower():
+        if (
+            "Women Empowerment" in essay
+            or "women" in essay.lower()
+            or "empowerment" in essay.lower()
+        ):
             print("   - Content appears to be relevant to the topic")
         else:
             print("   - Could not verify topic relevance")
@@ -70,6 +106,7 @@ def _run_women_empowerment_essay():
     except Exception as e:
         print(f"Error generating essay: {str(e)}")
         import traceback
+
         traceback.print_exc()
         return None
 
@@ -78,6 +115,7 @@ def test_women_empowerment_essay():
     """Test the summarizer with a women empowerment topic."""
     essay = _run_women_empowerment_essay()
     assert isinstance(essay, str) and len(essay) > 0
+
 
 if __name__ == "__main__":
     print("Women Empowerment Essay Generator Test")

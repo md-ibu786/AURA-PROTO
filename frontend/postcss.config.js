@@ -1,13 +1,29 @@
-// postcss.config.js
-// PostCSS configuration for Tailwind CSS v4
-
-// Configures PostCSS with autoprefixer for vendor prefixing
-// Tailwind CSS v4 is now handled by the @tailwindcss/vite plugin
-// See vite.config.ts for Tailwind plugin configuration
-
-// @see: vite.config.ts - Tailwind Vite plugin configuration
-// @see: src/styles/index.css - CSS entry point with Tailwind directives
-// @note: Tailwind v4 uses CSS-based configuration via @theme in index.css
+/**
+ * ============================================================================
+ * FILE: postcss.config.js
+ * LOCATION: frontend/postcss.config.js
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    PostCSS configuration file for Tailwind CSS v4 with autoprefixer
+ *
+ * ROLE IN PROJECT:
+ *    Configures PostCSS processing pipeline for the frontend build system.
+ *    Works alongside Vite's Tailwind plugin to process CSS with vendor
+ *    prefixing via autoprefixer.
+ *
+ * KEY COMPONENTS:
+ *    - autoprefixer: Adds vendor prefixes to CSS for browser compatibility
+ *
+ * DEPENDENCIES:
+ *    - External: autoprefixer (PostCSS plugin)
+ *    - Internal: vite.config.ts (Tailwind Vite plugin configuration)
+ *
+ * USAGE:
+ *    Automatically used by Vite during build process. No manual usage needed.
+ *    See vite.config.ts for Tailwind plugin configuration.
+ * ============================================================================
+ */
 
 /** @type {import('postcss-load-config').Config} */
 const config = {

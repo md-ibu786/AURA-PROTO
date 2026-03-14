@@ -1,12 +1,33 @@
-// userApi.ts
-// API functions for user management and profile retrieval
-
-// Provides functions to interact with the /api/users and /api/auth/me
-// endpoints. These functions are primarily used by the Admin Dashboard
-// for user administration and by the auth store for session hydration.
-
-// @see: client.ts - Base fetch wrappers and error classes
-// @note: Admin functions require the 'admin' role on the backend
+/**
+ * ============================================================================
+ * FILE: userApi.ts
+ * LOCATION: frontend/src/api/userApi.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    API functions for user management and profile retrieval operations
+ *
+ * ROLE IN PROJECT:
+ *    Provides typed methods to interact with /api/users and /api/auth/me
+ *    endpoints. Used by AdminDashboard for user administration and by
+ *    the auth store for session hydration and user data fetching.
+ *
+ * KEY COMPONENTS:
+ *    - UserResponse: API response type for user data
+ *    - UserCreate/UserUpdate: Input types for user mutations
+ *    - getMe(): Fetch current authenticated user
+ *    - listUsers(): List all users with optional filters (Admin only)
+ *    - createUser/updateUser/deleteUser: CRUD operations (Admin only)
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ./client.ts (fetchApi, DuplicateError)
+ *
+ * USAGE:
+ *    import { getMe, listUsers, createUser } from '../api/userApi';
+ *    const user = await getMe();
+ * ============================================================================
+ */
 
 import { fetchApi } from './client';
 

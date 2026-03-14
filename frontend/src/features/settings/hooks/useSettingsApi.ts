@@ -1,10 +1,34 @@
-// useSettingsApi.ts
-// TanStack Query hooks for settings API interaction
-
-// Provides hooks for fetching models, defaults, API key status, 
-// and mutations for storing/deleting API keys and updating defaults.
-// Uses fetchApi for HTTP requests.
-
+/**
+ * ============================================================================
+ * FILE: useSettingsApi.ts
+ * LOCATION: frontend/src/features/settings/hooks/useSettingsApi.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    TanStack Query hooks for settings API interaction
+ *
+ * ROLE IN PROJECT:
+ *    Provides hooks for fetching available AI models, default model settings,
+ *    API key status, and mutations for storing/deleting API keys and updating
+ *    defaults. Centralizes settings state management via React Query cache
+ *
+ * KEY COMPONENTS:
+ *    - settingsKeys: Query key factory for cache invalidation
+ *    - useAllModels: Fetches all available models from backend
+ *    - useProviderModels: Fetches models filtered by provider
+ *    - useModelDefaults: Gets default model configuration
+ *    - useUpdateDefaults: Mutation for updating default models
+ *    - useApiKeyStatus, useStoreApiKey, useDeleteApiKey: API key management
+ *
+ * DEPENDENCIES:
+ *    - External: @tanstack/react-query, sonner
+ *    - Internal: @/api/client, @/types/settings
+ *
+ * USAGE:
+ *    const { data: models } = useAllModels();
+ *    const updateDefaults = useUpdateDefaults();
+ * ============================================================================
+ */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from '@/api/client';
 import { toast } from 'sonner';

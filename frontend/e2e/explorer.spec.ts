@@ -1,12 +1,33 @@
-// explorer.spec.ts
-// Playwright E2E tests for explorer CRUD and navigation.
-// Longer description (2-4 lines):
-// - Verifies layout, navigation, and CRUD flows in the explorer UI.
-// - Exercises create, rename, delete, and selection behaviors.
-// - Uses mocked explorer endpoints for deterministic runs.
-// @see: AURA-NOTES-MANAGER/frontend/src/components/explorer
-// @note: Mocked responses avoid backend dependencies
-
+/**
+ * ============================================================================
+ * FILE: explorer.spec.ts
+ * LOCATION: frontend/e2e/explorer.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Playwright E2E tests for explorer CRUD and navigation.
+ *
+ * ROLE IN PROJECT:
+ *    Verifies layout, navigation, and CRUD flows in the explorer UI.
+ *    Exercises create, rename, delete, and selection behaviors.
+ *    Uses mocked explorer endpoints for deterministic runs.
+ *
+ * KEY TESTS:
+ *    - Page layout elements (sidebar, header, main content)
+ *    - Navigation through hierarchy (departments, semesters, subjects, modules)
+ *    - CRUD operations (create, rename, delete)
+ *    - Grid and list view switching
+ *    - Search and filtering functionality
+ *    - Context menu interactions
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: fixtures.ts (test fixtures, mock helpers)
+ *
+ * USAGE:
+ *    npx playwright test e2e/explorer.spec.ts
+ * ============================================================================
+ */
 import { test, expect, type Locator, mockTreeResponse, mockCrudResponses, waitForLoading, primeExplorerTreeCache } from './fixtures';
 
 test.describe('Explorer Page Layout @critical', { tag: '@critical' }, () => {

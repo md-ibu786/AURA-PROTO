@@ -1,14 +1,36 @@
-# entity_aware_chunker.py
-# Entity-aware chunker that preserves entity context boundaries for KG processing
+"""
+============================================================================
+FILE: entity_aware_chunker.py
+LOCATION: services/entity_aware_chunker.py
+============================================================================
 
-# Implements the entity-aware chunking algorithm from AURA-CHAT, including context
-# extraction, context merging, oversized chunk splitting, and gap filling.
-# Provides a lightweight wrapper to generate hierarchical chunks for compatibility
-# with downstream services that expect section-aware chunking output.
+PURPOSE:
+    Entity-aware chunker that preserves entity context boundaries for knowledge graph
+    processing, implementing context extraction, merging, and gap filling.
 
-# @see: services/llm_entity_extractor.py - Entity extraction inputs
-# @see: services/chunking_utils.py - Token counting utilities
-# @note: Falls back to token-based chunking when no entities are provided
+ROLE IN PROJECT:
+    Implements entity-aware chunking algorithm to maintain semantic coherence
+    when splitting documents. Preserves entity mentions within chunks for better
+    extraction quality and provides hierarchical chunk generation.
+    - Key responsibility 1: Chunk documents while preserving entity context
+    - Key responsibility 2: Merge related contexts and fill gaps between chunks
+
+KEY COMPONENTS:
+    - EntityAwareChunker: Main chunker class with context preservation
+    - chunk_document: Generate entity-aware chunks from document
+    - merge_contexts: Combine overlapping entity contexts
+    - fill_gaps: Handle content between entity contexts
+
+DEPENDENCIES:
+    - External: None (standard library only)
+    - Internal: services.chunking_utils
+
+USAGE:
+    from services.entity_aware_chunker import EntityAwareChunker
+    chunker = EntityAwareChunker()
+    chunks = chunker.chunk_document(text, entities=[...])
+============================================================================
+"""
 
 from __future__ import annotations
 
@@ -272,10 +294,12 @@ class EntityAwareChunker:
                 chunks.extend(new_chunks)
                 chunk_index += len(new_chunks)
             else:
-                entity_ids, entity_names, primary_entity = self._filter_entities_for_text(
-                    chunk_text,
-                    ctx.get("entity_map", {}),
-                    ctx.get("primary_entity", ""),
+                entity_ids, entity_names, primary_entity = (
+                    self._filter_entities_for_text(
+                        chunk_text,
+                        ctx.get("entity_map", {}),
+                        ctx.get("primary_entity", ""),
+                    )
                 )
                 chunks.append(
                     {
@@ -384,7 +408,10 @@ class EntityAwareChunker:
                     current_tokens = [self._token_count(" ".join(last_chunk_words))]
                 continue
 
-            if self._token_count(" ".join(current_text)) + para_tokens > self.max_chunk_tokens:
+            if (
+                self._token_count(" ".join(current_text)) + para_tokens
+                > self.max_chunk_tokens
+            ):
                 if current_tokens:
                     chunk_index = _save_chunk(current_text, current_tokens, chunk_index)
 
@@ -399,7 +426,9 @@ class EntityAwareChunker:
                     overlap_tokens_count += prev_tokens
 
                 current_text = overlap_text
-                current_tokens = [self._token_count(" ".join(overlap_text))] if overlap_text else []
+                current_tokens = (
+                    [self._token_count(" ".join(overlap_text))] if overlap_text else []
+                )
 
             current_text.append(para)
             current_tokens.append(para_tokens)
@@ -424,10 +453,12 @@ class EntityAwareChunker:
             if current_token_count + word_tokens > self.max_chunk_tokens:
                 if current_words:
                     chunk_text = " ".join(current_words)
-                    entity_ids, entity_names, primary_entity = self._filter_entities_for_text(
-                        chunk_text,
-                        ctx.get("entity_map", {}),
-                        ctx.get("primary_entity", ""),
+                    entity_ids, entity_names, primary_entity = (
+                        self._filter_entities_for_text(
+                            chunk_text,
+                            ctx.get("entity_map", {}),
+                            ctx.get("primary_entity", ""),
+                        )
                     )
                     chunks.append(
                         {
@@ -572,10 +603,14 @@ class EntityAwareChunker:
                 start = gap["start"] + i * (len(gap["text"]) // len(gap_chunks))
                 end = start + len(chunk_text)
 
-                nearby_entities = self._find_nearby_entities(text, entities, start, end, 500)
-                entity_map = {entity["name"]: entity["id"] for entity in nearby_entities}
-                entity_ids, entity_names, primary_entity = self._filter_entities_for_text(
-                    chunk_text, entity_map, ""
+                nearby_entities = self._find_nearby_entities(
+                    text, entities, start, end, 500
+                )
+                entity_map = {
+                    entity["name"]: entity["id"] for entity in nearby_entities
+                }
+                entity_ids, entity_names, primary_entity = (
+                    self._filter_entities_for_text(chunk_text, entity_map, "")
                 )
 
                 background_chunks.append(

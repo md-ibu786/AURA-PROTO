@@ -1,15 +1,33 @@
-// health.spec.ts
-// health.spec.ts
-// Playwright E2E checks for AURA-NOTES-MANAGER health and navigation.
-
-// Longer description (2-4 lines):
-// - Covers layout visibility, loading states, responsiveness, and error recovery.
-// - Ensures basic navigation stability across viewports and mocked explorer APIs.
-// - Validates toast and loading indicators for baseline UX confidence.
-
-// @see: AURA-NOTES-MANAGER/frontend/src/pages/ExplorerPage.tsx
-// @note: Mocked explorer tree data avoids backend dependencies
-
+/**
+ * ============================================================================
+ * FILE: health.spec.ts
+ * LOCATION: frontend/e2e/health.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Playwright E2E smoke tests for AURA-NOTES-MANAGER health and navigation.
+ *
+ * ROLE IN PROJECT:
+ *    Covers layout visibility, loading states, responsiveness, and error recovery.
+ *    Ensures basic navigation stability across viewports and mocked explorer APIs.
+ *    Validates toast and loading indicators for baseline UX confidence.
+ *
+ * KEY TESTS:
+ *    - Homepage loads successfully
+ *    - Application title and branding display
+ *    - Navigation to different views
+ *    - Responsive layout across viewports
+ *    - Loading states and indicators
+ *    - Error recovery and toast notifications
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: fixtures.ts (test fixtures, mock helpers)
+ *
+ * USAGE:
+ *    npx playwright test e2e/health.spec.ts
+ * ============================================================================
+ */
 import { test, expect, mockTreeResponse, waitForLoading } from './fixtures';
 
 test.describe('Application Health @smoke', { tag: '@smoke' }, () => {

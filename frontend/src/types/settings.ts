@@ -1,9 +1,33 @@
-// settings.ts
-// TypeScript types for settings API and model selection
-
-// Defines ProviderType, UseCase, and various interfaces for model 
-// configuration, grouping, and API key status.
-
+/**
+ * ============================================================================
+ * FILE: settings.ts
+ * LOCATION: frontend/src/types/settings.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    TypeScript types for settings API and AI model selection
+ *
+ * ROLE IN PROJECT:
+ *    Defines ProviderType, UseCase, and interfaces for model configuration,
+ *    grouping, and API key status. Provides type safety for settings forms
+ *    and AI model selection across the application
+ *
+ * KEY COMPONENTS:
+ *    - ProviderType: Union of supported AI providers
+ *    - UseCase: Union of AI operation types
+ *    - ModelInfo: Individual model metadata
+ *    - VendorGroup/ModelGroup: Hierarchical model structures
+ *    - DefaultModelSetting: User default model configuration
+ *    - ApiKeyStatus: API key storage status per provider
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: None
+ *
+ * USAGE:
+ *    import type { ProviderType, ModelInfo, DefaultModelSetting } from '@/types/settings';
+ * ============================================================================
+ */
 export type ProviderType = 'vertex_ai' | 'openrouter' | 'ollama';
 export type UseCase = 'chat' | 'embeddings' | 'entity_extraction';
 

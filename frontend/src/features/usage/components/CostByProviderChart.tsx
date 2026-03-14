@@ -1,11 +1,30 @@
-// CostByProviderChart.tsx
-// Bar chart displaying cost breakdown by LLM provider
-
-// Renders a Recharts BarChart with Cyber Yellow (#FFD400) bars
-// on a dark background. Shows "No data available" when data is empty.
-
-// @see: types/usage.ts - ProviderCost type definition
-// @note: Provider names are displayed on the X-axis
+/**
+ * ============================================================================
+ * FILE: CostByProviderChart.tsx
+ * LOCATION: frontend/src/features/usage/components/CostByProviderChart.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Bar chart displaying cost breakdown by LLM provider.
+ *
+ * ROLE IN PROJECT:
+ *    Renders a Recharts BarChart with Cyber Yellow (#FFD400) bars
+ *    on a dark background. Shows "No data available" when data is empty.
+ *    Displays provider names on X-axis with cost values on Y-axis
+ *    for the usage dashboard.
+ *
+ * KEY COMPONENTS:
+ *    - CostByProviderChart: Vertical bar chart for provider cost comparison
+ *    - CostByProviderChartProps: Interface for component props
+ *
+ * DEPENDENCIES:
+ *    - External: recharts
+ *    - Internal: @/types/usage
+ *
+ * USAGE:
+ *    <CostByProviderChart data={providerCosts} />
+ * ============================================================================
+ */
 
 import {
     BarChart,

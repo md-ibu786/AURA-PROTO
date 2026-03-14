@@ -1,13 +1,40 @@
-# feedback.py
-# Pydantic schemas for user feedback on search results and answers
+"""
+============================================================================
+FILE: feedback.py
+LOCATION: api/schemas/feedback.py
+============================================================================
 
-# Defines data models for capturing explicit and implicit user feedback
-# on search result relevance and answer quality. Supports analytics and
-# continuous improvement of the RAG system through relevance judgments.
+PURPOSE:
+    Pydantic schemas for user feedback on search results and answers.
+    Defines data models for capturing explicit and implicit feedback
+    on search relevance and answer quality.
 
-# @see: api/feedback_manager.py - FeedbackManager service
-# @see: api/routers/query.py - Feedback endpoints
-# @note: Query hash is SHA-256 of normalized query for grouping
+ROLE IN PROJECT:
+    Supports analytics and continuous improvement of the RAG system
+    through relevance judgments and quality metrics.
+    - Captures thumbs up/down feedback on search results
+    - Records answer quality ratings from users
+    - Groups feedback by query hash for analysis
+
+KEY COMPONENTS:
+    - FeedbackType: Enum for explicit (THUMBS_UP/DOWN) and implicit feedback
+    - SearchResultFeedback: Feedback on individual search results
+    - AnswerFeedback: Quality rating for generated answers
+    - FeedbackAnalytics: Aggregated feedback statistics
+
+DEPENDENCIES:
+    - External: pydantic (BaseModel, Field), hashlib, datetime, enum
+    - Internal: None
+
+USAGE:
+    from api.schemas.feedback import SearchResultFeedback, FeedbackType
+    feedback = SearchResultFeedback(
+        query_hash="abc123",
+        chunk_id="chunk_1",
+        feedback_type=FeedbackType.THUMBS_UP
+    )
+============================================================================
+"""
 
 from __future__ import annotations
 

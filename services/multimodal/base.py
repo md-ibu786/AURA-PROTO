@@ -1,13 +1,37 @@
-# base.py
-# Abstract base classes for multimodal content processing services
+"""
+============================================================================
+FILE: base.py
+LOCATION: services/multimodal/base.py
+============================================================================
 
-# Defines the abstract interfaces for all multimodal processors including
-# audio transcription, OCR text extraction, and image/diagram analysis.
-# Also includes data models for transcription results, OCR results, and
-# image descriptions used throughout the multimodal pipeline.
+PURPOSE:
+    Abstract base classes and data models for all multimodal content processing
+    services including audio transcription, OCR, and image analysis.
 
-# @see: audio.py, ocr.py, image.py - Concrete implementations
-# @note: All methods are abstract and must be implemented by subclasses
+ROLE IN PROJECT:
+    Foundation module for the multimodal processing architecture.
+    - Defines abstract interfaces that all multimodal processors must implement
+    - Provides common data models for transcription results, OCR results, images
+    - Ensures consistent API across audio, OCR, and image processing services
+
+KEY COMPONENTS:
+    - ProcessConfig/ProcessResult: Generic configuration and result models
+    - AudioProcessor/OCRProcessor/ImageProcessor: Abstract base classes
+    - TranscriptionResult/OCRResult/ImageDescription: Output data models
+    - WordTimestamp/TranscriptionSegment/BoundingBox: Detailed result components
+
+DEPENDENCIES:
+    - External: abc, datetime, typing, pydantic
+    - Internal: None (base module, no internal dependencies)
+
+USAGE:
+    from services.multimodal.base import AudioProcessor, TranscriptionResult
+    class CustomAudioProcessor(AudioProcessor):
+        async def transcribe(self, audio_path, config):
+            # Implementation here
+            pass
+============================================================================
+"""
 
 from abc import ABC, abstractmethod
 from datetime import datetime

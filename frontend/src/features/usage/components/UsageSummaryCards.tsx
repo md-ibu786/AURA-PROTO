@@ -1,12 +1,34 @@
-// UsageSummaryCards.tsx
-// Summary stat cards showing key usage metrics at a glance
-
-// Renders a grid of metric cards: Total Cost, Total Requests,
-// Top Provider, and Average Cost per Request. Includes loading
-// skeleton state for smooth data transitions.
-
-// @see: types/usage.ts - UsageSummary type definition
-// @see: pages/UsagePage.tsx - Parent component providing data
+/**
+ * ============================================================================
+ * FILE: UsageSummaryCards.tsx
+ * LOCATION: frontend/src/features/usage/components/UsageSummaryCards.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Summary stat cards showing key usage metrics at a glance.
+ *
+ * ROLE IN PROJECT:
+ *    Renders a grid of metric cards: Total Cost, Total Requests,
+ *    Top Provider, and Average Cost per Request. Includes loading
+ *    skeleton state for smooth data transitions on the usage dashboard.
+ *
+ * KEY COMPONENTS:
+ *    - UsageSummaryCards: Grid of metric summary cards
+ *    - UsageSummaryCardsProps: Interface for component props
+ *    - SkeletonCard: Loading placeholder animation
+ *    - StatCard: Individual metric display component
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: @/types/usage
+ *
+ * USAGE:
+ *    <UsageSummaryCards
+ *        summary={usageSummary}
+ *        isLoading={isLoading}
+ *    />
+ * ============================================================================
+ */
 
 import type { UsageSummary } from '@/types/usage';
 

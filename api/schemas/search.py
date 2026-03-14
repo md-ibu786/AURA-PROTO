@@ -1,13 +1,36 @@
-# search.py
-# Pydantic schemas for hybrid search API requests and responses
+"""
+============================================================================
+FILE: search.py
+LOCATION: api/schemas/search.py
+============================================================================
 
-# Defines the API contracts for search and graph traversal including request
-# validation, response models, and weight normalization. Used by graph preview
-# API for visualization schemas.
+PURPOSE:
+    Pydantic schemas for hybrid search API requests and responses.
+    Defines API contracts for search and graph traversal with request
+    validation, response models, and weight normalization.
 
-# @see: api/graph_manager.py - Graph traversal operations
-# @see: api/routers/graph_preview.py - API endpoint using these schemas
-# @note: vector_weight + fulltext_weight normalized to 1.0 via validator
+ROLE IN PROJECT:
+    Provides type-safe data models for search operations throughout the API.
+    Used by graph preview API for visualization schemas and search endpoints.
+    - Validates incoming search requests with configurable parameters
+    - Structures search responses with relevance scores and metadata
+    - Supports enriched search with knowledge graph expansion
+
+KEY COMPONENTS:
+    - SearchRequest/SearchResponse: Basic search operation schemas
+    - QueryExpansionConfig: Configuration for knowledge graph query expansion
+    - EnrichedSearchRequest/EnrichedSearchResponse: Advanced search with KG
+    - Weight validators: Ensure vector + fulltext weights normalize to 1.0
+
+DEPENDENCIES:
+    - External: pydantic (BaseModel, Field, validators), typing
+    - Internal: None
+
+USAGE:
+    from api.schemas.search import SearchRequest, SearchResponse
+    request = SearchRequest(query="example", top_k=10)
+============================================================================
+"""
 
 from __future__ import annotations
 

@@ -1,10 +1,40 @@
-import { Page, Locator, expect } from '@playwright/test';
-
 /**
- * Explorer Page Object
- * Encapsulates interactions with the main explorer interface
- * Includes methods for navigation, CRUD operations, and UI interactions
+ * ============================================================================
+ * FILE: ExplorerPage.ts
+ * LOCATION: e2e/page-objects/ExplorerPage.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Page Object Model for the Explorer UI providing reusable methods for
+ *    interacting with the hierarchy tree, CRUD operations, and file uploads.
+ *
+ * ROLE IN PROJECT:
+ *    Central abstraction for E2E tests interacting with the Explorer page.
+ *    Encapsulates all UI element selectors and interaction patterns including
+ *    navigation, tree operations, context menus, and upload dialogs.
+ *
+ * KEY COMPONENTS:
+ *    - Layout elements: sidebar, mainContent, header, breadcrumbs
+ *    - Tree operations: expand/collapse nodes, select by ID or label
+ *    - CRUD methods: createDepartment, createSemester, createSubject, createModule
+ *    - Context menu: openContextMenu, renameNode, deleteNode
+ *    - Upload operations: openUploadDialog, uploadDocumentFile, uploadVoiceFile
+ *    - View controls: switchToGridView, switchToListView, search
+ *    - Validation: verifyNodeExists, verifyNodeVisible, isDialogOpen
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test (Page, Locator, expect)
+ *    - Internal: None
+ *
+ * USAGE:
+ *    const explorer = new ExplorerPage(page);
+ *    await explorer.goto();
+ *    await explorer.createDepartment('CS', 'CS101');
+ *    await explorer.uploadDocumentFile('/path/to/file.pdf', 'My Notes');
+ * ============================================================================
  */
+
+import { Page, Locator, expect } from '@playwright/test';
 export class ExplorerPage {
     readonly page: Page;
 

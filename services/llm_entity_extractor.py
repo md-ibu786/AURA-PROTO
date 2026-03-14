@@ -1,12 +1,35 @@
-# llm_entity_extractor.py
-# LLM-powered entity extraction using Google Gemini for knowledge graph construction
+"""
+============================================================================
+FILE: llm_entity_extractor.py
+LOCATION: services/llm_entity_extractor.py
+============================================================================
 
-# Extracts structured entities (Topic, Concept, Methodology, Finding) from document
-# chunks using Gemini with configurable prompts, confidence scoring, and validation.
-# Ported from AURA-CHAT/backend/llm_entity_extractor.py for consistency.
+PURPOSE:
+    LLM-powered entity extraction using Google Gemini for knowledge graph construction,
+    extracting structured entities from document chunks with confidence scoring.
 
-# @see: api/kg_processor.py - Integration point for entity extraction
-# @note: Uses Vertex AI SDK via services/vertex_ai_client
+ROLE IN PROJECT:
+    Extracts entities (Topic, Concept, Methodology, Finding) from academic content
+    using configurable prompts and validation. Core component of KG pipeline.
+    - Key responsibility 1: Extract structured entities with types and relationships
+    - Key responsibility 2: Validate and score extracted entities for quality
+
+KEY COMPONENTS:
+    - LLMEntityExtractor: Main extractor class with batch processing
+    - extract_entities: Extract entities from text chunks
+    - validate_entities: Score and filter extracted entities
+    - ExtractionResult: Pydantic model for structured results
+
+DEPENDENCIES:
+    - External: pydantic, json_repair
+    - Internal: services.vertex_ai_client
+
+USAGE:
+    from services.llm_entity_extractor import LLMEntityExtractor
+    extractor = LLMEntityExtractor()
+    entities = extractor.extract_entities(text_chunks)
+============================================================================
+"""
 
 from __future__ import annotations
 

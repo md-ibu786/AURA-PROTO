@@ -1,11 +1,35 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for AURA-PROTO E2E tests
+ * ============================================================================
+ * FILE: playwright.config.ts
+ * LOCATION: e2e/playwright.config.ts
+ * ============================================================================
  *
- * Run tests: npx playwright test
- * View report: npx playwright show-report
- * Run specific: npx playwright test tests/api.spec.ts
+ * PURPOSE:
+ *    Playwright E2E test configuration with multi-browser support and
+ *    automatic web server startup for backend and frontend.
+ *
+ * ROLE IN PROJECT:
+ *    Central configuration for all E2E tests. Defines test directories,
+ *    browser projects (Chromium, Firefox, WebKit), reporter settings,
+ *    and web server startup commands for seamless test execution.
+ *
+ * KEY COMPONENTS:
+ *    - Test configuration: Directory, parallelism, retries, timeouts
+ *    - Browser projects: Desktop Chrome, Firefox, Safari configurations
+ *    - Reporter setup: HTML, list, and JSON output formats
+ *    - Web servers: Automatic backend (port 8001) and frontend (port 5173) startup
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: None
+ *
+ * USAGE:
+ *    Run all tests: npx playwright test
+ *    Run specific: npx playwright test tests/api.spec.ts
+ *    View report: npx playwright show-report
+ * ============================================================================
  */
 export default defineConfig({
     testDir: './tests',

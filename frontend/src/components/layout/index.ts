@@ -1,17 +1,28 @@
 /**
- * Layout Components Index
- * =========================
+ * ============================================================================
+ * FILE: index.ts
+ * LOCATION: frontend/src/components/layout/index.ts
+ * ============================================================================
  *
- * Barrel export module for layout components.
- * Re-exports Sidebar and Header components.
+ * PURPOSE:
+ *    Barrel export module for layout components - re-exports Sidebar and Header
  *
- * Components:
- * -----------
- * - Sidebar: Left panel with tree navigation
- * - Header: Top bar with breadcrumbs and controls
+ * ROLE IN PROJECT:
+ *    Central entry point for layout components used by pages and app structure.
+ *    Enables clean imports like `import { Sidebar, Header } from './layout'`.
  *
- * @see: Sidebar.tsx - Navigation sidebar component
- * @see: Header.tsx - Header component with controls
+ * KEY COMPONENTS:
+ *    - Sidebar: Left panel with collapsible tree navigation
+ *    - Header: Top bar with breadcrumbs, search, and action controls
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ./Sidebar.tsx, ./Header.tsx
+ *
+ * USAGE:
+ *    import { Sidebar, Header } from '../components/layout';
+ * ============================================================================
  */
+
 export { Sidebar } from './Sidebar';
 export { Header } from './Header';

@@ -1,12 +1,41 @@
+/**
+ * ============================================================================
+ * FILE: explorer.spec.ts
+ * LOCATION: e2e/tests/explorer.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Comprehensive E2E tests for the React Explorer UI including navigation,
+ *    CRUD operations, search, view switching, and user workflows.
+ *
+ * ROLE IN PROJECT:
+ *    Validates the main frontend explorer interface functionality. Tests cover
+ *    page load, tree navigation, CRUD operations via UI, context menus,
+ *    search functionality, and complete end-to-end user workflows.
+ *
+ * KEY COMPONENTS:
+ *    - Page Load Tests: Layout components, tree container, action buttons
+ *    - Tree Navigation Tests: Expand/collapse, node selection, path traversal
+ *    - CRUD Tests: Create departments, semesters, subjects, modules via UI
+ *    - Context Menu Tests: Right-click operations, rename, delete
+ *    - Search Tests: Filtering, clearing, no results handling
+ *    - View Switching Tests: Grid and list view toggle
+ *    - Upload Dialog Tests: File upload interactions
+ *    - End-to-End Workflow: Complete user journey validation
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: ExplorerPage, ApiHelper (page objects)
+ *
+ * USAGE:
+ *    Run all explorer tests: npx playwright test tests/explorer.spec.ts
+ *    Run specific describe block: npx playwright test --grep "CRUD Operations"
+ * ============================================================================
+ */
+
 import { test, expect } from '@playwright/test';
 import { ExplorerPage } from '../page-objects/ExplorerPage';
 import { ApiHelper } from '../page-objects/ApiHelper';
-
-/**
- * Explorer UI E2E Tests
- * Tests the React frontend explorer interface
- * Uses Page Object Model for maintainable UI interactions
- */
 
 test.describe('Explorer - Page Load & Basic UI', () => {
     let explorerPage: ExplorerPage;

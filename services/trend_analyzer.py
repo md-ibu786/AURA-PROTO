@@ -1,15 +1,35 @@
-# trend_analyzer.py
-# Service for analyzing concept trends and evolution across the knowledge graph
+"""
+============================================================================
+FILE: trend_analyzer.py
+LOCATION: services/trend_analyzer.py
+============================================================================
 
-# Provides trend analysis capabilities for tracking concept frequency, emergence,
-# and evolution across modules and time periods. Enables staff to understand how
-# concepts develop across semesters, identify emerging topics, and track knowledge
-# progression. Uses Neo4j graph queries with Redis caching for performance.
+PURPOSE:
+    Service for analyzing concept trends and evolution across the knowledge graph,
+    tracking frequency, emergence, and knowledge progression over time.
 
-# @see: api/graph_manager.py - Graph operations and entity traversal
-# @see: api/neo4j_config.py - Neo4j driver configuration
-# @see: api/cache.py - Redis caching for computed results
-# @note: Gracefully degrades when Neo4j or cache unavailable
+ROLE IN PROJECT:
+    Enables staff to understand how concepts develop across semesters, identify
+    emerging topics, and track knowledge progression in academic content.
+    - Key responsibility 1: Track concept frequency and emergence patterns
+    - Key responsibility 2: Analyze knowledge evolution across modules and time periods
+
+KEY COMPONENTS:
+    - TrendAnalyzer: Main analyzer class with caching support
+    - analyze_concept_trends: Track concept frequency changes over time
+    - find_emerging_concepts: Identify newly introduced concepts
+    - get_concept_evolution: Analyze how concepts develop across modules
+
+DEPENDENCIES:
+    - External: pydantic, neo4j, redis
+    - Internal: api/graph_manager, api/neo4j_config, api/cache
+
+USAGE:
+    from services.trend_analyzer import TrendAnalyzer
+    analyzer = TrendAnalyzer()
+    trends = analyzer.analyze_concept_trends(module_id="CS101")
+============================================================================
+"""
 
 from __future__ import annotations
 

@@ -1,14 +1,33 @@
-# __init__.py
-# Routers package for AURA-NOTES-MANAGER API
+"""
+============================================================================
+FILE: __init__.py
+LOCATION: api/routers/__init__.py
+============================================================================
 
-# Re-exports router instances for convenient import in main.py.
-# Each router handles a specific domain of the API.
+PURPOSE:
+    Package initialization for AURA-NOTES-MANAGER API routers, re-exporting
+    router instances for convenient import in main.py.
 
-# @see: api/routers/summaries.py - Auto-summarization endpoints
-# @see: api/routers/templates.py - Extraction template endpoints
-# @see: api/routers/schema.py - Schema validation and migration endpoints
-# @see: api/routers/graph_preview.py - Graph preview endpoints (RC-02)
-# @see: api/main.py - Router registration
+ROLE IN PROJECT:
+    Provides clean centralized access to all API routers. Each router handles
+    a specific domain of the API.
+    - Key responsibility 1: Re-exports router instances
+    - Key responsibility 2: Simplifies imports in main.py
+
+KEY COMPONENTS:
+    - summaries_router: Auto-summarization endpoints
+    - templates_router: Extraction template endpoints
+    - schema_router: Schema validation and migration endpoints
+    - graph_preview_router: Graph preview endpoints
+
+DEPENDENCIES:
+    - External: None
+    - Internal: api.routers.summaries, templates, schema, graph_preview
+
+USAGE:
+    from api.routers import summaries_router, templates_router
+============================================================================
+"""
 
 from api.routers.summaries import router as summaries_router
 from api.routers.templates import router as templates_router

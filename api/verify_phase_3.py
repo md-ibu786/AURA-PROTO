@@ -1,13 +1,37 @@
-# verify_phase_3.py
-# Phase 3 verification runner for Celery pipeline readiness
+"""
+============================================================================
+FILE: verify_phase_3.py
+LOCATION: api/verify_phase_3.py
+============================================================================
 
-# Longer description (2-4 lines):
-# - Runs ten checks covering files, imports, config, services, and docs.
-# - Reports a pass/fail summary with an automation-friendly exit code.
-# - Resolves paths relative to repo and AURA-NOTES-MANAGER.
+PURPOSE:
+    Phase 3 verification runner for Celery pipeline readiness.
+    Runs comprehensive checks covering files, imports, config, services,
+    and documentation for the document processing pipeline.
 
-# @see: api/tasks/document_processing_tasks.py - Celery app and tasks
-# @note: Run from AURA-NOTES-MANAGER with root venv
+ROLE IN PROJECT:
+    Automated verification for Celery-based document processing pipeline.
+    Ensures all components are properly configured and ready for deployment.
+    - Validates file structure and required modules exist
+    - Checks import paths and configuration settings
+    - Verifies services and documentation completeness
+
+KEY COMPONENTS:
+    - run_checks: Executes all verification checks sequentially
+    - check_file_structure: Validates required files exist
+    - check_imports: Verifies all imports resolve correctly
+    - check_config: Validates configuration values
+    - check_services: Ensures service modules are functional
+
+DEPENDENCIES:
+    - External: argparse, importlib, datetime, pathlib, typing
+    - Internal: api.config (for configuration validation)
+
+USAGE:
+    python api/verify_phase_3.py
+    python api/verify_phase_3.py --verbose
+============================================================================
+"""
 
 from __future__ import annotations
 

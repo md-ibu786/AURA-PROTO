@@ -1,13 +1,46 @@
-# cache.py
-# Redis cache client for AURA-NOTES-MANAGER API
+"""
+============================================================================
+FILE: cache.py
+LOCATION: api/cache.py
+============================================================================
 
-# Provides a singleton Redis client wrapper with connection pooling,
-# automatic reconnection, and graceful fallback when Redis is unavailable.
-# Used for caching summaries, embeddings, and other frequently accessed data.
+PURPOSE:
+    Redis cache client for AURA-NOTES-MANAGER API.
+    Provides a singleton Redis client wrapper with connection pooling,
+    automatic reconnection, and graceful fallback when Redis is unavailable.
 
-# @see: services/summary_service.py - Uses cache for summary storage
-# @see: api/main.py - Health check endpoint for Redis
-# @note: Set REDIS_HOST, REDIS_PORT, REDIS_DB env vars to configure
+ROLE IN PROJECT:
+    Centralized caching layer for performance optimization.
+    - Caches LLM-generated summaries to reduce API calls
+    - Stores embeddings for faster retrieval
+    - Provides TTL-based cache expiration
+    - Gracefully degrades when Redis is unavailable
+    - Used by summary service and other components
+
+KEY COMPONENTS:
+    - RedisClient: Main client wrapper with lazy connection
+    - set: Store JSON-serializable values with TTL
+    - get: Retrieve cached values
+    - delete: Remove cached entries
+    - redis_client: Singleton instance for application-wide use
+
+DEPENDENCIES:
+    - External: redis (Redis client library), json, logging, os
+    - Internal: None
+
+USAGE:
+    from api.cache import redis_client
+
+    # Store a value
+    redis_client.set("my_key", {"foo": "bar"}, ttl=3600)
+
+    # Retrieve a value
+    data = redis_client.get("my_key")
+
+    # Delete a value
+    redis_client.delete("my_key")
+============================================================================
+"""
 
 from __future__ import annotations
 

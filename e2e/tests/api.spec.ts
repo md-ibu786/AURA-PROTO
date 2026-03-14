@@ -1,11 +1,39 @@
+/**
+ * ============================================================================
+ * FILE: api.spec.ts
+ * LOCATION: e2e/tests/api.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Direct API endpoint testing for the FastAPI backend including CRUD
+ *    operations, hierarchy management, and error handling.
+ *
+ * ROLE IN PROJECT:
+ *    Validates the backend REST API independently of the frontend. Tests
+ *    cover all major endpoints for departments, semesters, subjects, modules,
+ *    notes, and explorer operations with proper test isolation.
+ *
+ * KEY COMPONENTS:
+ *    - Health Check Tests: Backend availability verification
+ *    - Department CRUD Tests: Create, read, update, delete with cascade
+ *    - Hierarchy Tests: Full tree operations, nested structure validation
+ *    - Notes Tests: Note creation, updates, status tracking
+ *    - Move Operations Tests: Node relocation across hierarchy levels
+ *    - Error Handling Tests: 404 responses, validation errors, duplicates
+ *    - Performance Tests: Tree endpoint response time validation
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: ApiHelper (page object)
+ *
+ * USAGE:
+ *    Run all API tests: npx playwright test tests/api.spec.ts
+ *    Run specific describe block: npx playwright test --grep "Departments CRUD"
+ * ============================================================================
+ */
+
 import { test, expect } from '@playwright/test';
 import { ApiHelper } from '../page-objects/ApiHelper';
-
-/**
- * API E2E Tests
- * Tests the Firestore-backed API endpoints directly
- * All tests are isolated with proper setup/teardown
- */
 
 test.describe('API - Health Check', () => {
     test('Backend server is running and healthy', async ({ request }) => {

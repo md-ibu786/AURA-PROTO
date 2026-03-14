@@ -1,14 +1,39 @@
-# vertex_ai_client.py
-# Legacy Vertex AI façade backed by the shared model router.
+"""
+============================================================================
+FILE: vertex_ai_client.py
+LOCATION: services/vertex_ai_client.py
+============================================================================
 
-# Preserves the historical NOTES import surface while delegating generation
-# work to model_router compatibility helpers. This keeps downstream services
-# unchanged and removes all direct provider SDK imports from the app.
+PURPOSE:
+    Legacy Vertex AI façade backed by the shared model router.
+    Preserves the historical NOTES import surface while delegating generation
+    work to model_router compatibility helpers.
 
-# @see: shared/model_router/src/model_router/compat.py
-# @note: Safety settings are now handled internally by model_router.
+ROLE IN PROJECT:
+    Compatibility layer for Vertex AI integration.
+    - Maintains existing import surface for downstream services
+    - Removes direct Google Vertex AI SDK dependencies from the app
+    - Delegates to shared model_router for actual generation
+    - Provides legacy error types for backward compatibility
 
-"""Legacy Vertex AI façade backed by the shared model router."""
+KEY COMPONENTS:
+    - GenerationConfig: Config shim for router translation
+    - generate_content: Main generation function
+    - VertexAIRequestError: Legacy error type for NOTES callers
+    - SafetySetting: Placeholder for legacy type compatibility
+    - Part: Minimal legacy part shim for older imports
+
+DEPENDENCIES:
+    - External: model_router (compat, errors, providers, router)
+    - Internal: None
+
+USAGE:
+    from services.vertex_ai_client import generate_content, GenerationConfig
+
+    config = GenerationConfig(temperature=0.7, max_output_tokens=1024)
+    response = generate_content("gemini-pro", "Hello, world!", config)
+============================================================================
+"""
 
 from __future__ import annotations
 

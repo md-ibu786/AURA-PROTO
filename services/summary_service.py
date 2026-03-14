@@ -1,15 +1,35 @@
-# summary_service.py
-# Service for generating document and module-level summaries with KG integration
+"""
+============================================================================
+FILE: summary_service.py
+LOCATION: services/summary_service.py
+============================================================================
 
-# Provides automatic summarization of academic content at document and module
-# levels using LLM. Integrates key entities from the knowledge graph and
-# supports configurable summary lengths. Implements Redis caching with 24-hour
-# TTL for performance optimization.
+PURPOSE:
+    Service for generating document and module-level summaries with knowledge graph
+    integration, supporting configurable summary lengths and caching for performance.
 
-# @see: services/vertex_ai_client.py - Vertex AI Gemini client wrapper
-# @see: api/graph_manager.py - Entity retrieval from knowledge graph
-# @see: api/cache.py - Redis caching for summaries
-# @note: Gracefully degrades when LLM or cache services unavailable
+ROLE IN PROJECT:
+    Provides automatic summarization of academic content using LLM with entity
+    integration from the knowledge graph. Used by document processing pipeline.
+    - Key responsibility 1: Generate hierarchical summaries (document/module level)
+    - Key responsibility 2: Cache summaries with 24-hour TTL for performance
+
+KEY COMPONENTS:
+    - SummaryService: Main service class with caching
+    - SummaryLength: Enum for brief/standard/detailed summary types
+    - generate_document_summary: Create summary for single document
+    - generate_module_summary: Aggregate summary across module documents
+
+DEPENDENCIES:
+    - External: pydantic
+    - Internal: services/vertex_ai_client, api/graph_manager, api/cache, api/config
+
+USAGE:
+    from services.summary_service import SummaryService, SummaryLength
+    service = SummaryService()
+    summary = service.generate_document_summary(doc_id, length=SummaryLength.STANDARD)
+============================================================================
+"""
 
 from __future__ import annotations
 

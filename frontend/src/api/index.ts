@@ -1,13 +1,29 @@
 /**
- * API Index
- * ========================
+ * ============================================================================
+ * FILE: index.ts
+ * LOCATION: frontend/src/api/index.ts
+ * ============================================================================
  *
- * Barrel export module for all API functions.
- * Re-exports client, explorerApi, and audioApi modules.
+ * PURPOSE:
+ *    Barrel export module for all API client modules
  *
- * @see: client.ts - Base fetch wrappers and error classes
- * @see: explorerApi.ts - Hierarchy CRUD operations
- * @see: audioApi.ts - Audio processing pipeline
+ * ROLE IN PROJECT:
+ *    Centralizes exports for all API interaction modules. Provides single
+ *    import point for fetch wrappers, CRUD operations, and error handling
+ *
+ * KEY COMPONENTS:
+ *    - client: Base fetch wrappers, DuplicateError class, request helpers
+ *    - explorerApi: Hierarchy CRUD operations (create, read, update, delete)
+ *    - audioApi: Audio file upload and processing pipeline
+ *    - userApi: User management and Firebase authentication
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: ./client, ./explorerApi, ./audioApi, ./userApi
+ *
+ * USAGE:
+ *    import { fetchApi, DuplicateError, createNode } from '@/api';
+ * ============================================================================
  */
 export * from './client';
 export * from './explorerApi';

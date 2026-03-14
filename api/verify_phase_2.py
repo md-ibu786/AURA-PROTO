@@ -1,13 +1,38 @@
-#!/usr/bin/env python3
-# verify_phase_2.py
-# Phase 2 verification script for AI Enablement components
+"""
+============================================================================
+FILE: verify_phase_2.py
+LOCATION: api/verify_phase_2.py
+============================================================================
 
-# Verifies implementation of entity-aware chunker, LLM entity extractor,
-# KnowledgeGraphProcessor integration, and retry logic without requiring
-# live credentials. Uses code inspection and import validation.
+PURPOSE:
+    Phase 2 verification script for AI Enablement components.
+    Verifies implementation without requiring live credentials through
+    code inspection and import validation.
 
-# @see: services/entity_aware_chunker.py, services/llm_entity_extractor.py
-# @note: Some checks verify code structure to avoid requiring live credentials
+ROLE IN PROJECT:
+    Pre-deployment validation tool for Phase 2 features.
+    - Validates entity-aware chunker functionality
+    - Verifies LLM entity extractor integration
+    - Checks KnowledgeGraphProcessor Phase 2 integration
+    - Confirms tenacity retry logic implementation
+
+KEY COMPONENTS:
+    - check_entity_aware_chunker: Tests hierarchical text chunking
+    - check_llm_entity_extractor: Validates entity extraction imports
+    - check_kg_processor_integration: Verifies service usage in kg_processor.py
+    - check_retry_logic: Confirms tenacity decorators and error handling
+
+DEPENDENCIES:
+    - External: sys, pathlib
+    - Internal: services/entity_aware_chunker.py, services/llm_entity_extractor.py
+
+USAGE:
+    Run from project root:
+        python api/verify_phase_2.py
+
+    Exit code 0 if all checks pass, non-zero if any check fails.
+============================================================================
+"""
 
 import sys
 from pathlib import Path

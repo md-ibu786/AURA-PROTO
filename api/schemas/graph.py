@@ -1,13 +1,35 @@
-# graph.py
-# Pydantic schemas for graph API endpoints - node types, relationships, and graph data
+"""
+============================================================================
+FILE: graph.py
+LOCATION: api/schemas/graph.py
+============================================================================
 
-# Defines request/response schemas for the knowledge graph visualization API.
-# Includes schemas for graph metadata (node types, relationship types, counts)
-# and graph data structures (nodes, edges) for frontend rendering.
+PURPOSE:
+    Pydantic schemas for graph API endpoints including node types,
+    relationships, and graph data structures for visualization.
 
-# @see: routers/graph.py - Graph API endpoints using these schemas
-# @see: services/graph_service.py - Graph operations that return these types
-# @note: x/y coordinates in GraphNode are optional for pre-computed layouts
+ROLE IN PROJECT:
+    Defines request/response schemas for the knowledge graph visualization API.
+    Supports both metadata queries and graph data retrieval for frontend.
+    - Provides schemas for graph metadata (types, counts, properties)
+    - Structures graph data (nodes, edges) for frontend rendering
+    - Supports optional pre-computed layout coordinates
+
+KEY COMPONENTS:
+    - NodeTypeSchema: Metadata about node types in the graph
+    - RelationshipTypeSchema: Metadata about relationship types
+    - GraphMetadata: Complete graph statistics and type information
+    - GraphData: Nodes and edges for visualization rendering
+
+DEPENDENCIES:
+    - External: pydantic (BaseModel, Field), datetime, typing
+    - Internal: None
+
+USAGE:
+    from api.schemas.graph import GraphData, GraphNode, GraphEdge
+    data = GraphData(nodes=[...], edges=[...], total_nodes=100)
+============================================================================
+"""
 
 from __future__ import annotations
 

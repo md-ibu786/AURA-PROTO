@@ -1,14 +1,36 @@
-# verify_phase_1.py
-# Verification script for Phase 1 configuration and client usage
+"""
+============================================================================
+FILE: verify_phase_1.py
+LOCATION: api/verify_phase_1.py
+============================================================================
 
-# Longer description (2-4 lines):
-# - Scans API and services code to ensure no direct generativeai imports
-#   or GEMINI_API_KEY references remain, and Vertex AI client usage exists.
-# - Imports config and service modules to confirm model constants are wired.
-# - Prints ASCII-only PASS/FAIL output for CI-friendly verification.
+PURPOSE:
+    Verification script for Phase 1 configuration and client usage.
+    Scans API and services code to ensure proper Vertex AI integration
+    and removal of deprecated Google Generative AI imports.
 
-# @see: .planning/ai_enablement_plans/01-config/01-04-PLAN.md
-# @note: Script avoids subprocess grep; uses Python file scanning.
+ROLE IN PROJECT:
+    CI-friendly verification script for AI enablement Phase 1.
+    Validates that the codebase has migrated to Vertex AI properly.
+    - Scans for remaining generativeai imports and GEMINI_API_KEY usage
+    - Confirms Vertex AI client usage exists in the codebase
+    - Validates config and service modules are properly wired
+
+KEY COMPONENTS:
+    - iter_python_files: Generator to find all Python files in directories
+    - scan_file: Checks individual files for deprecated patterns
+    - verify_no_deprecated_imports: Validates migration completeness
+    - verify_vertex_client_usage: Confirms new client implementation
+
+DEPENDENCIES:
+    - External: pathlib, typing, sys
+    - Internal: None
+
+USAGE:
+    python api/verify_phase_1.py
+    # Returns exit code 0 on success, 1 on failure
+============================================================================
+"""
 
 from __future__ import annotations
 

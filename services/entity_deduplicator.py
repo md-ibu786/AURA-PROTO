@@ -1,14 +1,3 @@
-# entity_deduplicator.py
-# Semantic entity deduplication using embedding similarity
-
-# Identifies and merges semantically similar entities (e.g., "ML" and "Machine Learning")
-# using cosine similarity on embeddings. Uses Union-Find algorithm for transitive
-# grouping and confidence-based merge strategy to select canonical entities.
-
-# @see: services/embeddings.py - Embedding generation service
-# @see: api/kg_processor.py - KG processing pipeline integration
-# @note: Threshold of 0.85 is tuned for academic entities; adjust if needed
-
 """
 ============================================================================
 FILE: entity_deduplicator.py
@@ -16,18 +5,32 @@ LOCATION: services/entity_deduplicator.py
 ============================================================================
 
 PURPOSE:
-    Semantic deduplication of entities using embedding-based similarity.
-    Catches cases where LLMs extract the same concept with different names:
-    - "Machine Learning" vs "ML" vs "machine-learning"
-    - "Software-Defined Networking" vs "SDN"
-    
+    Semantic entity deduplication using embedding similarity to identify and merge
+    semantically equivalent entities (e.g., "ML" and "Machine Learning").
+
+ROLE IN PROJECT:
+    Identifies and merges semantically similar entities using cosine similarity
+    on embeddings. Uses Union-Find algorithm for transitive grouping with
+    confidence-based merge strategy to select canonical entities.
+    - Key responsibility 1: Detect semantic duplicates using embedding similarity
+    - Key responsibility 2: Merge entities and select canonical representatives
+
+KEY COMPONENTS:
+    - EntityDeduplicator: Main deduplication class with Union-Find algorithm
+    - find_duplicates: Identify similar entities above threshold (default 0.85)
+    - merge_entities: Combine duplicate entities with confidence scoring
+    - compute_similarity_matrix: Efficient batch similarity computation
+
 DEPENDENCIES:
-    - services.embeddings.EmbeddingService for embedding generation
-    - numpy for efficient matrix operations
-    
+    - External: numpy for matrix operations
+    - Internal: services.embeddings
+
 USAGE:
     from services.entity_deduplicator import EntityDeduplicator
-    
+    deduplicator = EntityDeduplicator()
+    canonical_entities = deduplicator.deduplicate(raw_entities)
+============================================================================
+"""
     deduplicator = EntityDeduplicator(similarity_threshold=0.85)
     unique_entities, merge_map = deduplicator.deduplicate(entities, embeddings)
     

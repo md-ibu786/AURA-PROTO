@@ -1,5 +1,36 @@
-// ProviderSettingsSection.tsx
-// Displays cards showing status and model counts for each provider
+/**
+ * ============================================================================
+ * FILE: ProviderSettingsSection.tsx
+ * LOCATION: frontend/src/features/settings/components/ProviderSettingsSection.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Component displaying status cards for each configured AI provider.
+ *    Shows provider information, available model counts, and configuration status.
+ *
+ * ROLE IN PROJECT:
+ *    Part of the settings configuration system:
+ *    - Displays provider cards with icons and model counts
+ *    - Indicates provider availability status (active/no-key/unavailable)
+ *    - Helps administrators quickly identify which providers are configured
+ *    - Shows loading states while fetching model information
+ *    - Integrates with API key status for complete visibility
+ *
+ * KEY COMPONENTS:
+ *    - ProviderSettingsSection: Main container component
+ *    - ProviderCard: Individual provider status card
+ *    - PROVIDERS: Configuration array defining provider metadata
+ *    - useAllModels, useApiKeyStatus: Custom hooks for data fetching
+ *
+ * DEPENDENCIES:
+ *    - External: react, lucide-react
+ *    - Internal: features/settings/hooks/useSettingsApi, lib/cn, types/settings
+ *
+ * USAGE:
+ *    <ProviderSettingsSection />
+ *    Used within SettingsPage for provider overview section
+ * ============================================================================
+ */
 
 import { Cpu, Globe, Server, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useAllModels, useApiKeyStatus } from '../hooks/useSettingsApi';

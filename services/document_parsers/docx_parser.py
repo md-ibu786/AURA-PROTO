@@ -1,19 +1,36 @@
-# docx_parser.py
-# Microsoft Word document (.docx) parser for AURA-NOTES-MANAGER
+"""
+============================================================================
+FILE: docx_parser.py
+LOCATION: services/document_parsers/docx_parser.py
+============================================================================
 
-# Extracts text content, structure (headings, paragraphs), tables, and metadata
-# from DOCX files. Provides consistent interface with ParsedDocument output
-# compatible with the KG processing pipeline.
-#
-# Key components:
-# - DocxParser: Main parser class with parse() and parse_bytes() methods
-# - ParsedDocument: Pydantic model for parsed output
-# - DocumentSection: Model for heading-based document sections
-# - Table extraction converts to markdown-like format
+PURPOSE:
+    Microsoft Word document (.docx) parser for AURA-NOTES-MANAGER.
+    Extracts text content, structure, tables, and metadata from DOCX files.
 
-# @see: api/kg_processor.py - Uses DocxParser for document processing
-# @see: AURA-CHAT/backend/document_processor.py - Reference implementation
-# @note: Requires python-docx>=0.8.11 library
+ROLE IN PROJECT:
+    Part of the document parsing pipeline for knowledge graph processing.
+    Provides a consistent interface for DOCX file parsing.
+    - Key responsibility 1: Parse DOCX files into structured data
+    - Key responsibility 2: Convert document sections to markdown format
+
+KEY COMPONENTS:
+    - DocxParser: Main parser class with parse() and parse_bytes() methods
+    - ParsedDocument: Pydantic model for parsed output
+    - DocumentSection: Model for heading-based document sections
+    - Exception classes: DocxParseError, CorruptedDocxError, etc.
+
+DEPENDENCIES:
+    - External: python-docx>=0.8.11, pydantic, zipfile, logging
+    - Internal: None
+
+USAGE:
+    parser = DocxParser()
+    result = parser.parse("document.docx")
+    or
+    result = parser.parse_bytes(docx_bytes)
+============================================================================
+"""
 
 from __future__ import annotations
 

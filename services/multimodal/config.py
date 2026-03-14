@@ -1,13 +1,35 @@
-# config.py
-# Configuration for multimodal processing services
+"""
+============================================================================
+FILE: config.py
+LOCATION: services/multimodal/config.py
+============================================================================
 
-# Centralized configuration for all multimodal providers including
-# audio transcription (Deepgram/Whisper), OCR (Tesseract/Google Vision),
-# and image processing (Gemini Vision). Uses pydantic-settings for
-# environment variable loading with sensible defaults.
+PURPOSE:
+    Centralized configuration for all multimodal processing services using
+    pydantic-settings for environment variable loading with sensible defaults.
 
-# @see: audio.py, ocr.py, image.py - Services that consume this config
-# @note: Set MULTIMODAL_* environment variables to override defaults
+ROLE IN PROJECT:
+    Configuration management for the multimodal processing pipeline.
+    - Defines provider enums for audio (Deepgram/Whisper), OCR (Tesseract/Google Vision)
+    - Loads settings from environment variables with MULTIMODAL_ prefix
+    - Provides validation and defaults for all multimodal services
+
+KEY COMPONENTS:
+    - AudioProvider: Enum for supported audio transcription providers
+    - OCRProvider: Enum for supported OCR providers
+    - MultimodalConfig: Main configuration class with all settings
+    - get_multimodal_config(): Factory function for config instances
+
+DEPENDENCIES:
+    - External: enum, typing, pydantic_settings
+    - Internal: None
+
+USAGE:
+    from services.multimodal import get_multimodal_config
+    config = get_multimodal_config()
+    audio_provider = config.audio_provider
+============================================================================
+"""
 
 from enum import Enum
 from typing import List, Optional

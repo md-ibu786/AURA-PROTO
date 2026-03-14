@@ -1,32 +1,34 @@
-# publishing.py
-# =========================
-#
-# Module publishing workflow for M2KG system.
-# Manages module lifecycle transitions (draft -> published -> archived).
-# Maintains published_modules collection for AURA-CHAT access.
-# Logs all actions to audit trail for compliance.
-#
-# Features:
-# ----------
-# - Module publishing (draft -> published) with validation
-# - Module unpublishing (published -> draft)
-# - Sync to published_modules collection for AURA-CHAT discovery
-# - Comprehensive audit trail logging
-# - Idempotent publish operations
-#
-# Classes/Functions:
-# ------------------
-# - ModulePublisher: Service for module publishing workflow
-# - publish(): Publish module for student access
-# - unpublish(): Hide module from students
-# - get_published_modules(): List all published modules
-# - get_audit_log(): Get module action history
-# - _log_audit(): Internal audit entry creation
-#
-# @see: service.py - Base ModuleService for CRUD operations
-# @see: router.py - Endpoints that use this publisher
-# @note: Uses sync Firestore but methods follow async pattern for future flexibility
-# @note: Published modules stored in separate 'published_modules' collection
+"""
+============================================================================
+FILE: publishing.py
+LOCATION: api/modules/publishing.py
+============================================================================
+
+PURPOSE:
+    Module publishing workflow for M2KG system managing lifecycle transitions
+    (draft -> published -> archived) and maintaining published_modules collection.
+
+ROLE IN PROJECT:
+    Handles module publishing workflow with validation and audit logging.
+    Maintains separate published_modules collection for AURA-CHAT discovery.
+    - Key responsibility 1: Module publishing/unpublishing with validation
+    - Key responsibility 2: Audit trail logging for compliance
+
+KEY COMPONENTS:
+    - ModulePublisher: Service for module publishing workflow
+    - publish(): Publish module for student access
+    - unpublish(): Hide module from students
+    - get_published_modules(): List all published modules
+    - get_audit_log(): Get module action history
+
+DEPENDENCIES:
+    - External: None (uses Firestore via config)
+    - Internal: .service, .models, config
+
+USAGE:
+    Used by router.py. Instantiated via dependency injection.
+============================================================================
+"""
 
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -50,7 +52,7 @@ except ImportError:
 class ModulePublisher:
     """
     Service for module publishing workflow.
-    
+
     Handles:
     - Publishing modules (draft → published)
     - Unpublishing modules (published → draft)
@@ -65,7 +67,9 @@ class ModulePublisher:
         """Initialize with optional Firestore client injection."""
         self.db = firestore_db or db
         self.module_service = ModuleService(self.db)
-        self.published_collection = self.db.collection(self.PUBLISHED_MODULES_COLLECTION)
+        self.published_collection = self.db.collection(
+            self.PUBLISHED_MODULES_COLLECTION
+        )
         self.audit_collection = self.db.collection(self.AUDIT_LOG_COLLECTION)
 
     def publish(self, module_id: str, staff_id: str) -> Dict[str, Any]:
@@ -95,16 +99,15 @@ class ModulePublisher:
             raise ValueError(f"Module {module_id} not found")
 
         current_status = module.get("status")
-        
+
         # Validate status - allow DRAFT or already PUBLISHED (idempotent)
         if current_status not in [ModuleStatus.DRAFT.value, "draft"]:
             if current_status in [ModuleStatus.PUBLISHED.value, "published"]:
                 # Already published - return current state
-                return {
-                    **module,
-                    "message": "Module is already published"
-                }
-            raise ValueError(f"Module must be in DRAFT status to publish (current: {current_status})")
+                return {**module, "message": "Module is already published"}
+            raise ValueError(
+                f"Module must be in DRAFT status to publish (current: {current_status})"
+            )
 
         # Check document count (optional - can publish empty modules)
         doc_count = module.get("document_count", 0)
@@ -129,7 +132,7 @@ class ModulePublisher:
             "document_count": doc_count,
             "published_at": now,
             "published_by": staff_id,
-            "student_access": True
+            "student_access": True,
         }
         self.published_collection.document(module_id).set(published_doc)
 
@@ -141,17 +144,19 @@ class ModulePublisher:
             details={
                 "document_count": doc_count,
                 "previous_status": current_status,
-                "new_status": ModuleStatus.PUBLISHED.value
-            }
+                "new_status": ModuleStatus.PUBLISHED.value,
+            },
         )
 
         return {
             **module,
             "status": ModuleStatus.PUBLISHED.value,
-            "published_at": now.isoformat()
+            "published_at": now.isoformat(),
         }
 
-    def unpublish(self, module_id: str, staff_id: str, reason: Optional[str] = None) -> Dict[str, Any]:
+    def unpublish(
+        self, module_id: str, staff_id: str, reason: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Unpublish a module (hide from students).
 
@@ -171,9 +176,11 @@ class ModulePublisher:
             raise ValueError(f"Module {module_id} not found")
 
         current_status = module.get("status")
-        
+
         if current_status not in [ModuleStatus.PUBLISHED.value, "published"]:
-            raise ValueError(f"Module must be PUBLISHED to unpublish (current: {current_status})")
+            raise ValueError(
+                f"Module must be PUBLISHED to unpublish (current: {current_status})"
+            )
 
         now = datetime.utcnow()
 
@@ -192,20 +199,20 @@ class ModulePublisher:
             details={
                 "reason": reason,
                 "previous_status": ModuleStatus.PUBLISHED.value,
-                "new_status": ModuleStatus.DRAFT.value
-            }
+                "new_status": ModuleStatus.DRAFT.value,
+            },
         )
 
         return {
             **module,
             "status": ModuleStatus.DRAFT.value,
-            "unpublished_at": now.isoformat()
+            "unpublished_at": now.isoformat(),
         }
 
     def get_published_modules(self) -> List[Dict[str, Any]]:
         """
         Get all published modules for AURA-CHAT.
-        
+
         Returns:
             List of published module documents
         """
@@ -215,23 +222,23 @@ class ModulePublisher:
     def get_audit_log(self, module_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
         Get audit log for a module.
-        
+
         Args:
             module_id: Module to get audit log for
             limit: Max number of entries to return
-            
+
         Returns:
             List of audit log entries, newest first
         """
         from google.cloud import firestore as fs
+
         docs = (
-            self.audit_collection
-            .where("module_id", "==", module_id)
+            self.audit_collection.where("module_id", "==", module_id)
             .order_by("timestamp", direction=fs.Query.DESCENDING)
             .limit(limit)
             .get()
         )
-        
+
         results = []
         for d in docs:
             entry = d.to_dict()
@@ -241,20 +248,24 @@ class ModulePublisher:
             results.append(entry)
         return results
 
-    def _log_audit(self, module_id: str, action: str, staff_id: str, details: Dict[str, Any]) -> None:
+    def _log_audit(
+        self, module_id: str, action: str, staff_id: str, details: Dict[str, Any]
+    ) -> None:
         """
         Log an audit entry.
-        
+
         Args:
             module_id: Module being acted upon
             action: Action type (PUBLISH, UNPUBLISH, etc.)
             staff_id: Staff member performing action
             details: Additional details about the action
         """
-        self.audit_collection.add({
-            "module_id": module_id,
-            "action": action,
-            "performed_by": staff_id,
-            "timestamp": datetime.utcnow(),
-            "details": details
-        })
+        self.audit_collection.add(
+            {
+                "module_id": module_id,
+                "action": action,
+                "performed_by": staff_id,
+                "timestamp": datetime.utcnow(),
+                "details": details,
+            }
+        )

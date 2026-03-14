@@ -1,3 +1,33 @@
+"""
+============================================================================
+FILE: test_department_duplicates.py
+LOCATION: tests/test_department_duplicates.py
+============================================================================
+
+PURPOSE:
+    Tests for duplicate department name detection in hierarchy management.
+    Validates 409 Conflict response when creating duplicate departments.
+
+ROLE IN PROJECT:
+    Part of the hierarchy management test suite.
+    Ensures data integrity by preventing duplicate department names.
+    - Key responsibility 1: Test duplicate detection logic
+    - Key responsibility 2: Validate 409 Conflict HTTP response
+
+KEY COMPONENTS:
+    - test_create_duplicate_department_returns_409: Main test case
+    - _admin_user: Test fixture for admin authentication
+
+DEPENDENCIES:
+    - External: pytest, fastapi.testclient, unittest.mock
+    - Internal: api.main, api.models, api.hierarchy_crud
+
+USAGE:
+    Run with: pytest tests/test_department_duplicates.py
+    or: python -m pytest tests/test_department_duplicates.py -v
+============================================================================
+"""
+
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
@@ -37,6 +67,7 @@ def _admin_user() -> FirestoreUser:
         status="active",
     )
 
+
 @patch("hierarchy_crud.db")
 def test_create_duplicate_department_returns_409(mock_db):
     """
@@ -45,43 +76,44 @@ def test_create_duplicate_department_returns_409(mock_db):
     """
     mock_collection = MagicMock()
     mock_db.collection.return_value = mock_collection
-    
+
     mock_query_where = MagicMock()
     mock_collection.where.return_value = mock_query_where
-    
+
     mock_query_limit = MagicMock()
     mock_query_where.limit.return_value = mock_query_limit
-    
+
     # Simulate existing document
     mock_doc = MagicMock()
     mock_doc.to_dict.return_value = {"name": "Existing Dept", "code": "ED01"}
-    
+
     # stream() returns list with 1 item
     mock_query_limit.stream.return_value = [mock_doc]
 
     app.dependency_overrides[_staff_or_admin_dependency] = _admin_user
     payload = {"name": "Existing Dept", "code": "NEWCODE"}
     response = client.post("/api/departments", json=payload)
-    
+
     assert response.status_code == 409
     assert response.json()["detail"]["code"] == "DUPLICATE_NAME"
     assert "already exists" in response.json()["detail"]["message"]
+
 
 @patch("hierarchy_crud.db")
 def test_create_unique_department_succeeds(mock_db):
     """Test that unique names are allowed."""
     mock_collection = MagicMock()
     mock_db.collection.return_value = mock_collection
-    
+
     mock_query_where = MagicMock()
     mock_collection.where.return_value = mock_query_where
-    
+
     mock_query_limit = MagicMock()
     mock_query_where.limit.return_value = mock_query_limit
-    
+
     # stream() returns empty list
     mock_query_limit.stream.return_value = []
-    
+
     # Mock document creation
     mock_new_ref = MagicMock()
     mock_new_ref.id = "new-id-123"
@@ -90,10 +122,10 @@ def test_create_unique_department_succeeds(mock_db):
     app.dependency_overrides[_staff_or_admin_dependency] = _admin_user
     payload = {"name": "New Unique Dept", "code": "ND01"}
     response = client.post("/api/departments", json=payload)
-    
+
     # Debug info
     if response.status_code != 200:
         print(response.json())
-        
+
     assert response.status_code == 200
     assert response.json()["department"]["name"] == "New Unique Dept"

@@ -1,15 +1,32 @@
-# trends.py
-# FastAPI router for trend analysis endpoints
+"""
+============================================================================
+FILE: trends.py
+LOCATION: api/routers/trends.py
+============================================================================
 
-# Provides REST API endpoints for concept trend analysis including frequency
-# distribution, trending concepts, emerging concepts, cross-module overlap,
-# concept evolution, and module comparison. Uses TrendAnalyzer service with
-# Redis caching for performance.
+PURPOSE:
+    FastAPI router providing REST API endpoints for concept trend analysis
+    including frequency distribution, trending concepts, and cross-module overlap.
 
-# @see: services/trend_analyzer.py - TrendAnalyzer for trend analysis logic
-# @see: api/routers/summaries.py - Pattern reference for router structure
-# @see: api/cache.py - Redis caching for computed results
-# @note: Computation-heavy endpoints may take time on first request
+ROLE IN PROJECT:
+    Part of the routers package that exposes trend analytics capabilities.
+    Uses TrendAnalyzer service with Redis caching for performance.
+    - Key responsibility 1: Provides trend analysis endpoints for concept evolution
+    - Key responsibility 2: Supports cross-module comparison and emerging concept detection
+
+KEY COMPONENTS:
+    - router: FastAPI router for trend endpoints
+    - TrendAnalyzer: Service for trend analysis logic
+    - Various endpoints: frequency, trending, emerging concepts, evolution tracking
+
+DEPENDENCIES:
+    - External: fastapi, pydantic
+    - Internal: services.trend_analyzer
+
+USAGE:
+    Imported in main.py. Access via trend analysis endpoints.
+============================================================================
+"""
 
 from __future__ import annotations
 

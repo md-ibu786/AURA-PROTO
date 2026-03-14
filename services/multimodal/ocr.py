@@ -1,14 +1,34 @@
-# ocr.py
-# OCR service for extracting text from scanned documents and images
+"""
+============================================================================
+FILE: ocr.py
+LOCATION: services/multimodal/ocr.py
+============================================================================
 
-# Provides OCR text extraction supporting Tesseract (local, free) and
-# Google Vision API (cloud, higher accuracy). Includes preprocessing
-# pipeline with deskew and contrast enhancement, and produces KG-ready
-# documents for integration with the knowledge graph pipeline.
+PURPOSE:
+    OCR service for extracting text from scanned documents and images using
+    Tesseract (local) or Google Vision API (cloud) providers.
 
-# @see: base.py - OCRProcessor abstract base class
-# @see: config.py - MultimodalConfig for provider settings
-# @note: Methods raise NotImplementedError - full implementation in future phase
+ROLE IN PROJECT:
+    Part of the multimodal processing pipeline for AURA-NOTES-MANAGER.
+    - Extracts text from scanned documents with preprocessing pipeline
+    - Produces KG-ready documents for knowledge graph integration
+    - Supports deskew, contrast enhancement, and confidence scoring
+
+KEY COMPONENTS:
+    - OCRPageContent: Single page OCR result with bounding boxes
+    - KGReadyOCRDocument: OCR document prepared for KG pipeline ingestion
+    - OCRService: Main OCR service with provider abstraction
+
+DEPENDENCIES:
+    - External: datetime, typing, pydantic
+    - Internal: .base (OCRProcessor, BoundingBox, OCRResult)
+
+USAGE:
+    from services.multimodal import OCRService
+    ocr_service = OCRService(config)
+    document = await ocr_service.process_document(file_path)
+============================================================================
+"""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union

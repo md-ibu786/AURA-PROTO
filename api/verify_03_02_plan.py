@@ -1,7 +1,37 @@
-# verify_03_02_plan.py
-# Final verification script for 03-02-PLAN (Celery Pipeline Verification)
+"""
+============================================================================
+FILE: verify_03_02_plan.py
+LOCATION: api/verify_03_02_plan.py
+============================================================================
 
-"""Verify all success criteria from 03-02-PLAN are met."""
+PURPOSE:
+    Final verification script for 03-02-PLAN (Celery Pipeline Verification).
+    Verifies all success criteria from the Celery pipeline integration
+    plan are met before deployment.
+
+ROLE IN PROJECT:
+    Comprehensive validation for Celery document processing pipeline.
+    Performs end-to-end verification of the async processing system.
+    - Checks Celery app configuration and broker connectivity
+    - Validates all processing tasks are registered and functional
+    - Verifies document processing workflow completeness
+
+KEY COMPONENTS:
+    - main: Entry point running all verification checks
+    - verify_celery_app: Validates Celery application setup
+    - verify_broker_connection: Tests message broker connectivity
+    - verify_tasks: Ensures all task modules load correctly
+    - verify_document_workflow: Tests complete processing chain
+
+DEPENDENCIES:
+    - External: os, sys, codecs (for Windows UTF-8 support)
+    - Internal: api.tasks.document_processing_tasks
+
+USAGE:
+    python api/verify_03_02_plan.py
+    # Run with AURA_TEST_MODE=true for testing environment
+============================================================================
+"""
 
 import os
 import sys

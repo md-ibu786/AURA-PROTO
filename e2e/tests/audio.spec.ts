@@ -1,19 +1,40 @@
+/**
+ * ============================================================================
+ * FILE: audio.spec.ts
+ * LOCATION: e2e/tests/audio.spec.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    End-to-end tests for the audio processing pipeline including document
+ *    uploads, voice processing, and AI-powered note generation.
+ *
+ * ROLE IN PROJECT:
+ *    Validates the complete audio processing workflow from file upload through
+ *    AI transcription to PDF generation. Tests both API endpoints and UI
+ *    interactions to ensure the audio pipeline works correctly end-to-end.
+ *
+ * KEY COMPONENTS:
+ *    - Document Upload Tests: PDF upload via API and UI
+ *    - Voice Pipeline Tests: Audio processing, job status polling
+ *    - UI Integration Tests: Upload dialog, file selection
+ *    - Error Handling Tests: Invalid files, missing parameters
+ *    - Performance Tests: Upload timing and responsiveness
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test, fs, path
+ *    - Internal: ApiHelper, ExplorerPage (page objects)
+ *
+ * USAGE:
+ *    Run all audio tests: npx playwright test tests/audio.spec.ts
+ *    Run specific describe block: npx playwright test --grep "Document Upload"
+ * ============================================================================
+ */
+
 import { test, expect } from '@playwright/test';
 import { ApiHelper } from '../page-objects/ApiHelper';
 import { ExplorerPage } from '../page-objects/ExplorerPage';
 import * as fs from 'fs';
 import * as path from 'path';
-
-/**
- * Audio Processing E2E Tests
- * Tests the complete audio processing pipeline:
- * - Document upload
- * - Voice recording upload
- * - AI transcription
- * - Transcript refinement
- * - Note generation
- * - PDF creation
- */
 
 test.describe('Audio Processing - Document Upload', () => {
     let apiHelper: ApiHelper;

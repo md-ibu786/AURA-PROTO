@@ -1,12 +1,35 @@
-// DateRangeFilter.tsx
-// Date range filter with preset buttons for the usage dashboard
-
-// Provides two date input fields and quick-select preset buttons
-// (7 days, 30 days, 90 days) for filtering usage data by time range.
-// Styled with dark theme matching the Cyber Yellow design system.
-
-// @see: pages/UsagePage.tsx - Parent component managing date state
-// @note: Preset buttons compute dates relative to today
+/**
+ * ============================================================================
+ * FILE: DateRangeFilter.tsx
+ * LOCATION: frontend/src/features/usage/components/DateRangeFilter.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Date range filter with preset buttons for the usage dashboard.
+ *
+ * ROLE IN PROJECT:
+ *    Provides two date input fields and quick-select preset buttons
+ *    (7 days, 30 days, 90 days) for filtering usage data by time range.
+ *    Styled with dark theme matching the Cyber Yellow design system.
+ *
+ * KEY COMPONENTS:
+ *    - DateRangeFilter: Filter component with date inputs and preset buttons
+ *    - DateRangeFilterProps: Interface for component props
+ *    - formatDate: Utility to format Date as YYYY-MM-DD string
+ *    - getPresetRange: Computes date ranges relative to today
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: None
+ *
+ * USAGE:
+ *    <DateRangeFilter
+ *        startDate="2024-01-01"
+ *        endDate="2024-01-31"
+ *        onChange={(start, end) => setDateRange({ start, end })}
+ *    />
+ * ============================================================================
+ */
 
 interface DateRangeFilterProps {
     startDate: string;

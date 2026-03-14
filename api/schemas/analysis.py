@@ -1,13 +1,40 @@
-# analysis.py
-# Pydantic schemas for the analysis API endpoint
+"""
+============================================================================
+FILE: analysis.py
+LOCATION: api/schemas/analysis.py
+============================================================================
 
-# Defines request/response models for AI-powered analysis operations:
-# summarization, comparison, extraction, and explanation of content.
-# Supports targeting chunks, documents, or entities with configurable options.
+PURPOSE:
+    Pydantic schemas for the analysis API endpoint. Defines request/response
+    models for AI-powered analysis operations on documents and content.
 
-# @see: routers/analysis.py - Analysis endpoint using these schemas
-# @see: services/analysis_service.py - Business logic for analysis operations
-# @note: Union result type requires discriminated handling based on operation
+ROLE IN PROJECT:
+    Supports AI-driven content analysis including summarization, comparison,
+    extraction, and explanation. Integrates with analysis service for
+    processing documents, chunks, and knowledge graph entities.
+    - Validates analysis requests with operation type and targets
+    - Structures analysis results with operation-specific outputs
+    - Supports flexible targeting of content sources
+
+KEY COMPONENTS:
+    - AnalysisOperation: Enum for SUMMARIZE, COMPARE, EXTRACT, EXPLAIN
+    - AnalysisRequest: Request with operation, targets, and options
+    - AnalysisResponse: Union type result based on operation performed
+    - Result types: SummaryResult, ComparisonResult, ExtractionResult
+
+DEPENDENCIES:
+    - External: pydantic (BaseModel, Field), enum, typing
+    - Internal: None
+
+USAGE:
+    from api.schemas.analysis import AnalysisRequest, AnalysisOperation
+    request = AnalysisRequest(
+        operation=AnalysisOperation.SUMMARIZE,
+        target_ids=["doc_1"],
+        options={"max_length": 200}
+    )
+============================================================================
+"""
 
 from __future__ import annotations
 

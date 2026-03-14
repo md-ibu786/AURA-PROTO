@@ -1,8 +1,34 @@
-# __init__.py
-# Package exports for M2KG modules API
+"""
+============================================================================
+FILE: __init__.py
+LOCATION: api/modules/__init__.py
+============================================================================
 
-# Provides clean imports for the modules package.
-# Usage: from api.modules import ModuleService, ModulePublisher, modules_router
+PURPOSE:
+    Package initialization for M2KG modules API, providing clean imports
+    for the modules package.
+
+ROLE IN PROJECT:
+    Provides centralized access to all module-related components including
+    models, services, and router.
+    - Key responsibility 1: Re-exports module models and services
+    - Key responsibility 2: Simplifies imports across the codebase
+
+KEY COMPONENTS:
+    - ModuleCreate, ModuleUpdate, ModuleResponse: Pydantic models
+    - ModuleListResponse, ModuleStatus: Supporting models
+    - ModuleService: Business logic service
+    - ModulePublisher: Publishing workflow service
+    - modules_router: FastAPI router
+
+DEPENDENCIES:
+    - External: None
+    - Internal: .models, .service, .publishing, .router
+
+USAGE:
+    from api.modules import ModuleService, ModulePublisher, modules_router
+============================================================================
+"""
 
 from .models import (
     ModuleCreate,
@@ -28,4 +54,3 @@ __all__ = [
     # Router
     "modules_router",
 ]
-

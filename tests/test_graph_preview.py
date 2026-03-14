@@ -1,13 +1,33 @@
-# test_graph_preview.py
-# Tests for graph preview API endpoints
+"""
+============================================================================
+FILE: test_graph_preview.py
+LOCATION: tests/test_graph_preview.py
+============================================================================
 
-# Verifies the lightweight graph preview API returns correct
-# data structure for module visualization without RAG dependencies.
-# Tests both endpoints (graph data + stats) with mocking to avoid Neo4j.
+PURPOSE:
+    Tests for graph preview API endpoints.
+    Verifies lightweight graph preview API returns correct data structure.
 
-# @see: api/routers/graph_preview.py - Endpoints under test
-# @see: api/schemas/graph_preview.py - Response schemas
-# @note: Uses mocking for graph_manager to avoid Neo4j dependency
+ROLE IN PROJECT:
+    Validates module visualization endpoints without RAG dependencies.
+    Tests graph data and stats endpoints with mocking to avoid Neo4j.
+    - Key responsibility 1: Test graph data endpoint
+    - Key responsibility 2: Test graph stats endpoint
+
+KEY COMPONENTS:
+    - mock_graph_data: Sample graph data fixture
+    - test_get_graph_preview_success: Main endpoint test
+    - test_get_graph_stats_success: Stats endpoint test
+
+DEPENDENCIES:
+    - External: pytest, fastapi.testclient, unittest.mock, os, sys
+    - Internal: api.main, api.schemas.graph_preview
+
+USAGE:
+    Run with: pytest tests/test_graph_preview.py
+    or: python -m pytest tests/test_graph_preview.py -v
+============================================================================
+"""
 
 import os
 import sys

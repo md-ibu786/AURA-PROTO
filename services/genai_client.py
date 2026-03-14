@@ -1,14 +1,38 @@
-# genai_client.py
-# Model-router-backed GenAI client shim for legacy NOTES call sites.
+"""
+============================================================================
+FILE: genai_client.py
+LOCATION: services/genai_client.py
+============================================================================
 
-# Preserves the old helper names used by summarizer.py while removing all
-# direct Google GenAI SDK imports from the app. Returned models are shared
-# router compatibility wrappers that match the previous generate_content API.
+PURPOSE:
+    Model-router-backed GenAI client shim for legacy NOTES call sites.
+    Preserves the old helper names used by summarizer.py while removing all
+    direct Google GenAI SDK imports from the app.
 
-# @see: services/vertex_ai_client.py
-# @note: `genai` remains exported as None for older monkeypatch-based tests.
+ROLE IN PROJECT:
+    Compatibility layer for Google GenAI integration.
+    - Maintains legacy helper names for existing code
+    - Delegates to shared model_router for actual generation
+    - Returns compatibility wrappers matching old generate_content API
+    - Exports genai as None for monkeypatch-based tests
 
-"""Model-router-backed GenAI client shim for legacy NOTES call sites."""
+KEY COMPONENTS:
+    - GENAI_AVAILABLE: Dynamic availability flag respecting sys.modules
+    - get_genai_model: Returns model-router-backed model for legacy callers
+    - generate_content_with_thinking: Thinking-friendly config generation
+    - _GenaiAvailability: Internal class for availability detection
+
+DEPENDENCIES:
+    - External: model_router (compat), sys
+    - Internal: services.vertex_ai_client (GenerationConfig, generate_content)
+
+USAGE:
+    from services.genai_client import get_genai_model, generate_content_with_thinking
+
+    model = get_genai_model("gemini-pro")
+    response = generate_content_with_thinking(model, "Explain quantum computing")
+============================================================================
+"""
 
 from __future__ import annotations
 

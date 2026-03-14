@@ -1,9 +1,35 @@
-// HierarchicalModelPicker.tsx
-// Dropdown component for selecting models from a hierarchical list grouped by provider
-
-// Provides a compact dropdown trigger that opens a floating panel with search,
-// expand/collapse sections, and model selection. Supports 3-level hierarchy
-// (Provider -> Vendor -> Model) for OpenRouter and 2-level for others.
+/**
+ * ============================================================================
+ * FILE: HierarchicalModelPicker.tsx
+ * LOCATION: frontend/src/features/settings/components/HierarchicalModelPicker.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Dropdown component for selecting models from a hierarchical list grouped by provider.
+ *
+ * ROLE IN PROJECT:
+ *    Provides a compact dropdown trigger that opens a floating panel with search,
+ *    expand/collapse sections, and model selection. Supports 3-level hierarchy
+ *    (Provider -> Vendor -> Model) for OpenRouter and 2-level for others. Used
+ *    in settings for model configuration.
+ *
+ * KEY COMPONENTS:
+ *    - HierarchicalModelPicker: Main dropdown component with searchable hierarchy
+ *    - HierarchicalModelPickerProps: Interface for component props
+ *
+ * DEPENDENCIES:
+ *    - External: React, framer-motion, lucide-react
+ *    - Internal: @/lib/cn, @/types/settings
+ *
+ * USAGE:
+ *    <HierarchicalModelPicker
+ *        groups={modelGroups}
+ *        value={selectedModel}
+ *        onChange={handleModelChange}
+ *        placeholder="Select model..."
+ *    />
+ * ============================================================================
+ */
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Search, ChevronDown, ChevronRight, Check } from 'lucide-react';

@@ -1,13 +1,33 @@
-// playwright.config.ts
-// Playwright E2E test configuration for AURA-NOTES-MANAGER frontend.
-
-// Configures test directory, browser projects (Chromium, Firefox, WebKit),
-// timeouts, and webServer settings. Uses fullyParallel: false per project
-// convention for DB consistency during sequential tests.
-
-// @see: e2e/ - Test specification files
-// @note: Use 127.0.0.1 not localhost to avoid IPv6 issues
-
+/**
+ * ============================================================================
+ * FILE: playwright.config.ts
+ * LOCATION: frontend/playwright.config.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Playwright E2E test configuration for AURA-NOTES-MANAGER frontend.
+ *
+ * ROLE IN PROJECT:
+ *    Configures test directory, browser projects (Chromium, Firefox, WebKit),
+ *    timeouts, and webServer settings. Uses fullyParallel: false per project
+ *    convention for DB consistency during sequential tests.
+ *
+ * KEY COMPONENTS:
+ *    - Browser projects: Chromium, Firefox, WebKit configurations
+ *    - Web server: Auto-starts dev server on port 5173
+ *    - Auth setup: Pre-authenticates users before test runs
+ *    - Reporter: HTML and list reporters for test results
+ *
+ * DEPENDENCIES:
+ *    - External: @playwright/test
+ *    - Internal: e2e/ - Test specification files
+ *
+ * USAGE:
+ *    npx playwright test              # Run all E2E tests
+ *    npx playwright test --ui         # Run with UI mode
+ *    npx playwright test --debug      # Debug mode
+ * ============================================================================
+ */
 import process from 'process';
 import { defineConfig, devices } from '@playwright/test';
 

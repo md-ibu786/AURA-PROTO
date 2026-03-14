@@ -1,14 +1,43 @@
-# test_celery_tasks_e2e.py
-# End-to-end verification of the Celery document processing pipeline
+"""
+============================================================================
+FILE: test_celery_tasks_e2e.py
+LOCATION: api/test_celery_tasks_e2e.py
+============================================================================
 
-# This script performs a full integration test of the Celery pipeline,
-# verifying Redis connectivity, worker availability, task submission,
-# real-time progress tracking, result structure, and Neo4j persistence.
-# It supports both live testing and a mock-ready 'Test Mode'.
+PURPOSE:
+    End-to-end verification of the Celery document processing pipeline.
+    Performs full integration testing of Redis, Celery workers, task execution,
+    progress tracking, and Neo4j persistence.
 
-# @see: api/tasks/document_processing_tasks.py - Celery task implementation
-# @see: api/tests/E2E_TEST_GUIDE.md - Execution instructions
-# @note: Requires Redis and Neo4j to be running for full verification.
+ROLE IN PROJECT:
+    Integration testing suite for asynchronous document processing.
+    - Verifies Redis message broker connectivity
+    - Tests Celery worker task execution
+    - Validates real-time progress tracking
+    - Confirms results are persisted to Neo4j
+    - Supports both live and mock test modes
+
+KEY COMPONENTS:
+    - test_phase_1_redis_connection: Verifies Redis is accessible
+    - test_phase_2_worker_startup: Validates Celery worker initialization
+    - test_phase_3_task_submission: Tests document processing task submission
+    - test_phase_4_progress_tracking: Monitors task progress updates
+    - test_phase_5_result_validation: Confirms results in Neo4j
+
+DEPENDENCIES:
+    - External: pytest, redis, celery, os, sys, time
+    - Internal: api.config (REDIS_URL), api.tasks.document_processing_tasks
+
+USAGE:
+    Run E2E tests (requires Redis and Neo4j):
+        pytest api/test_celery_tasks_e2e.py -v
+
+    Run in test mode (skips live dependencies):
+        AURA_TEST_MODE=true pytest api/test_celery_tasks_e2e.py -v
+
+    See api/tests/E2E_TEST_GUIDE.md for detailed instructions.
+============================================================================
+"""
 
 import os
 import sys

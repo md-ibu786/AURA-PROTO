@@ -1,13 +1,39 @@
-# __init__.py
-# Multimodal service package for audio, OCR, and image processing
+"""
+============================================================================
+FILE: __init__.py
+LOCATION: services/multimodal/__init__.py
+============================================================================
 
-# Provides unified multimodal content processing capabilities for the
-# AURA-NOTES-MANAGER KG pipeline. Includes abstract base classes, concrete
-# service implementations (stubs), configuration, and the unified processor
-# for coordinating all multimodal services.
+PURPOSE:
+    Package initialization for multimodal content processing services providing
+    unified audio, OCR, and image processing capabilities.
 
-# @see: processor.py - Main entry point for document processing
-# @note: All services are stubs - full implementation in future multimodal phase
+ROLE IN PROJECT:
+    Entry point for the multimodal processing pipeline in AURA-NOTES-MANAGER.
+    - Exports all base classes, service implementations, and configuration
+    - Provides convenient imports for audio transcription, OCR, and image analysis
+    - Coordinates multimodal services for KG pipeline integration
+
+KEY COMPONENTS:
+    - AudioIngestionService, KGReadyTranscript: Audio processing
+    - OCRService, KGReadyOCRDocument: OCR text extraction
+    - ImageExtractionService, KGReadyImage: Image analysis
+    - MultimodalDocumentProcessor, MultimodalConfig: Unified processing
+
+DEPENDENCIES:
+    - External: None (package init)
+    - Internal: .audio, .base, .config, .image, .ocr, .processor
+
+USAGE:
+    from services.multimodal import (
+        MultimodalDocumentProcessor,
+        MultimodalConfig,
+        AudioIngestionService,
+        OCRService,
+        ImageExtractionService,
+    )
+============================================================================
+"""
 
 from .audio import AudioIngestionService, KGReadyTranscript
 from .base import (

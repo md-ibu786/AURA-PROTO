@@ -1,15 +1,34 @@
-// SelectionOverlay.tsx
-// Visual "rubber-band" selection box component
-
-// Handles mouse events to draw a selection rectangle and identifies 
-// intersecting "selectable-item" elements to update global selection state.
-// Coordinates are handled in viewport space for comparison with 
-// getBoundingClientRect() results. Uses flex: 1 to integrate with
-// ExplorerPage's flex layout.
-
-// @see: ExplorerPage.tsx - Where this component is integrated
-// @see: useExplorerStore.ts - For selectAll and clearSelection actions
-// @note: Container must be a flex item to support scrolling children correctly.
+/**
+ * ============================================================================
+ * FILE: SelectionOverlay.tsx
+ * LOCATION: frontend/src/components/explorer/SelectionOverlay.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Visual "rubber-band" selection box component for multi-select interactions.
+ *
+ * ROLE IN PROJECT:
+ *    Handles mouse events to draw a selection rectangle and identifies
+ *    intersecting "selectable-item" elements to update global selection state.
+ *    Coordinates are handled in viewport space for comparison with
+ *    getBoundingClientRect() results. Uses flex: 1 to integrate with
+ *    ExplorerPage's flex layout.
+ *
+ * KEY COMPONENTS:
+ *    - SelectionBox: Interface defining selection rectangle coordinates
+ *    - Container ref: Tracks flex container for coordinate calculations
+ *    - Intersection logic: Detects elements within selection bounds
+ *
+ * DEPENDENCIES:
+ *    - External: react
+ *    - Internal: useExplorerStore (selectAll, clearSelection actions)
+ *
+ * USAGE:
+ *    <SelectionOverlay>
+ *      <div className="selectable-item" data-id="item1">...</div>
+ *    </SelectionOverlay>
+ * ============================================================================
+ */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useExplorerStore } from '../../stores/useExplorerStore';

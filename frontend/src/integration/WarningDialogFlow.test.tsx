@@ -1,4 +1,35 @@
 /**
+ * ============================================================================
+ * FILE: WarningDialogFlow.test.tsx
+ * LOCATION: frontend/src/integration/WarningDialogFlow.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Integration tests for warning dialog flows in the explorer.
+ *
+ * ROLE IN PROJECT:
+ *    Tests the complete warning dialog interaction flow including error
+ *    display, dialog dismissal, and timeout behavior. Verifies integration
+ *    between SidebarTree component and WarningDialog state management
+ *    using React Testing Library and Vitest.
+ *
+ * KEY COMPONENTS:
+ *    - WarningDialogFlow tests: Integration test suite
+ *    - SidebarTree: Component under test
+ *    - WarningDialog: Dialog component interactions
+ *    - useExplorerStore: State management verification
+ *
+ * DEPENDENCIES:
+ *    - External: @testing-library/react, vitest, @tanstack/react-query
+ *    - Internal: @/components/explorer/SidebarTree, @/components/ui/WarningDialog,
+ *                @/stores, @/api
+ *
+ * USAGE:
+ *    npm test -- WarningDialogFlow.test.tsx
+ * ============================================================================
+ */
+
+/**
  * @vitest-environment jsdom
  */
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';

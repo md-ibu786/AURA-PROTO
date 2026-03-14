@@ -1,22 +1,32 @@
-# coc.py
-# =========================
-#
-# Chain of Custody transcript cleaner that transforms raw audio transcripts into polished academic text using a two-phase AI pipeline.
-#
-# Features:
-# ---------
-# - Filters student interruptions and administrative chatter from transcripts
-# - Corrects grammar and removes verbal fillers while preserving educational content
-# - Audits cleaned text for quality assurance using multiple detection vectors
-# - Generates JSON audit reports with flags for removed or fixed content
-#
-# Classes/Functions:
-# ------------------
-# - clean_and_parse_json(text): Extracts and parses JSON from LLM output that may contain markdown
-# - transform_transcript(topic, transcript): Main two-phase cleaning function that returns polished transcript text
-#
-# @see vertex_ai_client.py - AI model integration for Gemini
-# @note Output feeds directly into summarizer.py for structured note generation
+"""
+============================================================================
+FILE: coc.py
+LOCATION: services/coc.py
+============================================================================
+
+PURPOSE:
+    Chain of Custody transcript cleaner that transforms raw audio transcripts
+    into polished academic text using a two-phase AI pipeline.
+
+ROLE IN PROJECT:
+    Cleans transcripts for the AURA-NOTES-MANAGER knowledge graph pipeline.
+    - Filters student interruptions and administrative chatter from transcripts
+    - Corrects grammar and removes verbal fillers while preserving educational content
+    - Audits cleaned text for quality assurance using multiple detection vectors
+
+KEY COMPONENTS:
+    - clean_and_parse_json(): Extracts and parses JSON from LLM output
+    - transform_transcript(): Main two-phase cleaning function for transcripts
+
+DEPENDENCIES:
+    - External: json, re
+    - Internal: services.vertex_ai_client (GenerationConfig, generate_content)
+
+USAGE:
+    from services.coc import transform_transcript
+    cleaned = await transform_transcript(topic, raw_transcript)
+============================================================================
+"""
 
 import json
 import re
@@ -59,11 +69,11 @@ def clean_and_parse_json(text: str) -> dict:
             pass
 
     # Try to find raw JSON object by matching outermost braces
-    brace_start = text.find('{')
-    brace_end = text.rfind('}')
+    brace_start = text.find("{")
+    brace_end = text.rfind("}")
     if brace_start != -1 and brace_end != -1 and brace_end > brace_start:
         try:
-            return json.loads(text[brace_start:brace_end + 1])
+            return json.loads(text[brace_start : brace_end + 1])
         except json.JSONDecodeError:
             pass
 
@@ -84,7 +94,6 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
     # usage of models/gemini-3-flash-preview
     model = get_model(model_name="models/gemini-2.5-pro")
-
 
     # define the prompt for transformation
     # include the raw transcript explicitly in the prompt so the model can process it
@@ -141,35 +150,41 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
     response_text = getattr(response, "text", None)
     if not response_text:
-        if getattr(response, "prompt_feedback", None) and getattr(response.prompt_feedback, "block_reason", None):
-            raise ValueError(f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}")
+        if getattr(response, "prompt_feedback", None) and getattr(
+            response.prompt_feedback, "block_reason", None
+        ):
+            raise ValueError(
+                f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}"
+            )
 
         # Handle empty response (likely due to strict filtering)
         candidates = getattr(response, "candidates", None) or []
         if candidates and getattr(candidates[0], "finish_reason", None) == 1:
             return "The model filtered out all content. The input might not match the strict academic criteria or the target topic."
 
-        finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
+        finish_reason = (
+            getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
+        )
         raise ValueError(f"Gemini returned no content. Finish reason: {finish_reason}")
 
     clean_transcript = response_text
 
     # prompt for audit (build schema separately to avoid f-string brace issues)
     schema_text = json.dumps(
-            {
-                    "final_text": "string (The fully polished, approved text content)",
-                    "flags": [
-                            {
-                                    "type": "student_interruption | off_topic | administrative_chatter | logical_break | grammar_fix",
-                                    "snippet": "string (The exact text segment you removed or fixed)",
-                                    "severity": "low | high",
-                                    "message": "string (Why this was flagged/removed)",
-                            }
-                    ],
-                    "is_clean": "boolean (true if flags is empty or only contains minor grammar fixes; false if major deletions occurred)",
-                    "confidence_score": "float (0.0 to 1.0, representing the semantic coherence of the final result)",
-            },
-            indent=2,
+        {
+            "final_text": "string (The fully polished, approved text content)",
+            "flags": [
+                {
+                    "type": "student_interruption | off_topic | administrative_chatter | logical_break | grammar_fix",
+                    "snippet": "string (The exact text segment you removed or fixed)",
+                    "severity": "low | high",
+                    "message": "string (Why this was flagged/removed)",
+                }
+            ],
+            "is_clean": "boolean (true if flags is empty or only contains minor grammar fixes; false if major deletions occurred)",
+            "confidence_score": "float (0.0 to 1.0, representing the semantic coherence of the final result)",
+        },
+        indent=2,
     )
     audit_prompt = f"""
             ### SYSTEM ROLE
@@ -215,17 +230,20 @@ def transform_transcript(topic: str, transcript: str) -> str:
     audit_text = getattr(audit_response, "text", None)
     if not audit_text:
         candidates = getattr(audit_response, "candidates", None) or []
-        finish_reason = getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
-        raise ValueError(f"Gemini blocked the audit content. Finish reason: {finish_reason}")
+        finish_reason = (
+            getattr(candidates[0], "finish_reason", None) if candidates else "Unknown"
+        )
+        raise ValueError(
+            f"Gemini blocked the audit content. Finish reason: {finish_reason}"
+        )
 
     response = audit_text
 
     try:
         result = clean_and_parse_json(response)
 
-
         # This 'final_text' is what goes into your database
-        final_output = result['final_text']
+        final_output = result["final_text"]
 
         return final_output
 

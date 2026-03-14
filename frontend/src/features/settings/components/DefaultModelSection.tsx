@@ -1,5 +1,38 @@
-// DefaultModelSection.tsx
-// Configuration for default models per use case
+/**
+ * ============================================================================
+ * FILE: DefaultModelSection.tsx
+ * LOCATION: frontend/src/features/settings/components/DefaultModelSection.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Component for configuring default AI models for different use cases.
+ *    Allows administrators to set preferred models for chat, embeddings,
+ *    and entity extraction tasks.
+ *
+ * ROLE IN PROJECT:
+ *    Part of the settings configuration system:
+ *    - Displays current default model settings per use case
+ *    - Provides hierarchical model picker for selection
+ *    - Groups models by provider for easier navigation
+ *    - Shows real-time update feedback (pending/success/error states)
+ *    - Syncs with server state to prevent conflicts
+ *
+ * KEY COMPONENTS:
+ *    - DefaultModelSection: Main container managing data fetching
+ *    - UseCaseSection: Individual use case configuration section
+ *    - USE_CASES: Configuration array defining use cases and descriptions
+ *    - HierarchicalModelPicker: Reusable model selection component
+ *
+ * DEPENDENCIES:
+ *    - External: react, lucide-react
+ *    - Internal: features/settings/hooks/useSettingsApi, features/settings/hooks/useModelList,
+ *                features/settings/components/HierarchicalModelPicker, types/settings
+ *
+ * USAGE:
+ *    <DefaultModelSection />
+ *    Used within SettingsPage for default model configuration section
+ * ============================================================================
+ */
 
 import { useState, useEffect } from 'react';
 import { useDefaults, useAllModels, useUpdateDefault } from '../hooks/useSettingsApi';

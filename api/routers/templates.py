@@ -1,12 +1,33 @@
-# templates.py
-# API router for template management in AURA-NOTES-MANAGER
+"""
+============================================================================
+FILE: templates.py
+LOCATION: api/routers/templates.py
+============================================================================
 
-# Provides endpoints for listing, retrieving, creating, and using
-# extraction templates. Supports auto-detection and preview functionality.
+PURPOSE:
+    FastAPI router for template management providing endpoints for listing,
+    retrieving, creating, and using extraction templates with auto-detection.
 
-# @see: services/extraction_templates.py - Template models and logic
-# @see: api/kg_processor.py - Integration with KG processing
-# @note: Templates improve extraction quality for structured documents
+ROLE IN PROJECT:
+    Part of the routers package handling extraction template operations.
+    Templates improve extraction quality for structured documents.
+    - Key responsibility 1: CRUD operations for extraction templates
+    - Key responsibility 2: Auto-detection and preview functionality
+
+KEY COMPONENTS:
+    - router: FastAPI router for template endpoints
+    - TemplateRegistry: Registry for managing templates
+    - TemplateExtractor: Service for template-based extraction
+    - Various endpoints: list, get, create, detect, extract with templates
+
+DEPENDENCIES:
+    - External: fastapi, pydantic
+    - Internal: services.extraction_templates
+
+USAGE:
+    Imported in main.py. Access via template management endpoints.
+============================================================================
+"""
 
 from typing import Any, Dict, List, Optional
 
@@ -29,6 +50,7 @@ except ImportError:
     # Fallback for relative imports
     import sys
     import os
+
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
     from services.extraction_templates import (
         ExtractionTemplate,
@@ -179,14 +201,17 @@ async def create_template(
 
         # Generate unique ID from name
         import hashlib
-        template_id = f"custom_{hashlib.md5(request.name.lower().encode()).hexdigest()[:8]}"
+
+        template_id = (
+            f"custom_{hashlib.md5(request.name.lower().encode()).hexdigest()[:8]}"
+        )
 
         # Convert section dicts to SectionTemplate objects
         sections = []
         for i, section_dict in enumerate(request.sections):
             sections.append(
                 SectionTemplate(
-                    name=section_dict.get("name", f"Section {i+1}"),
+                    name=section_dict.get("name", f"Section {i + 1}"),
                     optional=section_dict.get("optional", False),
                     patterns=section_dict.get("patterns", []),
                     entity_focus=section_dict.get("entity_focus", ["Concept"]),
@@ -303,9 +328,7 @@ async def delete_template(
         )
 
     if template.is_builtin:
-        raise HTTPException(
-            status_code=400, detail="Cannot delete built-in templates"
-        )
+        raise HTTPException(status_code=400, detail="Cannot delete built-in templates")
 
     # Remove from registry (would need to add this method)
     try:

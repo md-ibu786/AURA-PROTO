@@ -1,4 +1,33 @@
 /**
+ * ============================================================================
+ * FILE: ListView.test.tsx
+ * LOCATION: frontend/src/components/explorer/__tests__/ListView.test.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Unit tests for ListView component focusing on selection constraints
+ *    and multi-select behavior across different hierarchy levels.
+ *
+ * ROLE IN PROJECT:
+ *    Ensures ListView correctly enforces selection rules (e.g., only leaf nodes
+ *    selectable, no cross-parent selection). Validates user interactions
+ *    through mock store and query client.
+ *
+ * KEY COMPONENTS:
+ *    - Selection constraint tests: Verifies valid/invalid selection scenarios
+ *    - Mock providers: Mocked Zustand store and React Query client
+ *    - Icon mocks: Prevents lucide-react import errors in test environment
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react, @tanstack/react-query
+ *    - Internal: ListView component, useExplorerStore
+ *
+ * USAGE:
+ *    Run with: npm test -- ListView.test.tsx
+ * ============================================================================
+ */
+
+/**
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

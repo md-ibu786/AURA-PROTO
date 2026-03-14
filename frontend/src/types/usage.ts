@@ -1,13 +1,32 @@
-// usage.ts
-// TypeScript types for usage tracking and cost dashboard API responses
-
-// Defines interfaces for daily costs, provider/model breakdowns,
-// session usage summaries, and SSE completion usage payloads.
-// All types match the backend API response shapes from Plan 12-02.
-
-// @see: features/usage/hooks/useUsageApi.ts - TanStack Query hooks consuming these types
-// @note: All cost values are in USD. Token counts may be estimated.
-
+/**
+ * ============================================================================
+ * FILE: usage.ts
+ * LOCATION: frontend/src/types/usage.ts
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    TypeScript types for usage tracking and cost dashboard API responses
+ *
+ * ROLE IN PROJECT:
+ *    Defines interfaces for daily costs, provider/model breakdowns, session
+ *    usage summaries, and SSE completion usage payloads. All types match the
+ *    backend API response shapes to ensure type safety in API communication
+ *
+ * KEY COMPONENTS:
+ *    - DailyCost: Daily aggregated costs and request counts
+ *    - ProviderCost: Cost breakdown by AI provider
+ *    - ModelCost: Cost breakdown by specific model
+ *    - SessionUsage: Per-session cost and token usage
+ *    - UsageSummary: Aggregated view of all cost breakdowns
+ *
+ * DEPENDENCIES:
+ *    - External: None
+ *    - Internal: None
+ *
+ * USAGE:
+ *    import type { UsageSummary, SessionUsage, DailyCost } from '@/types/usage';
+ * ============================================================================
+ */
 export interface DailyCost {
     date: string;
     cost: number;

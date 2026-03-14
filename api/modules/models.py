@@ -1,35 +1,34 @@
-# models.py
-# =========================
-#
-# Pydantic models for M2KG Module CRUD operations.
-# Defines request/response schemas for Module API endpoints.
-# ModuleStatus enum controls module lifecycle (draft -> published -> archived).
-# Module ID format: {code}_{year}_S{semester} (e.g., CS201_2026_S1)
-#
-# Features:
-# ----------
-# - Module lifecycle status management
-# - Request validation for create/update operations
-# - Response formatting with proper typing
-# - Per-document KG status tracking
-# - Batch processing request/response models
-#
-# Classes/Functions:
-# ------------------
-# - ModuleStatus: Enum for module lifecycle (draft, published, archived)
-# - KGStatus: Enum for document KG processing status
-# - ModuleCreate: Request schema for creating modules
-# - ModuleUpdate: Request schema for updating modules
-# - ModuleResponse: Response schema for module data
-# - ModuleListResponse: Paginated list response
-# - DocumentKGStatus: Per-document KG status response
-# - BatchProcessingRequest: Batch document processing request
-# - BatchProcessingResponse: Batch processing response
-# - ProcessingQueueItem: Queue item for processing status
-#
-# @see: service.py - Uses these models for Firestore operations
-# @see: router.py - Uses these models for FastAPI validation
-# @note: This is for M2KG Modules (course units), NOT hierarchy modules
+"""
+============================================================================
+FILE: models.py
+LOCATION: api/modules/models.py
+============================================================================
+
+PURPOSE:
+    Pydantic models for M2KG Module CRUD operations, defining request/response
+    schemas for Module API endpoints with lifecycle status management.
+
+ROLE IN PROJECT:
+    Data models for M2KG modules (course units). ModuleStatus enum controls
+    module lifecycle and Module ID format is {code}_{year}_S{semester}.
+    - Key responsibility 1: Request/response validation for module operations
+    - Key responsibility 2: Type-safe data structures for Firestore operations
+
+KEY COMPONENTS:
+    - ModuleStatus: Enum for module lifecycle (draft, published, archived)
+    - KGStatus: Enum for document KG processing status
+    - ModuleCreate, ModuleUpdate: Request schemas
+    - ModuleResponse, ModuleListResponse: Response schemas
+    - DocumentKGStatus, BatchProcessing*: Batch processing models
+
+DEPENDENCIES:
+    - External: pydantic
+    - Internal: None
+
+USAGE:
+    Used by service.py and router.py for data validation.
+============================================================================
+"""
 
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Dict, Any

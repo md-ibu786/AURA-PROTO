@@ -1,13 +1,35 @@
-# extraction_templates.py
-# Template-based extraction service for structured document processing
+"""
+============================================================================
+FILE: extraction_templates.py
+LOCATION: services/extraction_templates.py
+============================================================================
 
-# Defines specialized extraction patterns for different note types (lecture notes,
-# research papers, meeting notes, lab reports, case studies). Each template specifies
-# expected sections, entity types, and relationships to improve KG extraction quality.
+PURPOSE:
+    Template-based extraction service defining specialized patterns for different
+    document types to improve knowledge graph extraction quality.
 
-# @see: api/kg_processor.py - Integration point for template-based extraction
-# @see: services/llm_entity_extractor.py - Entity extraction service
-# @note: Templates can be auto-detected based on document structure patterns
+ROLE IN PROJECT:
+    Provides extraction templates for various note types (lectures, papers, meetings,
+    lab reports) with expected sections and entity types for better KG construction.
+    - Key responsibility 1: Define document type-specific extraction patterns
+    - Key responsibility 2: Auto-detect document types based on structure
+
+KEY COMPONENTS:
+    - ExtractionTemplate: Base template class with section definitions
+    - LectureNotesTemplate: Template for lecture content
+    - ResearchPaperTemplate: Template for academic papers
+    - TemplateRegistry: Factory for template selection
+
+DEPENDENCIES:
+    - External: pydantic
+    - Internal: None (standalone template definitions)
+
+USAGE:
+    from services.extraction_templates import TemplateRegistry
+    template = TemplateRegistry.get_template_for_document(text)
+    sections = template.get_expected_sections()
+============================================================================
+"""
 
 from __future__ import annotations
 
@@ -78,9 +100,7 @@ class ExtractionTemplate(BaseModel):
     id: str = Field(..., description="Unique template identifier")
     name: str = Field(..., description="Human-readable template name")
     description: str = Field(..., description="Template purpose and usage")
-    template_type: TemplateType = Field(
-        ..., description="Category of template"
-    )
+    template_type: TemplateType = Field(..., description="Category of template")
     document_patterns: List[str] = Field(
         default_factory=list,
         description="Regex patterns to detect this document type",
@@ -675,7 +695,9 @@ class TemplateRegistry:
         """Initialize registry with built-in templates."""
         self._templates: Dict[str, ExtractionTemplate] = {}
         self._load_builtin_templates()
-        logger.info(f"TemplateRegistry initialized with {len(self._templates)} templates")
+        logger.info(
+            f"TemplateRegistry initialized with {len(self._templates)} templates"
+        )
 
     def _load_builtin_templates(self) -> None:
         """Load all built-in templates."""
@@ -947,9 +969,7 @@ class TemplateExtractor:
         all_relationships: List[Dict[str, Any]] = []
 
         for detected_section in detected_sections:
-            result = self._extract_section(
-                detected_section, template, options
-            )
+            result = self._extract_section(detected_section, template, options)
             section_results.append(result)
             all_entities.extend(result.entities)
             all_relationships.extend(result.relationships)
@@ -973,7 +993,7 @@ class TemplateExtractor:
             sections_missing=sections_missing,
             section_results=section_results,
             entities=all_entities,
-            relationships=all_relationships[:options.max_relationships],
+            relationships=all_relationships[: options.max_relationships],
             quality_score=quality_score,
         )
 
@@ -1136,14 +1156,16 @@ class TemplateExtractor:
                 seen.add(word)
                 entity_type = entity_focus[0] if entity_focus else "Concept"
 
-                entities.append({
-                    "id": f"entity_{hashlib.md5(term.encode()).hexdigest()[:12]}",
-                    "name": term,
-                    "type": entity_type,
-                    "definition": "",
-                    "confidence": 0.5,
-                    "source_section": "",
-                })
+                entities.append(
+                    {
+                        "id": f"entity_{hashlib.md5(term.encode()).hexdigest()[:12]}",
+                        "name": term,
+                        "type": entity_type,
+                        "definition": "",
+                        "confidence": 0.5,
+                        "source_section": "",
+                    }
+                )
 
                 if len(entities) >= max_entities:
                     break

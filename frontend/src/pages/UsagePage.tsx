@@ -1,14 +1,36 @@
-// UsagePage.tsx
-// Admin-only usage and cost dashboard page for AURA-NOTES-MANAGER
-
-// Renders a full-page dashboard with date range filtering, summary cards,
-// and three chart sections (cost over time, by provider, by model).
-// Uses TanStack Query hooks to fetch data from the usage API endpoints.
-// Follows the SettingsPage pattern with back navigation arrow.
-
-// @see: features/usage/hooks/useUsageApi.ts - Data fetching hooks
-// @see: features/usage/components/ - Individual chart and filter components
-// @note: Default date range is last 30 days
+/**
+ * ============================================================================
+ * FILE: UsagePage.tsx
+ * LOCATION: frontend/src/pages/UsagePage.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Admin-only usage and cost dashboard page for AURA-NOTES-MANAGER.
+ *    Displays usage metrics, cost breakdowns, and analytics visualizations.
+ *
+ * ROLE IN PROJECT:
+ *    Provides administrators with insights into:
+ *    - LLM usage statistics and token consumption
+ *    - Cost tracking across different providers and models
+ *    - Date-range filtering for historical analysis
+ *    - Visual charts for cost trends and breakdowns
+ *
+ * KEY COMPONENTS:
+ *    - DateRangeFilter: Date range selection for filtering data
+ *    - UsageSummaryCards: Summary statistics cards
+ *    - CostOverTimeChart: Time-series cost visualization
+ *    - CostByProviderChart: Provider cost breakdown
+ *    - CostByModelChart: Model cost breakdown
+ *
+ * DEPENDENCIES:
+ *    - External: react
+ *    - Internal: features/usage/components/*, features/usage/hooks/useUsageApi,
+ *                components/layout/AdminHeader
+ *
+ * USAGE:
+ *    Route: /usage (protected, admin-only)
+ * ============================================================================
+ */
 
 import { useState } from 'react';
 import { DateRangeFilter } from '@/features/usage/components/DateRangeFilter';

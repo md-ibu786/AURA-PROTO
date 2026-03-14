@@ -1,8 +1,35 @@
-// AdminHeader.tsx
-// Persistent, shared top navigation header for Admin pages.
-
-// Includes navigation buttons for Dashboard, Settings, Usage, and Logout.
-// Visually highlights the currently active page using a glowing cyber-yellow background.
+/**
+ * ============================================================================
+ * FILE: AdminHeader.tsx
+ * LOCATION: frontend/src/components/layout/AdminHeader.tsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *    Persistent, shared top navigation header component for admin pages.
+ *    Provides consistent navigation and user context across the admin interface.
+ *
+ * ROLE IN PROJECT:
+ *    Serves as the primary navigation element for admin pages:
+ *    - Displays current page title and optional subtitle
+ *    - Provides navigation links to Dashboard, Settings, and Usage pages
+ *    - Visually highlights the currently active page with cyber-yellow styling
+ *    - Includes logout functionality
+ *    - Supports back navigation when needed
+ *
+ * KEY COMPONENTS:
+ *    - AdminHeaderProps: Interface for component props (title, subtitle, showBack)
+ *    - navItems: Configuration for navigation links
+ *    - handleLogout: Async logout handler with navigation
+ *
+ * DEPENDENCIES:
+ *    - External: react-router-dom, lucide-react
+ *    - Internal: stores/useAuthStore, lib/cn
+ *
+ * USAGE:
+ *    <AdminHeader title="Dashboard" subtitle="Manage users and departments" />
+ *    <AdminHeader title="Settings" showBack={true} />
+ * ============================================================================
+ */
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';

@@ -1,14 +1,34 @@
-# audio.py
-# Audio ingestion service for transcription with Deepgram and Whisper support
+"""
+============================================================================
+FILE: audio.py
+LOCATION: services/multimodal/audio.py
+============================================================================
 
-# Provides unified audio transcription service that wraps Deepgram (primary)
-# and Whisper (fallback) providers. Produces KG-ready transcripts with
-# speaker diarization, word timestamps, and segment-level metadata for
-# integration with the knowledge graph processing pipeline.
+PURPOSE:
+    Audio ingestion service for transcription supporting Deepgram (primary)
+    and Whisper (fallback) providers with speaker diarization capabilities.
 
-# @see: base.py - AudioProcessor abstract base class
-# @see: config.py - MultimodalConfig for provider settings
-# @note: Methods raise NotImplementedError - full implementation in future phase
+ROLE IN PROJECT:
+    Part of the multimodal processing pipeline for AURA-NOTES-MANAGER.
+    - Transcribes audio files with speaker identification (diarization)
+    - Provides word-level timestamps and segment-level metadata
+    - Produces KG-ready transcripts for knowledge graph integration
+
+KEY COMPONENTS:
+    - KGReadyTranscript: Transcript prepared for KG pipeline ingestion
+    - AudioIngestionService: Main transcription service with provider switching
+    - Supports multiple audio formats and languages
+
+DEPENDENCIES:
+    - External: datetime, typing, pydantic
+    - Internal: .base (AudioProcessor, TranscriptionResult, TranscriptionSegment)
+
+USAGE:
+    from services.multimodal import AudioIngestionService
+    audio_service = AudioIngestionService(config)
+    transcript = await audio_service.transcribe(audio_file_path)
+============================================================================
+"""
 
 from datetime import datetime
 from typing import Any, AsyncIterator, Dict, List, Optional, Union

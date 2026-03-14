@@ -1,23 +1,33 @@
-# summarizer.py
-# =========================
-#
-# AI-powered lecture note generator that transforms cleaned transcripts into university-grade structured notes.
-#
-# Features:
-# ---------
-# - Generates structured academic notes from cleaned lecture transcripts
-# - Creates hierarchical document structure (Executive Summary, Core Concepts, Glossary, Takeaways)
-# - Uses closed-domain policy to ensure content is derived strictly from transcript
-# - Produces comprehensive notes with definitions, examples, and technical terminology
-# - Supports editor's analogies/examples for complex concepts without explanations
-#
-# Classes/Functions:
-# ------------------
-# - generate_university_notes(topic, cleaned_transcript): Main function that generates structured notes
-#
-# @see coc.py - Source of cleaned transcripts for note generation
-# @see pdf_generator.py - Receives output for PDF generation
-# @note Uses Gemini 3 Flash with temperature 1.0 for creative reasoning; max 32000 tokens
+"""
+============================================================================
+FILE: summarizer.py
+LOCATION: services/summarizer.py
+============================================================================
+
+PURPOSE:
+    AI-powered lecture note generator that transforms cleaned transcripts into
+    university-grade structured notes with hierarchical organization.
+
+ROLE IN PROJECT:
+    Generates structured academic notes from cleaned lecture transcripts with
+    executive summaries, core concepts, glossaries, and key takeaways.
+    - Key responsibility 1: Transform transcripts to structured academic notes
+    - Key responsibility 2: Create hierarchical document structure with sections
+
+KEY COMPONENTS:
+    - generate_university_notes: Main function generating structured notes
+    - _build_generation_config: Configure Gemini model parameters
+    - _build_notes_prompt: Create structured prompt for note generation
+
+DEPENDENCIES:
+    - External: None (uses internal clients)
+    - Internal: services.genai_client, services.vertex_ai_client
+
+USAGE:
+    from services.summarizer import generate_university_notes
+    notes = generate_university_notes(topic="Machine Learning", cleaned_transcript=text)
+============================================================================
+"""
 
 import os
 from types import SimpleNamespace
