@@ -38,7 +38,6 @@ import hashlib
 import json
 import logging
 import os
-import time
 from typing import Dict, List, Literal, Optional, Any, Tuple
 
 from json_repair import repair_json
@@ -994,7 +993,7 @@ No markdown, no explanations. Return empty array if no relationships found.
                     )
                 except json.JSONDecodeError as e:
                     logger.warning(f"Relationship JSON decode error: {e}")
-                    logger.info(f"Attempting to repair malformed JSON...")
+                    logger.info("Attempting to repair malformed JSON...")
 
                     # Try to repair malformed JSON from LLM
                     repaired_json = repair_json(json_str)

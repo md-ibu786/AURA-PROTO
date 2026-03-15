@@ -1,34 +1,48 @@
-# router.py
-# =========================
-#
-# FastAPI router for hierarchy navigation HTTP endpoints.
-# Exposes read-only hierarchy navigation as REST APIs for AURA-CHAT proxy.
-# Uses existing hierarchy.py functions for Firestore data fetching.
-# All endpoints return typed responses using hierarchy models.
-#
-# Features:
-# ----------
-# - Read-only hierarchy navigation APIs
-# - Typed responses with Pydantic models
-# - Query parameter filtering
-# - Drill-down navigation (dept -> semester -> subject -> module)
-#
-# Classes/Functions:
-# ------------------
-# - router: FastAPI router with /hierarchy prefix
-# - get_departments(): GET /hierarchy/departments - List all departments
-# - get_semesters(): GET /hierarchy/semesters - List semesters by department
-# - get_subjects(): GET /hierarchy/subjects - List subjects by semester
-# - get_modules(): GET /hierarchy/modules - List modules by subject
-#
-# @see: api/hierarchy.py - Data access functions (get_all_departments, etc.)
-# @see: models.py - Pydantic response schemas
-# @note: Mount with prefix /api/v1 in main.py (endpoints become /api/v1/hierarchy/...)
+"""
+============================================================================
+FILE: router.py
+LOCATION: api/hierarchy/router.py
+============================================================================
 
-from typing import Optional
-from fastapi import APIRouter, HTTPException, status, Query
+PURPOSE:
+    FastAPI router for read-only hierarchy navigation HTTP endpoints.
+
+ROLE IN PROJECT:
+    Exposes drill-down hierarchy navigation (department -> semester ->
+    subject -> module) as REST APIs. Used by AURA-CHAT proxy and the
+    frontend explorer to navigate the academic content hierarchy.
+
+KEY COMPONENTS:
+    - router: FastAPI APIRouter with /hierarchy prefix
+    - get_departments: GET /hierarchy/departments
+    - get_semesters: GET /hierarchy/semesters
+    - get_subjects: GET /hierarchy/subjects
+    - get_modules: GET /hierarchy/modules
+
+DEPENDENCIES:
+    - External: fastapi
+    - Internal: api/hierarchy.py (data access), api/hierarchy/models.py
+
+USAGE:
+    Mount in main.py with prefix /api/v1:
+    app.include_router(hierarchy_router, prefix="/api/v1")
+============================================================================
+"""
 import importlib.util
 import os
+
+from fastapi import APIRouter, Query
+
+from .models import (
+    DepartmentResponse,
+    SemesterResponse,
+    SubjectResponse,
+    ModuleHierarchyResponse,
+    DepartmentListResponse,
+    SemesterListResponse,
+    SubjectListResponse,
+    ModuleListResponse,
+)
 
 # Import hierarchy data access functions from api/hierarchy.py file
 # (not from api/hierarchy/ package which would cause circular imports)
@@ -44,17 +58,6 @@ get_all_departments = hierarchy_module.get_all_departments
 get_semesters_by_department = hierarchy_module.get_semesters_by_department
 get_subjects_by_semester = hierarchy_module.get_subjects_by_semester
 get_modules_by_subject = hierarchy_module.get_modules_by_subject
-
-from .models import (
-    DepartmentResponse,
-    SemesterResponse,
-    SubjectResponse,
-    ModuleHierarchyResponse,
-    DepartmentListResponse,
-    SemesterListResponse,
-    SubjectListResponse,
-    ModuleListResponse,
-)
 
 router = APIRouter(prefix="/hierarchy", tags=["Hierarchy Navigation"])
 

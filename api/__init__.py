@@ -5,17 +5,23 @@ LOCATION: api/__init__.py
 ============================================================================
 
 PURPOSE:
-    Package initialization for AURA-NOTES-MANAGER API module.
-    Exports core components and tasks.
+    Package initialization for the AURA-NOTES-MANAGER API module.
 
-EXPORTS:
-    - KnowledgeGraphProcessor: Core KG processing class
-    - GeminiClient: Gemini API client
-    - Entity, Relationship, Chunk: Data classes
-    - EntityType: Entity type enum
-    - process_document_simple: Convenience processing function
-    - process_document_task, process_batch_task: Celery tasks
-    - All configuration constants
+ROLE IN PROJECT:
+    Acts as the top-level public interface for the api package. Re-exports
+    core KG processing classes, Celery tasks, and module service components
+    so consumers can import directly from `api` without knowing sub-module
+    locations.
+
+KEY COMPONENTS:
+    - KnowledgeGraphProcessor: Core class for document KG processing
+    - GeminiClient: Gemini API client for embeddings and entity extraction
+    - process_document_task / process_batch_task: Celery async tasks
+    - ModuleService / modules_router: Module management service and router
+
+DEPENDENCIES:
+    - External: celery
+    - Internal: api/kg_processor.py, api/tasks/__init__.py, api/modules/
 
 USAGE:
     from api import KnowledgeGraphProcessor
@@ -42,6 +48,26 @@ try:
         ENTITY_DEDUP_SIMILARITY_THRESHOLD,
         ENTITY_RELATIONSHIP_TYPES,
         # Chunking constants
+        CHUNK_SIZE,
+        CHUNK_OVERLAP_SIZE,
+        MIN_CHUNK_SIZE,
+        MAX_CHUNK_SIZE,
+    )
+
+    _ = (
+        KnowledgeGraphProcessor,
+        GeminiClient,
+        Entity,
+        Relationship,
+        Chunk,
+        EntityType,
+        ProcessingProgress,
+        process_document_simple,
+        ENTITY_EXTRACTION_PROMPT,
+        ENTITY_BATCH_SIZE,
+        ENTITY_MAX_PARALLEL,
+        ENTITY_DEDUP_SIMILARITY_THRESHOLD,
+        ENTITY_RELATIONSHIP_TYPES,
         CHUNK_SIZE,
         CHUNK_OVERLAP_SIZE,
         MIN_CHUNK_SIZE,
@@ -82,6 +108,15 @@ try:
         app as celery_app,
     )
 
+    _ = (
+        process_document_task,
+        process_batch_task,
+        get_task_progress,
+        cancel_task,
+        ProcessingState,
+        celery_app,
+    )
+
     _TASK_EXPORTS = [
         "process_document_task",
         "process_batch_task",
@@ -93,28 +128,42 @@ try:
 except ImportError:
     _TASK_EXPORTS = []
 
+_MODULE_EXPORTS = []
+try:
+    from .modules import (
+        ModuleService,
+        ModuleCreate,
+        ModuleUpdate,
+        ModuleResponse,
+        ModuleListResponse,
+        ModuleStatus,
+        modules_router,
+    )
+
+    _ = (
+        ModuleService,
+        ModuleCreate,
+        ModuleUpdate,
+        ModuleResponse,
+        ModuleListResponse,
+        ModuleStatus,
+        modules_router,
+    )
+
+    _MODULE_EXPORTS = [
+        "ModuleService",
+        "ModuleCreate",
+        "ModuleUpdate",
+        "ModuleResponse",
+        "ModuleListResponse",
+        "ModuleStatus",
+        "modules_router",
+    ]
+except ImportError:
+    _MODULE_EXPORTS = []
+
 __all__ = [
     *_KG_EXPORTS,
     *_TASK_EXPORTS,
-]
-
-# M2KG Module exports
-from .modules import (
-    ModuleService,
-    ModuleCreate,
-    ModuleUpdate,
-    ModuleResponse,
-    ModuleListResponse,
-    ModuleStatus,
-    modules_router,
-)
-
-__all__ += [
-    "ModuleService",
-    "ModuleCreate",
-    "ModuleUpdate",
-    "ModuleResponse",
-    "ModuleListResponse",
-    "ModuleStatus",
-    "modules_router",
+    *_MODULE_EXPORTS,
 ]

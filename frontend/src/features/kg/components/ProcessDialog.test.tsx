@@ -5,19 +5,23 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for ProcessDialog component. Tests dialog open/close behavior,
- *    form submission, success/error states, and integration with the store.
+ *    Unit tests for the ProcessDialog component.
  *
- * TEST COVERAGE:
- *    - Dialog rendering and visibility
- *    - Submit button interactions
- *    - Success and error states
- *    - Loading states during processing
- *    - Cancel functionality
- *    - API integration via mutation
+ * ROLE IN PROJECT:
+ *    Validates ProcessDialog behavior within the KG feature module. Covers
+ *    dialog open/close lifecycle, file count display, mutation invocation,
+ *    loading/success/error states, and cancel interactions.
  *
- * @see: ProcessDialog.tsx - Component under test
- * @see: hooks/useKGProcessing.ts - Hook providing processFiles mutation
+ * KEY COMPONENTS:
+ *    - ProcessDialog test suite: Visibility, submit, cancel, success, and error states
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react
+ *    - Internal: features/kg/components/ProcessDialog, hooks/useKGProcessing, stores/useExplorerStore
+ *
+ * USAGE:
+ *    npm test -- src/features/kg/components/ProcessDialog.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';

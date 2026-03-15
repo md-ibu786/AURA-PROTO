@@ -1,20 +1,28 @@
 #!/usr/bin/env python3
 """
 ============================================================================
-MIGRATION VERIFICATION SCRIPT
+FILE: verify_migration.py
+LOCATION: api/migrations/verify_migration.py
 ============================================================================
 
 PURPOSE:
     Verify that migration 001_add_module_schema.py completed successfully.
-    Tests all constraints, indices, and node creation capabilities.
+
+ROLE IN PROJECT:
+    Standalone verification script used after running migration 001. Checks
+    that all expected constraints, indices, and vector indices are present in
+    Neo4j, and validates node creation for Module, StudySession, and Message.
+
+KEY COMPONENTS:
+    - MigrationVerifier: Runs constraint, index, vector index, and node creation checks
+    - main: CLI entry point that initialises the verifier and reports results
+
+DEPENDENCIES:
+    - External: neo4j
+    - Internal: api/neo4j_config.py, api/logging_config.py
 
 USAGE:
     python api/migrations/verify_migration.py
-
-REQUIREMENTS:
-    - Neo4j must be running
-    - Migration 001 must have been executed
-    - .env must be configured with Neo4j credentials
 ============================================================================
 """
 
@@ -135,7 +143,7 @@ class MigrationVerifier:
             for idx in results:
                 if idx.get('name') == 'chunk_vector_index':
                     vector_index_found = True
-                    print(f"✓ Vector index 'chunk_vector_index' exists")
+                    print("✓ Vector index 'chunk_vector_index' exists")
                     print(f"  - State: {idx.get('state', 'unknown')}")
                     print(f"  - Type: {idx.get('type', 'unknown')}")
                     self.checks_passed += 1

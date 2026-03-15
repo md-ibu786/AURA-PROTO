@@ -56,7 +56,6 @@ from api.schemas.feedback import (
     ImplicitFeedback,
     LowQualityResult,
     ResultFeedback,
-    compute_query_hash,
 )
 
 

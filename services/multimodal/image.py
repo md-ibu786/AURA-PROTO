@@ -33,7 +33,7 @@ USAGE:
 from datetime import datetime
 from typing import Any, List, Optional, Tuple, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from .base import (
     DiagramInfo,

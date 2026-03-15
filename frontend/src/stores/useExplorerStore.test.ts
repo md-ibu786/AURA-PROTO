@@ -5,21 +5,26 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for useExplorerStore Zustand store. Tests all state
- *    management actions including selection, navigation, view mode,
- *    clipboard, context menu, dialogs, and KG processing state.
+ *    Unit tests for the useExplorerStore Zustand store.
  *
- * TEST COVERAGE:
- *    - Initial state verification
- *    - Selection actions (select, toggle, range, clear, selectAll)
- *    - Navigation actions
- *    - View mode and search query
- *    - Clipboard operations
- *    - Context menu state
- *    - Delete/Warning dialog management
- *    - KG process dialog state
+ * ROLE IN PROJECT:
+ *    Validates all state management actions in useExplorerStore including
+ *    selection, navigation, view mode, clipboard, context menu, dialogs,
+ *    KG processing state, and warning timeout auto-close behavior.
  *
- * @see: useExplorerStore.ts - Store under test
+ * KEY COMPONENTS:
+ *    - Selection action tests: select, toggle, range, clear, selectAll
+ *    - Navigation tests: navigateTo, navigateUp, setCurrentPath
+ *    - Dialog tests: delete, warning, process, context menu
+ *    - KG polling and warning timeout tests
+ *
+ * DEPENDENCIES:
+ *    - External: vitest
+ *    - Internal: stores/useExplorerStore, types
+ *
+ * USAGE:
+ *    npm test -- src/stores/useExplorerStore.test.ts
+ * ============================================================================
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useExplorerStore } from './useExplorerStore';

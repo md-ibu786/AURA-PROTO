@@ -1,50 +1,28 @@
 #!/usr/bin/env python3
 """
 ============================================================================
-MIGRATION: 002 - KG Enhancement Schema
-VERSION: 002
-CREATED: 2026-01-24
+FILE: 002_kg_enhancement_schema.py
+LOCATION: api/migrations/002_kg_enhancement_schema.py
 ============================================================================
 
 PURPOSE:
-    Add ParentChunk nodes, entity vector indices, and fulltext index to support
-    hierarchical chunking and entity embeddings for KG Pipeline Enhancement.
+    Add ParentChunk nodes, entity vector indices, and fulltext index for KG pipeline enhancement.
 
-CHANGES:
-    1. ParentChunk Node:
-       - Unique constraint on ParentChunk.id
-       - Properties: id, document_id, module_id, text, tokens, position,
-                     embedding, created_at
-       - HNSW vector index for semantic search
+ROLE IN PROJECT:
+    Second migration in the AURA-NOTES-MANAGER Neo4j schema. Extends the KG
+    with hierarchical chunking support (ParentChunk), per-entity-type vector
+    indices for semantic search, and a fulltext index for hybrid retrieval.
 
-    2. Entity Vector Indices (NEW):
-       - topic_vector_index: Topic.embedding
-       - concept_vector_index: Concept.embedding
-       - methodology_vector_index: Methodology.embedding
-       - finding_vector_index: Finding.embedding
-       All with 768 dimensions, cosine similarity, HNSW tuning
+KEY COMPONENTS:
+    - KGEnhancementSchema: Migration class creating ParentChunk constraints, entity vector indices, and fulltext index
+    - main: CLI entry point to execute the migration directly
 
-    3. Fulltext Index:
-       - chunk_fulltext_index: Chunk.text for hybrid search
-       - Uses English analyzer for keyword/phrase matching
+DEPENDENCIES:
+    - External: neo4j
+    - Internal: api/migrations/__init__.py, api/neo4j_config.py, api/logging_config.py
 
-RELATIONSHIPS (for reference - created by kg_processor):
-    - (:Document)-[:HAS_PARENT_CHUNK]->(:ParentChunk)
-    - (:ParentChunk)-[:HAS_CHILD]->(:Chunk)
-    - Entity-entity: DEFINES, DEPENDS_ON, USES, SUPPORTS, CONTRADICTS,
-                     EXTENDS, IMPLEMENTS, REFERENCES, RELATED_TO
-
-IDEMPOTENCY:
-    All operations use IF NOT EXISTS to ensure safe re-execution
-
-REFERENCE:
-    - Source: .planning/phases/09-kg-foundation/09-01-PLAN.md
-    - Pattern: AURA-CHAT/backend/graph_manager.py (lines 167-248)
-    - Configuration: 768 dimensions, cosine similarity, HNSW m=16, ef=200
-
-@see: 001_add_module_schema.py - Previous migration pattern
-@see: neo4j_config.py - verify_kg_enhancement_schema() for verification
-@note: Requires Neo4j 5.15+ for vector index syntax
+USAGE:
+    python api/migrations/002_kg_enhancement_schema.py
 ============================================================================
 """
 

@@ -1,14 +1,37 @@
-# summaries.py
-# FastAPI router for auto-summarization endpoints
+"""
+============================================================================
+FILE: summaries.py
+LOCATION: api/routers/summaries.py
+============================================================================
 
-# Provides REST API endpoints for generating and retrieving document and module
-# summaries. Supports configurable summary lengths, caching with Redis, and
-# background processing for large modules.
+PURPOSE:
+    FastAPI router providing REST endpoints for document and module
+    auto-summarization.
 
-# @see: services/summary_service.py - SummaryService for summarization logic
-# @see: api/cache.py - Redis caching for summaries
-# @see: api/routers/query.py - Pattern reference for router structure
-# @note: Large modules (>10 docs) may use background processing
+ROLE IN PROJECT:
+    Sits in the API routing layer, exposing summarization capabilities to the
+    frontend. Delegates summarization logic to SummaryService and uses Redis
+    for caching results. Large modules (>10 docs) are handled via background
+    processing.
+
+KEY COMPONENTS:
+    - summarize_document: POST endpoint to generate/cache a document summary
+    - get_document_summary: GET endpoint to retrieve a cached document summary
+    - summarize_module: POST endpoint to generate/cache a module summary
+    - get_module_summary: GET endpoint to retrieve a cached module summary
+    - invalidate_document_summary: DELETE endpoint to clear document cache
+    - invalidate_module_summary: DELETE endpoint to clear module cache
+
+DEPENDENCIES:
+    - External: fastapi, pydantic
+    - Internal: services/summary_service.py, api/neo4j_config.py
+
+USAGE:
+    Include router in main app:
+        from api.routers.summaries import router
+        app.include_router(router)
+============================================================================
+"""
 
 from __future__ import annotations
 

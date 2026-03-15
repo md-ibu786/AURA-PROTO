@@ -1,33 +1,38 @@
-# router.py
-# =========================
-#
-# FastAPI router for per-document KG status tracking and batch processing.
-# Provides API endpoints for managing knowledge graph processing workflow.
-#
-# Features:
-# ----------
-# - Individual document KG status查询
-# - Batch document processing with idempotency
-# - Processing queue monitoring
-# - Celery task status tracking
-#
-# Classes/Functions:
-# ------------------
-# - router: FastAPI router with /kg prefix
-# - get_document_kg_status(): GET /kg/documents/{id}/status
-# - process_batch(): POST /kg/process-batch
-# - get_processing_queue(): GET /kg/processing-queue
-# - get_task_status(): GET /kg/tasks/{id}/status
-# - _find_note_by_id(): Helper to locate notes in nested collections
-# - _doc_to_queue_item(): Helper to convert Firestore doc to queue item
-#
-# @see: api/modules/models.py - Pydantic models for requests/responses
-# @see: api/tasks/document_processing_tasks.py - Celery tasks triggered by these endpoints
-# @note: All documents are stored in Firestore, KG is stored in Neo4j
-# @note: Collection group queries used to find notes in nested subcollections
+"""
+============================================================================
+FILE: router.py
+LOCATION: api/kg/router.py
+============================================================================
 
+PURPOSE:
+    FastAPI router for per-document KG status tracking and batch processing.
+
+ROLE IN PROJECT:
+    Manages the knowledge graph processing workflow for documents stored in
+    Firestore. Provides endpoints for checking KG status, queuing batch
+    processing via Celery, monitoring the processing queue, and deleting
+    documents from Neo4j.
+
+KEY COMPONENTS:
+    - router: FastAPI APIRouter with /kg prefix
+    - get_document_kg_status: GET /kg/documents/{id}/status
+    - process_batch: POST /kg/process-batch
+    - get_processing_queue: GET /kg/processing-queue
+    - get_task_status: GET /kg/tasks/{id}/status
+    - delete_batch: POST /kg/delete-batch
+
+DEPENDENCIES:
+    - External: fastapi, celery
+    - Internal: api/config.py, api/modules/models.py, api/tasks/document_processing_tasks.py,
+                api/graph_manager.py, api/neo4j_config.py
+
+USAGE:
+    from api.kg import kg_router
+    app.include_router(kg_router, prefix="/api/v1")
+============================================================================
+"""
 from fastapi import APIRouter, HTTPException, status
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 import logging
 import asyncio

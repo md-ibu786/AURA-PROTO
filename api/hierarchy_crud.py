@@ -76,23 +76,19 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from auth import (
-        get_current_user,
         require_admin,
         require_staff,
         require_staff_or_admin,
         FirestoreUser,
         can_modify_note,
-        can_create_note_in_subject,
     )
 except ImportError:
     from api.auth import (
-        get_current_user,
         require_admin,
         require_staff,
         require_staff_or_admin,
         FirestoreUser,
         can_modify_note,
-        can_create_note_in_subject,
     )
 
 # Import GraphManager for cascade delete (KG cleanup)

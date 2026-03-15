@@ -7,8 +7,20 @@
  * PURPOSE:
  *    Full-screen loading spinner for auth initialization and page loads.
  *
+ * ROLE IN PROJECT:
+ *    Shared UI primitive rendered during async operations such as Firebase
+ *    auth initialization and lazy-loaded route transitions. Provides a
+ *    consistent full-screen loading experience across the application.
+ *
+ * KEY COMPONENTS:
+ *    - LoadingSpinner: Full-screen centered spinner with animated border
+ *
  * DEPENDENCIES:
  *    - External: react
+ *    - Internal: None
+ *
+ * USAGE:
+ *    <LoadingSpinner />
  * ============================================================================
  */
 

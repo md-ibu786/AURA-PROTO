@@ -1,47 +1,28 @@
 #!/usr/bin/env python3
 """
 ============================================================================
-MIGRATION: 001 - Add Module Schema
-VERSION: 001
-CREATED: 2026-01-19
+FILE: 001_add_module_schema.py
+LOCATION: api/migrations/001_add_module_schema.py
 ============================================================================
 
 PURPOSE:
-    Add Module, StudySession, and Message node types to Neo4j database
-    with appropriate constraints and HNSW vector indices for Phase 1 of
-    AURA M2KG implementation.
+    Add Module, StudySession, and Message node types to Neo4j with constraints and vector indices.
 
-CHANGES:
-    1. Module Node:
-       - Unique constraint on Module.id
-       - Index on Module.user_id for ownership queries
-       - Properties: id, code, name, description, subject_id, semester,
-                     department, kg_status, kg_processed_at, created_by,
-                     published_at, created_at, updated_at
-    
-    2. StudySession Node:
-       - Unique constraint on StudySession.id
-       - Index on StudySession.user_id
-       - Properties: id, title, module_ids, user_id, status, message_count,
-                     settings, created_at, updated_at, is_active
-    
-    3. Message Node:
-       - Unique constraint on Message.id
-       - Index on Message.session_id for fast session queries
-       - Properties: id, session_id, role, content, created_at, model_used,
-                     sources, thinking_content, token_count
-    
-    4. Chunk Vector Index (HNSW):
-       - 768 dimensions (Gemini text-embedding-004)
-       - Cosine similarity function
-       - Optimized for semantic search
+ROLE IN PROJECT:
+    First migration in the AURA-NOTES-MANAGER Neo4j schema setup. Establishes
+    the core node types required for the M2KG module system, including unique
+    constraints, lookup indices, and the HNSW vector index for semantic search.
 
-IDEMPOTENCY:
-    All operations use IF NOT EXISTS to ensure safe re-execution
+KEY COMPONENTS:
+    - AddModuleSchema: Migration class applying constraints and indices for Module, StudySession, Message nodes
+    - main: CLI entry point to execute the migration directly
 
-REFERENCE:
-    - Source: .planning/ROADMAP.md Phase 1
-    - Pattern: AURA-CHAT/backend/graph_manager.py
+DEPENDENCIES:
+    - External: neo4j
+    - Internal: api/migrations/__init__.py, api/neo4j_config.py, api/logging_config.py
+
+USAGE:
+    python api/migrations/001_add_module_schema.py
 ============================================================================
 """
 

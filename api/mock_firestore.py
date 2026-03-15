@@ -42,7 +42,7 @@ USAGE:
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Generator, AsyncGenerator
+from typing import Any, Dict
 
 
 class MockAsyncIterator:
@@ -298,7 +298,7 @@ class MockFirestoreClient:
             try:
                 with open(self.db_file, "r") as f:
                     self._db_data = json.load(f)
-            except:
+            except (OSError, json.JSONDecodeError):
                 self._db_data = {}
         else:
             self._db_data = {}
@@ -440,8 +440,6 @@ class MockAuth:
         for u in self._users.values():
             if u.email == email:
                 raise self.EmailAlreadyExistsError("Email already exists")
-
-        import time
 
         uid = f"mock-user-{int(time.time() * 1000)}"
         user = MockUserRecord(uid, email, display_name, password, disabled)

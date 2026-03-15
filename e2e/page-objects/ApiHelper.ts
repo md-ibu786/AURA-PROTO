@@ -1,7 +1,3 @@
-import { APIRequestContext, expect } from '@playwright/test';
-
-const API_BASE = 'http://127.0.0.1:8001';
-
 /**
  * ============================================================================
  * FILE: ApiHelper.ts
@@ -34,6 +30,11 @@ const API_BASE = 'http://127.0.0.1:8001';
  *    await api.deleteDepartment(deptId);
  * ============================================================================
  */
+
+import { APIRequestContext, expect } from '@playwright/test';
+
+const API_BASE = 'http://127.0.0.1:8001';
+
 export class ApiHelper {
     readonly request: APIRequestContext;
 

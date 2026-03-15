@@ -1,13 +1,31 @@
-# hierarchy/__init__.py
-# Package init for hierarchy HTTP endpoints
+"""
+============================================================================
+FILE: __init__.py
+LOCATION: api/hierarchy/__init__.py
+============================================================================
 
-# Exports hierarchy router for use in main.py.
-# Provides REST APIs for hierarchical navigation (departments, semesters, subjects, modules).
+PURPOSE:
+    Package initializer for the hierarchy HTTP endpoints module.
 
-# @see: hierarchy/router.py - FastAPI router with endpoints
-# @see: hierarchy/models.py - Pydantic response schemas
-# @note: Mount with prefix /api/v1 in main.py
+ROLE IN PROJECT:
+    Exports the hierarchy router and all Pydantic response models for
+    inclusion in main.py. Provides REST APIs for navigating the academic
+    hierarchy (departments, semesters, subjects, modules).
 
+KEY COMPONENTS:
+    - hierarchy_router: FastAPI router with /hierarchy prefix endpoints
+    - DepartmentResponse, SemesterResponse, SubjectResponse, ModuleHierarchyResponse
+    - DepartmentListResponse, SemesterListResponse, SubjectListResponse, ModuleListResponse
+
+DEPENDENCIES:
+    - External: None
+    - Internal: api/hierarchy/router.py, api/hierarchy/models.py
+
+USAGE:
+    from api.hierarchy import hierarchy_router
+    app.include_router(hierarchy_router, prefix="/api/v1")
+============================================================================
+"""
 from .router import router as hierarchy_router
 from .models import (
     DepartmentResponse,

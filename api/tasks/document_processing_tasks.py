@@ -37,11 +37,10 @@ USAGE:
 ============================================================================
 """
 
-import os
-import sys
 import logging
 import asyncio
 from datetime import datetime
+from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
@@ -49,22 +48,10 @@ from enum import Enum
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded, MaxRetriesExceededError
 
-# Add parent directories to path for imports
-_current_dir = os.path.dirname(__file__)
-_api_dir = os.path.dirname(_current_dir)
-_root_dir = os.path.dirname(_api_dir)
-sys.path.insert(0, _api_dir)
-sys.path.insert(0, _root_dir)
-
 # Import processor
-from kg_processor import KnowledgeGraphProcessor, process_document_simple
-from logging_config import logger
-
-# Import Firestore for status updates
-try:
-    from config import db
-except ImportError:
-    from api.config import db
+from api.config import CELERY_RESULT_EXPIRES, REDIS_URL, db
+from api.kg_processor import KnowledgeGraphProcessor, process_document_simple
+from api.logging_config import logger
 
 from google.cloud.firestore import FieldFilter
 
@@ -183,12 +170,6 @@ def update_document_status(
 
 # Import Redis and Celery settings from centralized config
 # This ensures operators can configure these settings in a single place (api/config.py)
-from urllib.parse import urlparse
-
-try:
-    from config import REDIS_URL, CELERY_RESULT_EXPIRES
-except ImportError:
-    from api.config import REDIS_URL, CELERY_RESULT_EXPIRES
 
 parsed_redis_url = urlparse(REDIS_URL)
 REDIS_HOST = parsed_redis_url.hostname or "127.0.0.1"
@@ -422,7 +403,7 @@ def process_document_task(
 
         # Update state: PARSING (0-10%)
         self.update_progress('parsing', 5, {'status': 'Extracting text from document'})
-        task_logger.debug(f"Stage PARSING: Extracting text from document")
+        task_logger.debug("Stage PARSING: Extracting text from document")
 
         # Process document (this handles parsing, chunking, embedding, extraction)
         # Run the async function synchronously in Celery task
@@ -435,7 +416,7 @@ def process_document_task(
 
         # Update state: STORING (70-90%)
         self.update_progress('storing', 75, {'status': 'Storing in Neo4j'})
-        task_logger.debug(f"Stage STORING: Saving to Neo4j")
+        task_logger.debug("Stage STORING: Saving to Neo4j")
 
         # Calculate processing time
         processing_time = (datetime.utcnow() - start_time).total_seconds()
@@ -497,7 +478,7 @@ def process_document_task(
 
     except SoftTimeLimitExceeded:
         """Handle soft time limit (25 minutes)."""
-        error_msg = f"Task timed out after 25 minutes"
+        error_msg = "Task timed out after 25 minutes"
         task_logger.error(error_msg)
 
         self.update_state(
@@ -778,7 +759,6 @@ def cancel_task(task_id: str) -> bool:
     Returns:
         True if task was revoked, False otherwise
     """
-    from celery.exceptions import Ignore
 
     try:
         app.control.revoke(task_id, terminate=True)

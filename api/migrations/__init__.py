@@ -21,8 +21,9 @@ KEY COMPONENTS:
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from neo4j import Driver, Session
+from typing import Any, Dict, List
+
+from neo4j import Driver
 
 # Import logging from api
 import sys

@@ -1,14 +1,32 @@
-# graph_preview.py
-# Lightweight graph preview API for module visualization
-#
-# Provides graph data for staff module preview without full RAG capabilities.
-# Uses graph_manager.py directly, does NOT depend on rag_engine.py.
-# Returns nodes and edges for frontend visualization components.
-#
-# @see: api/graph_manager.py - Graph data operations
-# @see: api/schemas/graph_preview.py - Response schemas
-# @note: Uses get_subgraph() and direct Neo4j queries for module-scoped data
+"""
+============================================================================
+FILE: graph_preview.py
+LOCATION: api/routers/graph_preview.py
+============================================================================
 
+PURPOSE:
+    Lightweight graph preview API for module knowledge graph visualization.
+
+ROLE IN PROJECT:
+    Provides graph nodes and edges for staff module preview without requiring
+    full RAG capabilities. Used by the frontend to render knowledge graph
+    visualizations scoped to a specific module.
+
+KEY COMPONENTS:
+    - router: FastAPI APIRouter with /api/v1/graph-preview prefix
+    - get_module_graph: GET /modules/{module_id} - nodes and edges for a module
+    - get_module_graph_stats: GET /modules/{module_id}/stats - entity/relationship counts
+    - get_graph_manager: Dependency injection for GraphManager
+
+DEPENDENCIES:
+    - External: fastapi
+    - Internal: api/graph_manager.py, api/schemas/graph_preview.py, api/neo4j_config.py
+
+USAGE:
+    from api.routers.graph_preview import router as graph_preview_router
+    app.include_router(graph_preview_router)
+============================================================================
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query, HTTPException

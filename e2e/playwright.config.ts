@@ -1,5 +1,3 @@
-import { defineConfig, devices } from '@playwright/test';
-
 /**
  * ============================================================================
  * FILE: playwright.config.ts
@@ -31,6 +29,9 @@ import { defineConfig, devices } from '@playwright/test';
  *    View report: npx playwright show-report
  * ============================================================================
  */
+
+import { defineConfig, devices } from '@playwright/test';
+
 export default defineConfig({
     testDir: './tests',
     fullyParallel: false, // Run tests sequentially for database consistency

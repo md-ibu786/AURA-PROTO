@@ -38,7 +38,6 @@ USAGE:
 
 import os
 import sys
-import asyncio
 
 # Add api directory to path for imports
 _api_dir = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +64,8 @@ def test_imports():
             chunk_text_hierarchical,
         )
 
+        _ = (EntityAwareChunker, chunk_text_hierarchical)
+
         import_results["EntityAwareChunker"] = True
         print("✅ EntityAwareChunker imported successfully")
     except ImportError as e:
@@ -80,6 +81,8 @@ def test_imports():
             ExtractionResult,
         )
 
+        _ = (LLMEntityExtractor, extract_entities, merge_extraction_results, ExtractionResult)
+
         import_results["LLMEntityExtractor"] = True
         print("✅ LLMEntityExtractor imported successfully")
     except ImportError as e:
@@ -89,6 +92,8 @@ def test_imports():
     # Test embedding service import
     try:
         from services.embeddings import EmbeddingService
+
+        _ = EmbeddingService
 
         import_results["EmbeddingService"] = True
         print("✅ EmbeddingService imported successfully")
@@ -109,6 +114,8 @@ def test_imports():
             normalize_text,
         )
 
+        _ = (count_tokens, split_into_sentences, normalize_text)
+
         import_results["chunking_utils"] = True
         print("✅ chunking_utils imported successfully")
     except ImportError as e:
@@ -122,6 +129,8 @@ def test_imports():
             get_model,
             GenerationConfig,
         )
+
+        _ = (init_vertex_ai, get_model, GenerationConfig)
 
         import_results["vertex_ai_client"] = True
         print("✅ vertex_ai_client imported successfully")
@@ -142,7 +151,7 @@ def test_entity_aware_chunker():
 
     # Initialize chunker
     chunker = EntityAwareChunker()
-    print(f"✅ EntityAwareChunker initialized")
+    print("✅ EntityAwareChunker initialized")
 
     # Test sample text
     sample_text = """
@@ -175,7 +184,7 @@ def test_llm_extractor_init():
 
         # In test mode, initialization should succeed without API
         extractor = LLMEntityExtractor()
-        print(f"✅ LLMEntityExtractor initialized")
+        print("✅ LLMEntityExtractor initialized")
         # Check for known attributes (may vary by implementation)
         batch_size = getattr(
             extractor, "batch_size", getattr(extractor, "_batch_size", "N/A")

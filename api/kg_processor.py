@@ -1,12 +1,4 @@
-# kg_processor.py
-# Knowledge graph processing and entity extraction pipeline
-
-# Longer description (2-4 lines):
-# - Converts documents into chunked text, embeddings, and entities for Neo4j.
-# - Uses Vertex AI Gemini for generation and Vertex AI embeddings for vectors.
-
-# @see: api/config.py - Centralized configuration for Vertex AI settings
-# @note: Uses ADC authentication and skips calls in test mode
+# ruff: noqa: E402
 
 """
 ============================================================================
@@ -15,49 +7,32 @@ LOCATION: api/kg_processor.py
 ============================================================================
 
 PURPOSE:
-    Core Knowledge Graph Processor for converting documents to knowledge graphs.
-    Handles document ingestion, embedding generation, entity extraction, and
-    Neo4j storage with module_id tagging.
+    Core knowledge graph processing pipeline for converting documents to Neo4j graphs.
 
 ROLE IN PROJECT:
-    This is the document-to-KG conversion engine for Phase 2 of AURA M2KG.
-    It orchestrates the entire pipeline from raw document to indexed knowledge graph.
+    Document-to-KG conversion engine for AURA M2KG. Orchestrates the full pipeline
+    from raw document (PDF, DOCX, TXT) through chunking, embedding generation,
+    entity extraction, semantic deduplication, and Neo4j storage with module_id tagging.
 
 KEY COMPONENTS:
-    - KnowledgeGraphProcessor: Main processor class
-    - Document ingestion pipeline (PDF, DOCX, TXT)
-    - Module_id propagation through all nodes
-    - Gemini integration for embeddings and entity extraction
-    - Progress tracking for long-running operations
-
-SUPPORTED FILE FORMATS:
-    - PDF: PyMuPDF (fitz) for text extraction
-    - DOCX: python-docx via DocxParser (09-07-PLAN)
-    - TXT: Direct file reading with encoding fallback
+    - KnowledgeGraphProcessor: Main processor class orchestrating the full pipeline
+    - GeminiClient: Vertex AI client for embeddings and entity extraction
+    - KnowledgeGraphProcessor.process_document: Single document processing entry point
+    - KnowledgeGraphProcessor.process_batch: Batch document processing
+    - KnowledgeGraphProcessor.chunk_text_hierarchical: Parent-child chunking for RAG
 
 DEPENDENCIES:
-    - External: neo4j, PyMuPDF (fitz), python-docx, python-dotenv
-    - Internal: neo4j_config for driver, config for settings
-    - services/document_parsers/docx_parser.py - DOCX parsing
+    - External: neo4j, PyMuPDF (fitz), python-docx, tenacity, google-cloud-aiplatform
+    - Internal: api/neo4j_config.py, api/config.py, api/services/vertex_ai_client.py,
+                api/services/chunking_utils.py, api/services/llm_entity_extractor.py,
+                api/services/embeddings.py, api/services/entity_aware_chunker.py,
+                api/services/entity_deduplicator.py, api/services/document_parsers/docx_parser.py
 
 USAGE:
     from api.kg_processor import KnowledgeGraphProcessor
-    from api.neo4j_config import neo4j_driver
 
-    # Initialize with dependencies
     processor = KnowledgeGraphProcessor(neo4j_driver, gemini_client)
-
-    # Process a single document
     result = await processor.process_document(document_id, module_id, user_id)
-
-    # Process multiple documents in batch
-    results = await processor.process_batch([doc_id1, doc_id2], module_id, user_id)
-
-ENVIRONMENT VARIABLES:
-    - VERTEX_PROJECT: GCP project for Vertex AI
-    - VERTEX_LOCATION: Vertex AI region (default: us-central1)
-    - CHUNK_SIZE: Token size for text chunking (default: 800)
-    - CHUNK_OVERLAP: Token overlap between chunks (default: 100)
 ============================================================================
 """
 
@@ -70,7 +45,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Callable, Union
+from typing import List, Dict, Any, Optional, Callable
 from enum import Enum
 
 # Tenacity for retry logic (02-04-PLAN)
@@ -80,15 +55,14 @@ from tenacity import (
     wait_exponential,
     retry_if_exception_type,
     before_sleep_log,
-    after_log,
 )
 import logging
 
-# Logger for tenacity retry callbacks
-retry_logger = logging.getLogger(__name__ + ".retry")
-
 # PDF and text parsing
 import fitz  # PyMuPDF for PDF parsing
+
+# Logger for tenacity retry callbacks
+retry_logger = logging.getLogger(__name__ + ".retry")
 
 # Add parent directory to path for internal imports
 sys.path.insert(0, os.path.dirname(__file__))
@@ -102,20 +76,15 @@ try:
         LLM_ENTITY_EXTRACTION_MODEL,
         EMBEDDING_MODEL,
         AURA_TEST_MODE,
-        VERTEX_PROJECT,
-        VERTEX_LOCATION,
     )
 except ImportError:
     from api.config import (
         LLM_ENTITY_EXTRACTION_MODEL,
         EMBEDDING_MODEL,
         AURA_TEST_MODE,
-        VERTEX_PROJECT,
-        VERTEX_LOCATION,
     )
 
 from services.vertex_ai_client import (
-    init_vertex_ai,
     get_model,
     generate_content,
     GenerationConfig,
@@ -126,7 +95,6 @@ try:
     from services.chunking_utils import (
         count_tokens,
         split_into_sentences,
-        normalize_text,
     )
 except ImportError:
     # Fallback if services module not in path
@@ -136,17 +104,14 @@ except ImportError:
     from services.chunking_utils import (
         count_tokens,
         split_into_sentences,
-        normalize_text,
     )
 
 # Import LLM entity extractor (ported from AURA-CHAT)
 try:
     from services.llm_entity_extractor import (
         LLMEntityExtractor,
-        ExtractedEntity,
         Relationship as EntityRelationship,
         # Module-level convenience functions (02-03-PLAN)
-        extract_entities as llm_extract_entities,
         merge_extraction_results,
         ExtractionResult,
     )
@@ -157,10 +122,8 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.llm_entity_extractor import (
         LLMEntityExtractor,
-        ExtractedEntity,
         Relationship as EntityRelationship,
         # Module-level convenience functions (02-03-PLAN)
-        extract_entities as llm_extract_entities,
         merge_extraction_results,
         ExtractionResult,
     )
@@ -177,7 +140,6 @@ except ImportError:
 # Import entity-aware chunker (02-03-PLAN)
 try:
     from services.entity_aware_chunker import (
-        chunk_text_hierarchical as chunker_hierarchical,
         EntityAwareChunker,
     )
 except ImportError:
@@ -185,7 +147,6 @@ except ImportError:
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.entity_aware_chunker import (
-        chunk_text_hierarchical as chunker_hierarchical,
         EntityAwareChunker,
     )
 
@@ -202,7 +163,6 @@ except ImportError:
 try:
     from services.document_parsers.docx_parser import (
         DocxParser,
-        ParsedDocument as DocxParsedDocument,
         DocxParseError,
         CorruptedDocxError,
         PasswordProtectedDocxError,
@@ -214,7 +174,6 @@ except ImportError:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.document_parsers.docx_parser import (
         DocxParser,
-        ParsedDocument as DocxParsedDocument,
         DocxParseError,
         CorruptedDocxError,
         PasswordProtectedDocxError,
@@ -224,9 +183,6 @@ except ImportError:
 # Import extraction templates (11-03-PLAN)
 try:
     from services.extraction_templates import (
-        TemplateExtractor,
-        TemplateRegistry,
-        ExtractionOptions,
         get_template_registry,
         get_template_extractor,
     )
@@ -235,9 +191,6 @@ except ImportError:
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
     from services.extraction_templates import (
-        TemplateExtractor,
-        TemplateRegistry,
-        ExtractionOptions,
         get_template_registry,
         get_template_extractor,
     )
@@ -574,97 +527,6 @@ class GeminiClient:
             logger.error(f"Embedding batch generation failed: {e}")
             return [self._mock_embedding(text) for text in texts]
 
-    async def extract_entities(self, chunk_text: str, chunk_id: str) -> List[Entity]:
-        """
-        Extract entities from chunk text using Vertex AI Gemini.
-
-        Args:
-            chunk_text: Text content to extract entities from
-            chunk_id: ID of the chunk for entity linking
-
-        Returns:
-            List of extracted Entity objects
-        """
-        try:
-            model = self._get_model()
-            if model is None:
-                raise RuntimeError("Vertex AI model not initialized")
-
-            # Prompt for entity extraction
-            prompt = f"""
-            Extract entities from the following academic text. For each entity, identify:
-            - Type: Topic, Concept, Methodology, Finding, or Definition
-            - Name: The entity name/term
-            - Definition: Brief definition or description
-
-            Return as JSON array with this structure:
-            [
-                {{"type": "Concept", "name": "Entity Name", "definition": "Brief definition"}}
-            ]
-
-            Text:
-            {chunk_text[:10000]}  # Limit text size for API
-            """
-
-            response = generate_content(
-                model,
-                prompt,
-                generation_config=GenerationConfig(
-                    max_output_tokens=2048,
-                    temperature=0.2,
-                ),
-            )
-            response_text = response.text
-
-            # Parse JSON from response
-            entities = self._parse_entities_response(response_text, chunk_id)
-            return entities
-
-        except Exception as e:
-            logger.error(f"Entity extraction failed: {e}")
-            return self._mock_entities(chunk_text, chunk_id)
-
-    def _parse_entities_response(
-        self, response_text: str, chunk_id: str
-    ) -> List[Entity]:
-        """Parse entity extraction response into Entity objects."""
-        entities = []
-
-        try:
-            # Extract JSON from response (handle markdown code blocks)
-            json_text = response_text
-            if "```json" in response_text:
-                json_text = response_text.split("```json")[1].split("```")[0]
-            elif "```" in response_text:
-                json_text = response_text.split("```")[1].split("```")[0]
-
-            data = json.loads(json_text.strip())
-
-            for item in data:
-                entity_type_str = item.get("type", "Concept")
-                try:
-                    entity_type = EntityType(entity_type_str.upper())
-                except ValueError:
-                    entity_type = EntityType.CONCEPT
-
-                entity_id = self._generate_entity_id(
-                    item.get("name", "unknown"), chunk_id
-                )
-
-                entities.append(
-                    Entity(
-                        id=entity_id,
-                        name=item.get("name", "Unknown"),
-                        entity_type=entity_type,
-                        definition=item.get("definition", ""),
-                    )
-                )
-
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse entity extraction response: {e}")
-
-        return entities
-
     def _generate_entity_id(self, name: str, chunk_id: str) -> str:
         """Generate unique entity ID based on name and chunk."""
         content = f"{name}:{chunk_id}"
@@ -753,12 +615,6 @@ class GeminiClient:
             # Fallback to whitespace tokenization
             return len(text.split())
 
-    def _generate_entity_id(self, prefix: str, text: str) -> str:
-        """Generate hash-based entity ID."""
-        hash_str = hashlib.md5(text.lower().encode()).hexdigest()[:12]
-        clean_prefix = prefix.lower().replace("_", "")
-        return f"{clean_prefix}_{hash_str}"
-
     def _parse_entities_response(
         self, response_text: str, chunk_id: str
     ) -> List[Dict[str, Any]]:
@@ -808,10 +664,12 @@ class GeminiClient:
                     "FINDING": "Finding",
                 }
                 entity_type = type_mapping.get(entity_type_str, "Concept")
-                prefix = entity_type.lower()
 
                 entity = {
-                    "id": self._generate_entity_id(prefix, item.get("name", "")),
+                    "id": self._generate_entity_id(
+                        item.get("name", "unknown"),
+                        chunk_id,
+                    ),
                     "name": item.get("name", "Unknown"),
                     "entity_type": entity_type,
                     "definition": item.get("definition", ""),

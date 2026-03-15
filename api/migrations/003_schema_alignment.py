@@ -1,45 +1,36 @@
 #!/usr/bin/env python3
 """
 ============================================================================
-MIGRATION: 003 - Schema Alignment
-VERSION: 003
-CREATED: 2026-01-24
+FILE: 003_schema_alignment.py
+LOCATION: api/migrations/003_schema_alignment.py
 ============================================================================
 
 PURPOSE:
-    Align AURA-NOTES-MANAGER Neo4j schema with the unified AURA platform schema.
-    Ensures both AURA-NOTES-MANAGER and AURA-CHAT can read/write consistently
-    to the shared Neo4j database.
+    Align AURA-NOTES-MANAGER Neo4j schema with the unified AURA platform canonical schema.
 
-CHANGES:
-    1. Creates any missing vector indices from the canonical schema
-    2. Creates any missing fulltext indices
-    3. Creates any missing constraints
-    4. Does NOT remove existing data or indices (additive only)
-    5. All operations are idempotent (IF NOT EXISTS)
+ROLE IN PROJECT:
+    Third migration ensuring schema compatibility between AURA-NOTES-MANAGER and
+    AURA-CHAT. Reads the canonical schema definition and idempotently creates any
+    missing vector indices, fulltext indices, and constraints.
 
-PREREQUISITES:
-    - Migration 002 (KG Enhancement Schema) must be completed
-    - Neo4j 5.15+ for vector index syntax
+KEY COMPONENTS:
+    - SchemaAlignment: Migration class that diffs current DB state against canonical schema and fills gaps
+    - upgrade_async: Async variant for AURA-CHAT AsyncGraphDatabase compatibility
+    - verify_async: Async schema verification helper
 
-IDEMPOTENCY:
-    All operations use IF NOT EXISTS to ensure safe re-execution
+DEPENDENCIES:
+    - External: neo4j
+    - Internal: api/migrations/__init__.py, api/neo4j_config.py, api/schemas/neo4j_schema.py, api/schema_validator.py
 
-REFERENCE:
-    - Schema Definition: api/schemas/neo4j_schema.py
-    - Validator: api/schema_validator.py
-    - Plan: .planning/phases/11-kg-advanced/11-04-PLAN.md
-
-@see: 002_kg_enhancement_schema.py - Previous migration
-@see: schema_validator.py - Validation utilities
-@note: This migration is additive only - no data loss
+USAGE:
+    python api/migrations/003_schema_alignment.py
+    python api/migrations/003_schema_alignment.py --verify-only
+    python api/migrations/003_schema_alignment.py --dry-run
 ============================================================================
 """
 
 import os
 import sys
-from datetime import datetime
-from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))

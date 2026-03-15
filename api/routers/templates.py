@@ -29,9 +29,9 @@ USAGE:
 ============================================================================
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 # Import template models and services
@@ -40,7 +40,6 @@ try:
         ExtractionTemplate,
         ExtractionOptions,
         TemplateDetectionResult,
-        TemplateExtractionResult,
         TemplateExtractor,
         TemplateRegistry,
         get_template_registry,
@@ -56,7 +55,6 @@ except ImportError:
         ExtractionTemplate,
         ExtractionOptions,
         TemplateDetectionResult,
-        TemplateExtractionResult,
         TemplateExtractor,
         TemplateRegistry,
         get_template_registry,

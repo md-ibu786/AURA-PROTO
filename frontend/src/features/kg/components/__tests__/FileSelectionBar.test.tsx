@@ -5,16 +5,23 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for FileSelectionBar component. Tests null return behavior
- *    since the component currently returns null (functionality moved to Header).
+ *    Unit tests for the FileSelectionBar component.
  *
- * TEST COVERAGE:
- *    - Null return verification
- *    - Render behavior with empty selection
- *    - Component structure (empty fragment)
+ * ROLE IN PROJECT:
+ *    Validates that FileSelectionBar renders nothing to the DOM, confirming
+ *    its current placeholder behavior. Ensures the component is a stable
+ *    no-op until future selection bar functionality is implemented.
  *
- * @see: FileSelectionBar.tsx - Component under test
- * @note: Component is a placeholder - returns null until future expansion
+ * KEY COMPONENTS:
+ *    - FileSelectionBar test suite: Null return and empty DOM assertions
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react
+ *    - Internal: features/kg/components/FileSelectionBar
+ *
+ * USAGE:
+ *    npm test -- src/features/kg/components/__tests__/FileSelectionBar.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';

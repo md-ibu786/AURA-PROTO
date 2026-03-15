@@ -86,32 +86,31 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Import services
 try:
     from services.stt import process_audio_file
-except ImportError as e:
+except ImportError as exc:
     # If it's the specific deepgram error, print it loudly but try to continue for other endpoints
-    logger.error(f"CRITICAL ERROR IMPORTING STT SERVICE: {e}")
-    try:
-        import deepgram
-    except Exception as d_err:
-        pass
+    _stt_import_error = exc
+    logger.error(f"CRITICAL ERROR IMPORTING STT SERVICE: {_stt_import_error}")
         
     def process_audio_file(*args, **kwargs):
-        raise ImportError(f"Service unavailable due to import error: {e}")
+        raise ImportError(
+            f"Service unavailable due to import error: {_stt_import_error}"
+        ) from _stt_import_error
 
 try:
     from services.coc import transform_transcript
-except ImportError as e:
+except ImportError:
     def transform_transcript(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
 
 try:
     from services.summarizer import generate_university_notes
-except ImportError as e:
+except ImportError:
     def generate_university_notes(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
 
 try:
     from services.pdf_generator import create_pdf
-except ImportError as e:
+except ImportError:
     def create_pdf(*args, **kwargs):
         raise ImportError("fpdf dependency not installed. Run: pip install fpdf2")
 

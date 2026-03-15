@@ -1,19 +1,34 @@
 """
-schema_validator.py
-Schema validation utilities for AURA platform Neo4j database
+============================================================================
+FILE: schema_validator.py
+LOCATION: api/schema_validator.py
+============================================================================
 
-Validates that the Neo4j database matches the expected schema definition,
-detects schema drift, identifies missing indices/constraints, and generates
-migration scripts to align the database with the canonical schema.
+PURPOSE:
+    Validates the Neo4j database schema against the canonical AURA platform
+    schema definition and generates migration scripts for alignment.
 
-Key classes:
-- SchemaValidator: Main validation class with database comparison
-- SchemaValidationResult: Validation outcome with detailed findings
-- SchemaComparisonResult: Cross-app schema comparison (NOTES-MANAGER vs CHAT)
+ROLE IN PROJECT:
+    Acts as a schema health-check layer between the API and Neo4j. Detects
+    schema drift, identifies missing indices and constraints, and produces
+    Cypher migration scripts to bring the database in line with the canonical
+    schema shared by AURA-NOTES-MANAGER and AURA-CHAT.
 
-@see: api/schemas/neo4j_schema.py - Canonical schema definition
-@see: api/migrations/003_schema_alignment.py - Migration script
-@note: Uses SHOW INDEXES and SHOW CONSTRAINTS which require Neo4j 4.2+
+KEY COMPONENTS:
+    - SchemaValidator: Compares live database state against expected schema
+    - SchemaValidationResult: Detailed validation outcome with missing elements
+    - SchemaComparisonResult: Cross-app schema comparison result model
+    - get_schema_validator: FastAPI dependency injection helper
+
+DEPENDENCIES:
+    - External: neo4j, pydantic
+    - Internal: api/schemas/neo4j_schema.py, api/neo4j_config.py
+
+USAGE:
+    validator = SchemaValidator(neo4j_driver)
+    result = validator.validate_schema()
+    script = validator.generate_migration_script()
+============================================================================
 """
 
 import os
@@ -27,21 +42,15 @@ from neo4j import Driver
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from schemas.neo4j_schema import (
-    NodeType,
-    RelationshipType,
     VECTOR_INDICES,
     FULLTEXT_INDICES,
     CONSTRAINTS,
-    ENTITY_ENTITY_RELATIONSHIPS,
     get_schema_definition,
     get_node_types,
     get_relationship_types,
     generate_vector_index_cypher,
     generate_fulltext_index_cypher,
     generate_constraint_cypher,
-    VectorIndexDefinition,
-    FulltextIndexDefinition,
-    ConstraintDefinition,
 )
 
 

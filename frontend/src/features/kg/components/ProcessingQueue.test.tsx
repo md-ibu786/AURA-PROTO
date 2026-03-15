@@ -5,20 +5,23 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for ProcessingQueue component. Tests queue display, progress
- *    bars, status colors, empty state, loading state, and error display.
+ *    Unit tests for the ProcessingQueue component.
  *
- * TEST COVERAGE:
- *    - Empty queue (hidden when no items)
- *    - Loading state
- *    - Error state
- *    - Queue item rendering
- *    - Progress bar display
- *    - Status color coding
- *    - Error message display per item
+ * ROLE IN PROJECT:
+ *    Validates ProcessingQueue rendering within the KG feature module. Covers
+ *    visibility states (empty, loading, error), queue item display, progress
+ *    bars, status color coding, and per-item error messages.
  *
- * @see: ProcessingQueue.tsx - Component under test
- * @see: hooks/useKGProcessing.ts - useProcessingQueue hook
+ * KEY COMPONENTS:
+ *    - ProcessingQueue test suite: Visibility, queue display, progress, status colors, errors
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react
+ *    - Internal: features/kg/components/ProcessingQueue, hooks/useKGProcessing, types/kg.types
+ *
+ * USAGE:
+ *    npm test -- src/features/kg/components/ProcessingQueue.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';

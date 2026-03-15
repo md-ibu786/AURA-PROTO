@@ -1,14 +1,37 @@
-# graph_manager.py
-# Centralized graph manager for Neo4j graph traversal and manipulation operations
+"""
+============================================================================
+FILE: graph_manager.py
+LOCATION: api/graph_manager.py
+============================================================================
 
-# Provides graph traversal methods for multi-hop entity expansion, subgraph extraction,
-# and neighbor retrieval. Used by graph preview API for visualization and module structure
-# exploration.
+PURPOSE:
+    Centralized manager for Neo4j graph traversal and manipulation operations.
 
-# @see: api/neo4j_config.py - Neo4j driver configuration
-# @see: api/routers/graph_preview.py - Uses GraphManager for graph preview
-# @note: 2-hop traversal default; increase cautiously to avoid performance issues
+ROLE IN PROJECT:
+    Provides the core graph access layer used by the graph preview API and
+    KG processing pipeline. Handles multi-hop entity expansion, subgraph
+    extraction, neighbor retrieval, and document deletion with orphan cleanup.
 
+KEY COMPONENTS:
+    - GraphManager: Main class for all Neo4j graph operations
+    - GraphContext: Container for expanded graph context from entity traversal
+    - Subgraph: Extracted subgraph for visualization or analysis
+    - weight_path: Utility to score entity paths by relationship type and distance
+    - create_graph_manager: Factory function for GraphManager instances
+
+DEPENDENCIES:
+    - External: neo4j, pydantic
+    - Internal: api/neo4j_config.py
+
+USAGE:
+    from api.graph_manager import GraphManager
+    from api.neo4j_config import neo4j_driver
+
+    graph_mgr = GraphManager(neo4j_driver)
+    neighbors = await graph_mgr.get_entity_neighbors("entity_123")
+    subgraph = await graph_mgr.get_subgraph(["e1", "e2"], depth=2)
+============================================================================
+"""
 from __future__ import annotations
 
 import time

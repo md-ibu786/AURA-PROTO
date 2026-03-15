@@ -30,7 +30,7 @@ USAGE:
 ============================================================================
 """
 
-from typing import List, Optional
+from typing import List
 import re
 import unicodedata
 

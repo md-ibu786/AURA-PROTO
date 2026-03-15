@@ -40,7 +40,7 @@ export default defineConfig({
         // (e.g., .bg-primary\/10, .backdrop-blur-\[1px\])
         lightningcss: {
             unusedSymbols: [],
-        } as any,
+        } as Record<string, unknown>,
     },
     resolve: {
         alias: {

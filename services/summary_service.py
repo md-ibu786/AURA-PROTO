@@ -33,7 +33,6 @@ USAGE:
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import re
 from datetime import datetime
@@ -43,7 +42,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from api.config import LLM_SUMMARIZATION_MODEL
-from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+from services.vertex_ai_client import GenerationConfig, generate_content
 
 
 # ============================================================================

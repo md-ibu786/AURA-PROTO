@@ -1,22 +1,32 @@
 """
 ============================================================================
 FILE: test_celery_tasks.py
-LOCATION: AURA-NOTES-MANAGER/api/test_celery_tasks.py
+LOCATION: api/test_celery_tasks.py
 ============================================================================
 
 PURPOSE:
-    Test script for verifying Celery tasks implementation.
-    Tests imports, configuration, and task structure without requiring
-    Redis broker (uses mock for full integration tests).
+    Verify the Celery tasks implementation without requiring a live Redis broker.
+
+ROLE IN PROJECT:
+    Developer-facing test script that validates task imports, Celery app
+    configuration, ProcessingState enum, retry policy, and task result
+    structure. Uses mocks for broker-dependent calls and simulates the full
+    document processing state-machine flow.
+
+KEY COMPONENTS:
+    - test_imports: Verifies all task symbols can be imported
+    - test_app_configuration: Checks Celery broker URL and reliability settings
+    - test_processing_states: Validates ProcessingState enum completeness
+    - simulate_task_execution: Runs the processing state-machine without a broker
+    - main: Orchestrates all tests and prints a summary
+
+DEPENDENCIES:
+    - External: pytest, celery, unittest.mock
+    - Internal: api/tasks/document_processing_tasks.py
 
 USAGE:
-    python test_celery_tasks.py
-
-    For full integration with Redis:
-    1. Install Redis: choco install redis-64
-    2. Start Redis: redis-server
-    3. Start worker: celery -A test_celery_tasks worker -l info
-    4. Run tests: python test_celery_tasks.py
+    python api/test_celery_tasks.py
+    pytest api/test_celery_tasks.py
 ============================================================================
 """
 
@@ -25,7 +35,7 @@ import os
 
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add api directory to path
 _current_dir = os.path.dirname(__file__)
@@ -47,6 +57,15 @@ def test_imports():
             ProcessingState,
             KGProcessingTask
         )
+        _ = (
+            app,
+            process_document_task,
+            process_batch_task,
+            get_task_progress,
+            cancel_task,
+            ProcessingState,
+            KGProcessingTask,
+        )
         print("  [PASS] All task imports successful")
         assert True
     except ImportError as e:
@@ -58,7 +77,7 @@ def test_app_configuration():
     """Test Celery app configuration."""
     print("\nTesting Celery app configuration...")
 
-    from tasks.document_processing_tasks import app, process_document_task, REDIS_HOST, REDIS_PORT
+    from tasks.document_processing_tasks import app, process_document_task
 
     # Check configuration
     assert app.conf.broker_url is not None, "Broker URL not configured"
@@ -66,8 +85,8 @@ def test_app_configuration():
     print(f"  [PASS] Broker URL: {app.conf.broker_url}")
 
     # Check task settings
-    assert app.conf.task_acks_late == True, "acks_late should be True"
-    assert app.conf.task_reject_on_worker_lost == True, "reject_on_worker_lost should be True"
+    assert app.conf.task_acks_late, "acks_late should be True"
+    assert app.conf.task_reject_on_worker_lost, "reject_on_worker_lost should be True"
     print("  [PASS] Task reliability settings configured")
 
     # Check time limits from task attributes
@@ -183,7 +202,7 @@ def test_helper_functions():
     """Test helper functions."""
     print("\nTesting helper functions...")
 
-    from tasks.document_processing_tasks import get_task_progress, cancel_task
+    from tasks.document_processing_tasks import cancel_task, get_task_progress
 
     # Test get_task_progress with mock result
     mock_result = Mock()
@@ -196,6 +215,7 @@ def test_helper_functions():
         assert progress['state'] == 'PENDING', "Should return PENDING state"
 
     print("  [PASS] get_task_progress works correctly")
+    assert callable(cancel_task), "cancel_task should be callable"
     print("  [PASS] cancel_task is callable")
 
     assert True
@@ -254,7 +274,7 @@ def test_retry_policy():
     print("  Retry policy for process_document_task:")
     print(f"    - Max retries: {process_document_task.max_retries}")
     print(f"    - Retry backoff: {process_document_task.retry_backoff}")
-    print(f"    - Max backoff: 600s (10 minutes)")
+    print("    - Max backoff: 600s (10 minutes)")
     print(f"    - Retry jitter: {process_document_task.retry_jitter}")
     print("  Auto-retries on: ConnectionError, TimeoutError")
 
@@ -294,7 +314,7 @@ def simulate_task_execution():
     print("SIMULATING TASK EXECUTION (without Redis broker)")
     print("="*60)
 
-    from tasks.document_processing_tasks import ProcessingState, KGProcessingTask
+    from tasks.document_processing_tasks import KGProcessingTask
     from datetime import datetime
 
     # Simulate the task execution flow

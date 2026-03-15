@@ -42,7 +42,6 @@ USAGE:
 ============================================================================
 """
 from typing import List, Dict, Any, Optional
-from google.cloud import firestore
 try:
     from config import db
 except (ImportError, ModuleNotFoundError):

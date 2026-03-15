@@ -5,24 +5,27 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for useKGProcessing hook. Tests React Query hooks for
- *    Knowledge Graph processing operations including document status queries,
- *    batch processing mutations, and queue monitoring with smart polling.
+ *    Unit tests for the useKGProcessing hook.
  *
- * TEST COVERAGE:
- *    - processFiles Mutation (5 tests)
- *    - useProcessingQueue Hook (3 tests)
- *    - useFileKGStatus Hook (3 tests)
- *    - Integration Tests (4 tests)
+ * ROLE IN PROJECT:
+ *    Validates the useKGProcessing hook interface and behavior within a
+ *    QueryClientProvider context. Covers the processFiles mutation shape,
+ *    useProcessingQueue and useFileKGStatus function signatures, and
+ *    integration across multiple concurrent renders.
+ *
+ * KEY COMPONENTS:
+ *    - processFiles mutation tests: Interface, types, and invocation
+ *    - useProcessingQueue tests: Function signature and callability
+ *    - useFileKGStatus tests: Function signature and callability
+ *    - Integration tests: Return structure and concurrent renders
  *
  * DEPENDENCIES:
- *    - External: @tanstack/react-query, vitest
- *    - Internal: useKGProcessing.ts, explorerApi.ts, kg.types.ts, useExplorerStore
+ *    - External: vitest, @tanstack/react-query, @testing-library/react
+ *    - Internal: features/kg/hooks/useKGProcessing, api/explorerApi, stores, types/kg.types
  *
- * @see: useKGProcessing.ts - Hook under test
- * @see: explorerApi.ts - API functions mocked
- * @see: kg.types.ts - Type definitions
- * @note: Tests use React Query's QueryClient for proper isolation
+ * USAGE:
+ *    npm test -- src/features/kg/hooks/useKGProcessing.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

@@ -1,37 +1,34 @@
-# models.py
-# =========================
-#
-# Pydantic models for hierarchy API responses.
-# Defines response schemas for department, semester, subject, and module endpoints.
-# Ensures consistent response format across all hierarchy navigation APIs.
-# Used by hierarchy router and consumed by AURA-CHAT proxy endpoints.
-#
-# Features:
-# ----------
-# - Typed response models for all hierarchy levels
-# - Pagination support via list response models
-# - Field descriptions for API documentation
-# - Example schemas for Swagger UI
-#
-# Classes/Functions:
-# ------------------
-# - DepartmentResponse: Single department response
-# - SemesterResponse: Single semester response
-# - SubjectResponse: Single subject response
-# - ModuleHierarchyResponse: Single module response (hierarchy context)
-# - DepartmentListResponse: List of departments with total count
-# - SemesterListResponse: List of semesters with total count
-# - SubjectListResponse: List of subjects with total count
-# - ModuleListResponse: List of modules with total count
-#
-# @see: router.py - FastAPI router using these models
-# @see: api/hierarchy.py - Data access functions returning raw dicts
-# @note: Response models wrap items in list format with total count
-# @note: Department ID used as top-level root collection in Firestore
+"""
+============================================================================
+FILE: models.py
+LOCATION: api/hierarchy/models.py
+============================================================================
 
+PURPOSE:
+    Pydantic response models for the hierarchy navigation API.
+
+ROLE IN PROJECT:
+    Defines typed response schemas for all hierarchy levels (department,
+    semester, subject, module). Ensures consistent response format across
+    all hierarchy navigation endpoints and provides Swagger UI examples.
+
+KEY COMPONENTS:
+    - DepartmentResponse / DepartmentListResponse: Department schemas
+    - SemesterResponse / SemesterListResponse: Semester schemas
+    - SubjectResponse / SubjectListResponse: Subject schemas
+    - ModuleHierarchyResponse / ModuleListResponse: Module schemas
+
+DEPENDENCIES:
+    - External: pydantic, typing
+    - Internal: None
+
+USAGE:
+    from api.hierarchy.models import DepartmentListResponse
+    return DepartmentListResponse(items=[...], total=len(items))
+============================================================================
+"""
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
-from datetime import datetime
 
 
 class DepartmentResponse(BaseModel):

@@ -43,7 +43,6 @@ import os
 import sys
 import time
 import pytest
-from pathlib import Path
 
 # Add parent directory to path to allow imports from api.*
 _current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -89,7 +88,7 @@ def test_phase_1_redis_connection():
         result = r.ping()
         assert result is True, "Redis ping failed"
 
-        print(f"[OK] Redis connection successful")
+        print("[OK] Redis connection successful")
         print(f"   URL: {REDIS_URL}")
         return True
 
@@ -146,7 +145,7 @@ def test_phase_3_task_submission():
     test_module_id = "test_module"
     test_user_id = "test_user"
 
-    print(f"Submitting task...")
+    print("Submitting task...")
     print(f"  Document ID: {test_document_id}")
 
     # Submit task (async)
@@ -154,7 +153,7 @@ def test_phase_3_task_submission():
         document_id=test_document_id, module_id=test_module_id, user_id=test_user_id
     )
 
-    print(f"[OK] Task submitted")
+    print("[OK] Task submitted")
     print(f"   Task ID: {result.id}")
     print(f"   State: {result.state}")
 
@@ -247,7 +246,7 @@ def test_phase_6_neo4j_persistence(result):
             doc = doc_result.single()
 
             assert doc, f"Document node {document_id} not found in Neo4j"
-            print(f"[OK] Document node found in Neo4j")
+            print("[OK] Document node found in Neo4j")
 
             # Check for entity nodes
             entity_result = session.run(

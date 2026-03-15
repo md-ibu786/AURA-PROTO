@@ -5,23 +5,26 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for ExplorerPage component. Tests page layout, data fetching,
- *    navigation, view modes, empty states, loading states, error handling,
- *    and integration with sub-components.
+ *    Unit tests for the ExplorerPage component.
  *
- * TEST COVERAGE:
- *    - Layout rendering (sidebar, header, content)
- *    - Data loading states
- *    - Error states
- *    - Empty folder states
- *    - Grid/List view modes
- *    - Delete confirmation dialog
- *    - KG feature components
- *    - Background click to close context menu
+ * ROLE IN PROJECT:
+ *    Validates ExplorerPage layout, data fetching states, view mode switching,
+ *    navigation, empty/error/loading states, context menu behavior, delete
+ *    dialog, and integration with KG feature sub-components.
  *
- * @see: ExplorerPage.tsx - Component under test
- * @see: stores/useExplorerStore.ts - State store
- * @see: stores/useAuthStore.ts - Auth store
+ * KEY COMPONENTS:
+ *    - Layout tests: Sidebar, header, and content area rendering
+ *    - State tests: Loading, error, and empty folder states
+ *    - View mode tests: Grid and list view switching
+ *    - Context menu and delete dialog tests
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react, react-router-dom, @tanstack/react-query
+ *    - Internal: pages/ExplorerPage, stores/useExplorerStore, stores/useAuthStore, api
+ *
+ * USAGE:
+ *    npm test -- src/pages/ExplorerPage.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';

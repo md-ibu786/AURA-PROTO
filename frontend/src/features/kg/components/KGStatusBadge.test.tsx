@@ -5,18 +5,23 @@
  * ============================================================================
  *
  * PURPOSE:
- *    Unit tests for KGStatusBadge component. Tests rendering of different
- *    status states (pending, processing, ready, failed), size variants,
- *    label visibility, and styling classes.
+ *    Unit tests for the KGStatusBadge component.
  *
- * TEST COVERAGE:
- *    - Status rendering (pending, processing, ready, failed)
- *    - Size variants (sm, md)
- *    - Label visibility
- *    - Spinner animation for processing state
- *    - Color/styling classes
+ * ROLE IN PROJECT:
+ *    Validates the KGStatusBadge component in isolation within the KG feature
+ *    module. Ensures correct rendering of status states, size variants, label
+ *    visibility, and Tailwind color classes across all supported KG statuses.
  *
- * @see: KGStatusBadge.tsx - Component under test
+ * KEY COMPONENTS:
+ *    - KGStatusBadge test suite: Status, size, label, and styling assertions
+ *
+ * DEPENDENCIES:
+ *    - External: vitest, @testing-library/react
+ *    - Internal: features/kg/components/KGStatusBadge
+ *
+ * USAGE:
+ *    npm test -- src/features/kg/components/KGStatusBadge.test.tsx
+ * ============================================================================
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';

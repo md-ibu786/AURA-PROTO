@@ -1,8 +1,8 @@
 """
-============================================================================
+===========================================================================
 FILE: entity_deduplicator.py
 LOCATION: services/entity_deduplicator.py
-============================================================================
+===========================================================================
 
 PURPOSE:
     Semantic entity deduplication using embedding similarity to identify and merge
@@ -10,10 +10,6 @@ PURPOSE:
 
 ROLE IN PROJECT:
     Identifies and merges semantically similar entities using cosine similarity
-    on embeddings. Uses Union-Find algorithm for transitive grouping with
-    confidence-based merge strategy to select canonical entities.
-    - Key responsibility 1: Detect semantic duplicates using embedding similarity
-    - Key responsibility 2: Merge entities and select canonical representatives
 
 KEY COMPONENTS:
     - EntityDeduplicator: Main deduplication class with Union-Find algorithm
@@ -29,17 +25,12 @@ USAGE:
     from services.entity_deduplicator import EntityDeduplicator
     deduplicator = EntityDeduplicator()
     canonical_entities = deduplicator.deduplicate(raw_entities)
-============================================================================
-"""
-    deduplicator = EntityDeduplicator(similarity_threshold=0.85)
-    unique_entities, merge_map = deduplicator.deduplicate(entities, embeddings)
-    
-============================================================================
+===========================================================================
 """
 
 import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 # ============================================================================
 # CONFIGURATION

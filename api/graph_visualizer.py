@@ -1,15 +1,34 @@
-# graph_visualizer.py
-# Graph visualization service for generating visualization-ready graph data
+"""
+============================================================================
+FILE: graph_visualizer.py
+LOCATION: api/graph_visualizer.py
+============================================================================
 
-# Provides methods to generate graph visualizations at different granularity levels
-# (module, document, cross-module), apply layout algorithms, and export graphs
-# in multiple formats. Consistent with AURA-CHAT graph visualization patterns.
+PURPOSE:
+    Graph visualization service for generating visualization-ready graph data.
 
-# @see: api/graph_manager.py - Graph traversal operations
-# @see: api/routers/query.py - API endpoints using this service
-# @see: api/schemas/neo4j_schema.py - Canonical schema definition
-# @note: Force-directed layout is the default; others available for specific use cases
+ROLE IN PROJECT:
+    Provides module-level, document-level, and cross-module graph generation
+    with layout algorithms and multi-format export. Used by query API endpoints
+    to serve graph data to frontend visualization components.
 
+KEY COMPONENTS:
+    - GraphVisualizer: Main service class for graph generation and export
+    - LayoutType: Enum of available layout algorithms (force-directed, hierarchical, radial, circular)
+    - ExportFormat: Enum of export formats (JSON, GraphML, GEXF, CSV)
+    - GraphOptions: Filtering and layout options for graph generation
+    - get_graph_visualizer: FastAPI dependency injection helper
+
+DEPENDENCIES:
+    - External: pydantic, fastapi
+    - Internal: api/graph_manager.py, api/neo4j_config.py
+
+USAGE:
+    visualizer = GraphVisualizer(graph_manager)
+    graph = await visualizer.get_module_graph("module_123", GraphOptions())
+    export_data = visualizer.export_graph(graph, ExportFormat.JSON)
+============================================================================
+"""
 from __future__ import annotations
 
 import io

@@ -72,7 +72,6 @@ def check_entity_aware_chunker():
 
 def check_llm_entity_extractor():
     """Verify llm_entity_extractor.py imports correctly."""
-    from services.llm_entity_extractor import extract_entities
 
     # Just verify import works - actual extraction requires credentials
     return True

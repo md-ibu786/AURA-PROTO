@@ -39,6 +39,8 @@ USAGE:
 ============================================================================
 """
 
+# ruff: noqa: E402
+
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv
 from datetime import datetime
@@ -63,6 +65,9 @@ if gac and not os.path.isabs(gac):
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -275,11 +280,6 @@ async def _wire_usage_tracking() -> None:
         logger.info("Usage tracking wired into model router")
     except Exception as exc:
         logger.warning("Usage tracking setup skipped: %s", exc)
-
-
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pdfs_dir = os.path.join(base_dir, "pdfs")

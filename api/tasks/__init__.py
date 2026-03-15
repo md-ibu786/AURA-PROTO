@@ -6,28 +6,28 @@ LOCATION: api/tasks/__init__.py
 
 PURPOSE:
     Package initialization for the document processing tasks module.
-    Exports Celery tasks for async knowledge graph processing.
 
-EXPORTS:
-    - process_document_task: Single document processing Celery task
-    - process_batch_task: Batch document processing Celery task
-    - get_task_progress: Helper to poll task progress
-    - cancel_task: Helper to cancel running tasks
-    - ProcessingState: Enum of task states
+ROLE IN PROJECT:
+    Exposes Celery tasks for asynchronous knowledge graph processing to the
+    rest of the API. Acts as the public interface for the tasks sub-package,
+    re-exporting task functions and helpers from document_processing_tasks.
+
+KEY COMPONENTS:
+    - process_document_task: Celery task for single document KG processing
+    - process_batch_task: Celery task for batch document KG processing
+    - get_task_progress: Helper to poll task progress by task ID
+    - cancel_task: Helper to cancel a running task
+    - ProcessingState: Enum of task processing states
     - app: Celery application instance
+
+DEPENDENCIES:
+    - External: celery
+    - Internal: api/tasks/document_processing_tasks.py
 
 USAGE:
     from api.tasks import process_document_task, app
-
-    # Dispatch task
     result = process_document_task.delay(doc_id, module_id, user_id)
-
-    # Get progress
-    from api.tasks import get_task_progress
-    progress = get_task_progress(result.id)
-
-    # Start worker
-    # celery -A api.tasks worker -l info -Q kg_processing
+    # Start worker: celery -A api.tasks worker -l info -Q kg_processing
 ============================================================================
 """
 

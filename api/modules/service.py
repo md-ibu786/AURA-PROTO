@@ -29,7 +29,7 @@ USAGE:
 ============================================================================
 """
 
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 from google.cloud import firestore
 

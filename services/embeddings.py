@@ -42,7 +42,7 @@ import sys
 import time
 import unicodedata
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from model_router import get_default_router
 from model_router.compat import _run_sync
@@ -56,9 +56,6 @@ try:
     from config import EMBEDDING_MODEL
 except ImportError:
     from api.config import EMBEDDING_MODEL
-
-if TYPE_CHECKING:
-    from api.kg_processor import Entity
 
 EMBEDDING_DIMENSIONS = 768
 EMBEDDING_BATCH_SIZE = 100

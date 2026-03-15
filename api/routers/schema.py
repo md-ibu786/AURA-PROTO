@@ -1,23 +1,43 @@
-# schema.py
-# FastAPI router for schema management endpoints
+"""
+============================================================================
+FILE: schema.py
+LOCATION: api/routers/schema.py
+============================================================================
 
-# Provides REST API endpoints for validating Neo4j schema against the canonical
-# AURA platform definition, viewing schema status, and running migrations to
-# align the database with the expected schema.
+PURPOSE:
+    FastAPI router for Neo4j schema management and migration endpoints.
 
-# @see: api/schemas/neo4j_schema.py - Canonical schema definition
-# @see: api/schema_validator.py - SchemaValidator class
-# @see: api/migrations/003_schema_alignment.py - Migration script
-# @note: Migration endpoint defaults to dry_run=True for safety
+ROLE IN PROJECT:
+    Provides REST API endpoints for validating the Neo4j database schema
+    against the canonical AURA platform definition, inspecting schema
+    elements, generating migration scripts, and running migrations to
+    align the database with the expected structure.
 
+KEY COMPONENTS:
+    - router: FastAPI APIRouter with /v1/schema prefix
+    - get_schema_definition_endpoint: GET /definition
+    - get_schema_elements: GET /definition/detailed
+    - validate_schema: GET /validate
+    - get_schema_status: GET /status
+    - run_migration: POST /migrate (dry_run=True by default)
+    - schema_health_check: GET /health
+
+DEPENDENCIES:
+    - External: fastapi, pydantic
+    - Internal: api/neo4j_config.py, api/schema_validator.py, api/schemas/neo4j_schema.py
+
+USAGE:
+    from api.routers.schema import router as schema_router
+    app.include_router(schema_router)
+============================================================================
+"""
 from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from api.neo4j_config import neo4j_driver
 from api.schema_validator import (
@@ -25,17 +45,14 @@ from api.schema_validator import (
     SchemaValidationResult,
     SchemaStatus,
     MigrationResult,
-    get_schema_validator,
 )
 from api.schemas.neo4j_schema import (
-    SchemaDefinition,
     get_schema_definition,
     NodeType,
     RelationshipType,
     VECTOR_INDICES,
     FULLTEXT_INDICES,
     CONSTRAINTS,
-    ENTITY_ENTITY_RELATIONSHIPS,
 )
 
 logger = logging.getLogger(__name__)

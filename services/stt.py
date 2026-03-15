@@ -24,11 +24,9 @@ USAGE:
     process_audio_file(audio_bytes)
 ============================================================================
 """
-
-from typing import BinaryIO, Union, Dict, Any
 import io
 import os
-from typing import Optional
+from typing import Any, BinaryIO, Dict, Optional, Union
 
 from deepgram import DeepgramClient
 
