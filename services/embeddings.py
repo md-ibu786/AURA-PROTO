@@ -47,15 +47,16 @@ from typing import Any, Dict, List, Optional
 from model_router import get_default_router
 from model_router.compat import _run_sync
 from model_router.errors import ModelRouterError, RateLimitError
+from model_router.settings_store import get_default_sync
 
 _api_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api"))
 if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
 try:
-    from config import EMBEDDING_MODEL
+    from config import EMBEDDING_MODEL, REDIS_URL
 except ImportError:
-    from api.config import EMBEDDING_MODEL
+    from api.config import EMBEDDING_MODEL, REDIS_URL
 
 EMBEDDING_DIMENSIONS = 768
 EMBEDDING_BATCH_SIZE = 100
@@ -80,6 +81,31 @@ class EmbeddingService:
         self.model_name = model_name
         self._test_mode = os.getenv("AURA_TEST_MODE", "").lower() == "true"
 
+        self._embedding_default = get_default_sync(
+            "embeddings",
+            redis_url=REDIS_URL,
+        )
+        if self._embedding_default is not None:
+            admin_model = self._embedding_default.get("model", "")
+            if admin_model and admin_model != self.model_name:
+                self.model_name = admin_model
+            logger.info(
+                "Using admin-configured embedding default",
+                extra={
+                    "provider": self._embedding_default.get("provider"),
+                    "model": self.model_name,
+                    "source": "admin_settings",
+                },
+            )
+        else:
+            logger.info(
+                "No admin embedding default; using hardcoded model",
+                extra={
+                    "model": self.model_name,
+                    "source": "hardcoded",
+                },
+            )
+
         self.batch_size = EMBEDDING_BATCH_SIZE
         self.rpm_limit = RATE_LIMIT_RPM
         self.max_retries = MAX_RETRIES
@@ -101,11 +127,6 @@ class EmbeddingService:
             logger.info(
                 "EmbeddingService initialized in test mode "
                 f"(dimensions: {EMBEDDING_DIMENSIONS})"
-            )
-        else:
-            logger.info(
-                "EmbeddingService initialized with model: %s",
-                self.model_name,
             )
 
     def enable_cache(self, max_size: int = 1000) -> None:
@@ -186,7 +207,15 @@ class EmbeddingService:
     def _embed_batch_sync(self, texts: List[str]) -> List[List[float]]:
         """Delegate a single embedding batch to model_router synchronously."""
         router = get_default_router()
-        return _run_sync(router.embed(self._normalize_texts(texts)))
+        normalized = self._normalize_texts(texts)
+        if self._embedding_default is not None:
+            return _run_sync(
+                router.embed(
+                    normalized,
+                    provider=self._embedding_default["provider"],
+                )
+            )
+        return _run_sync(router.embed(normalized))
 
     def _call_embedding_api(self, texts: List[str]) -> List[List[float]]:
         """Call router embeddings with retry logic for transient failures."""
