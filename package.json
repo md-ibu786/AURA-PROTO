@@ -10,6 +10,17 @@
   "devDependencies": {
     "@firebase/rules-unit-testing": "^5.0.0",
     "firebase": "^12.8.0",
-    "jest": "^29.7.0"
-  }
+    "jest": "^29.7.0",
+    "typescript": "^5.9.3"
+  },
+  "name": "aura-notes-manager",
+  "version": "1.0.0",
+  "description": "A simplified hierarchy and note management prototype with React frontend and FastAPI backend.",
+  "main": "jest.config.js",
+  "directories": {
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }
