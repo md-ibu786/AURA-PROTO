@@ -117,7 +117,7 @@ async def get_module_graph(
         UNWIND entities as e1
         OPTIONAL MATCH (e1)-[r]->(e2)
         WHERE e2 IN entities
-        RETURN 
+        RETURN
             [entity IN entities | {
                 id: entity.id,
                 name: entity.name,
@@ -127,8 +127,8 @@ async def get_module_graph(
                 mention_count: entity.mention_count
             }] as entity_data,
             collect(DISTINCT {
-                source: e1.id, 
-                target: e2.id, 
+                source: e1.id,
+                target: e2.id,
                 type: type(r),
                 confidence: r.confidence
             }) as relationships

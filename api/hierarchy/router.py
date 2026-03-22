@@ -66,12 +66,12 @@ router = APIRouter(prefix="/hierarchy", tags=["Hierarchy Navigation"])
 def get_departments() -> DepartmentListResponse:
     """
     Get all departments.
-    
+
     Returns a list of all top-level departments for navigation.
     Used as the first step in hierarchy drill-down.
     """
     raw_departments = get_all_departments()
-    
+
     items = [
         DepartmentResponse(
             id=dept.get("id", ""),
@@ -80,7 +80,7 @@ def get_departments() -> DepartmentListResponse:
         )
         for dept in raw_departments
     ]
-    
+
     return DepartmentListResponse(items=items, total=len(items))
 
 
@@ -90,16 +90,16 @@ def get_semesters(
 ) -> SemesterListResponse:
     """
     Get semesters for a specific department.
-    
+
     Returns a list of semesters under the specified department.
     Used as the second step in hierarchy drill-down.
     """
     raw_semesters = get_semesters_by_department(department_id)
-    
+
     if not raw_semesters:
         # Return empty list, not 404 - department may have no semesters yet
         return SemesterListResponse(items=[], total=0)
-    
+
     items = [
         SemesterResponse(
             id=sem.get("id", ""),
@@ -109,7 +109,7 @@ def get_semesters(
         )
         for sem in raw_semesters
     ]
-    
+
     return SemesterListResponse(items=items, total=len(items))
 
 
@@ -120,17 +120,17 @@ def get_subjects(
 ) -> SubjectListResponse:
     """
     Get subjects for a specific semester.
-    
+
     Returns a list of subjects under the specified semester.
     Department ID is passed for context/validation but filtering uses semester_id.
     Used as the third step in hierarchy drill-down.
     """
     # Note: get_subjects_by_semester now supports optional department_id for direct path access
     raw_subjects = get_subjects_by_semester(semester_id, department_id=department_id)
-    
+
     if not raw_subjects:
         return SubjectListResponse(items=[], total=0)
-    
+
     items = [
         SubjectResponse(
             id=subj.get("id", ""),
@@ -140,7 +140,7 @@ def get_subjects(
         )
         for subj in raw_subjects
     ]
-    
+
     return SubjectListResponse(items=items, total=len(items))
 
 
@@ -152,17 +152,17 @@ def get_modules(
 ) -> ModuleListResponse:
     """
     Get modules for a specific subject.
-    
+
     Returns a list of modules under the specified subject.
     Department ID and Semester ID are passed for context/validation.
     Used as the final step in hierarchy drill-down.
     """
     # Note: get_modules_by_subject now supports optional context for direct path access
     raw_modules = get_modules_by_subject(subject_id, department_id=department_id, semester_id=semester_id)
-    
+
     if not raw_modules:
         return ModuleListResponse(items=[], total=0)
-    
+
     items = [
         ModuleHierarchyResponse(
             id=mod.get("id", ""),
@@ -174,5 +174,5 @@ def get_modules(
         )
         for mod in raw_modules
     ]
-    
+
     return ModuleListResponse(items=items, total=len(items))

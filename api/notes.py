@@ -14,7 +14,7 @@ ROLE IN PROJECT:
     - main.py (create_note_endpoint) for direct note creation
     - audio_processing.py for saving notes after PDF generation
     - upload-document endpoint for document uploads
-    
+
     Notes are the leaf nodes in the hierarchy (stored under modules).
 
 KEY COMPONENTS:
@@ -38,7 +38,7 @@ DEPENDENCIES:
 
 USAGE:
     from notes import create_note_record
-    
+
     note = create_note_record(
         module_id="abc123",
         title="Lecture Notes Week 1",
@@ -73,14 +73,14 @@ def get_unique_name(names: list[str], base_name: str) -> str:
     """Generate unique name with (N) suffix for duplicates."""
     if base_name not in names:
         return base_name
-    
+
     suffix_numbers = [1]
     pattern = re.compile(rf'^{re.escape(base_name)} \((\d+)\)$')
     for n in names:
         match = pattern.match(n)
         if match:
             suffix_numbers.append(int(match.group(1)))
-    
+
     next_suffix = get_next_available_number(suffix_numbers)
     if next_suffix == 1:
         next_suffix = 2
@@ -123,7 +123,7 @@ def create_note_record(
     docs = list(db.collection_group('modules').where('id', '==', module_id).stream())
     if not docs:
         return None
-    
+
     module_ref = docs[0].reference
 
     derived_subject_id, derived_department_id = _extract_hierarchy_ids(
@@ -131,16 +131,16 @@ def create_note_record(
     )
     subject_id_to_store = derived_subject_id or subject_id
     department_id_to_store = derived_department_id or department_id
-    
+
     # Get existing note titles to check for duplicates
     existing_notes = list(module_ref.collection('notes').stream())
     existing_titles = [note.to_dict().get('title', '') for note in existing_notes]
-    
+
     # Generate unique title if duplicate exists
     unique_title = get_unique_name(existing_titles, title)
-    
+
     new_note_ref = module_ref.collection('notes').document()
-    
+
     data = {
         'id': new_note_ref.id,
         'title': unique_title,
@@ -153,7 +153,7 @@ def create_note_record(
         data['subjectId'] = subject_id_to_store
     if department_id_to_store:
         data['departmentId'] = department_id_to_store
-    
+
     new_note_ref.set(data)
     return data
 

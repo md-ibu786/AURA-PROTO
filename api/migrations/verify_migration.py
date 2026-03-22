@@ -38,12 +38,12 @@ from logging_config import logger
 
 class MigrationVerifier:
     """Verify Neo4j schema migration."""
-    
+
     def __init__(self, driver):
         self.driver = driver
         self.checks_passed = 0
         self.checks_failed = 0
-    
+
     def run_query(self, query, params=None):
         """Execute a Cypher query and return results."""
         try:
@@ -53,29 +53,29 @@ class MigrationVerifier:
         except Exception as e:
             logger.error(f"Query failed: {e}")
             return None
-    
+
     def check_constraints(self):
         """Verify all required constraints exist."""
         print("\n" + "=" * 70)
         print("CHECKING CONSTRAINTS")
         print("=" * 70)
-        
+
         expected_constraints = [
             "module_id_unique",
             "studysession_id_unique",
             "message_id_unique"
         ]
-        
+
         query = "SHOW CONSTRAINTS"
         results = self.run_query(query)
-        
+
         if results is None:
             print("✗ Failed to retrieve constraints")
             self.checks_failed += 1
             return False
-        
+
         constraint_names = [r.get('name') for r in results]
-        
+
         for expected in expected_constraints:
             if expected in constraint_names:
                 print(f"✓ Constraint '{expected}' exists")
@@ -83,15 +83,15 @@ class MigrationVerifier:
             else:
                 print(f"✗ Constraint '{expected}' NOT FOUND")
                 self.checks_failed += 1
-        
+
         return self.checks_failed == 0
-    
+
     def check_indices(self):
         """Verify all required indices exist."""
         print("\n" + "=" * 70)
         print("CHECKING INDICES")
         print("=" * 70)
-        
+
         expected_indices = [
             "module_user_idx",
             "module_code_idx",
@@ -103,17 +103,17 @@ class MigrationVerifier:
             "document_module_idx",
             "chunk_module_idx"
         ]
-        
+
         query = "SHOW INDEXES"
         results = self.run_query(query)
-        
+
         if results is None:
             print("✗ Failed to retrieve indices")
             self.checks_failed += 1
             return False
-        
+
         index_names = [r.get('name') for r in results]
-        
+
         for expected in expected_indices:
             if expected in index_names:
                 print(f"✓ Index '{expected}' exists")
@@ -121,24 +121,24 @@ class MigrationVerifier:
             else:
                 print(f"✗ Index '{expected}' NOT FOUND")
                 self.checks_failed += 1
-        
+
         return True
-    
+
     def check_vector_index(self):
         """Verify vector index exists with correct configuration."""
         print("\n" + "=" * 70)
         print("CHECKING VECTOR INDEX")
         print("=" * 70)
-        
+
         try:
             query = "SHOW VECTOR INDEXES"
             results = self.run_query(query)
-            
+
             if results is None:
                 print("✗ Failed to retrieve vector indices (may require Neo4j 5.11+)")
                 self.checks_failed += 1
                 return False
-            
+
             vector_index_found = False
             for idx in results:
                 if idx.get('name') == 'chunk_vector_index':
@@ -148,25 +148,25 @@ class MigrationVerifier:
                     print(f"  - Type: {idx.get('type', 'unknown')}")
                     self.checks_passed += 1
                     break
-            
+
             if not vector_index_found:
                 print("✗ Vector index 'chunk_vector_index' NOT FOUND")
                 self.checks_failed += 1
-            
+
             return vector_index_found
-            
+
         except Exception as e:
             print(f"✗ Vector index check failed: {e}")
             print("  Note: Vector indices require Neo4j 5.11+")
             self.checks_failed += 1
             return False
-    
+
     def test_module_creation(self):
         """Test creating a Module node."""
         print("\n" + "=" * 70)
         print("TESTING MODULE NODE CREATION")
         print("=" * 70)
-        
+
         try:
             # Create test module
             create_query = """
@@ -182,11 +182,11 @@ class MigrationVerifier:
             RETURN m.id as id
             """
             result = self.run_query(create_query)
-            
+
             if result and result[0].get('id') == 'verify_test_mod_001':
                 print("✓ Module node created successfully")
                 self.checks_passed += 1
-                
+
                 # Cleanup
                 cleanup_query = "MATCH (m:Module {id: 'verify_test_mod_001'}) DELETE m"
                 self.run_query(cleanup_query)
@@ -196,18 +196,18 @@ class MigrationVerifier:
                 print("✗ Module node creation failed")
                 self.checks_failed += 1
                 return False
-                
+
         except Exception as e:
             print(f"✗ Module creation test failed: {e}")
             self.checks_failed += 1
             return False
-    
+
     def test_studysession_creation(self):
         """Test creating a StudySession node."""
         print("\n" + "=" * 70)
         print("TESTING STUDYSESSION NODE CREATION")
         print("=" * 70)
-        
+
         try:
             create_query = """
             CREATE (s:StudySession {
@@ -224,11 +224,11 @@ class MigrationVerifier:
             RETURN s.id as id
             """
             result = self.run_query(create_query)
-            
+
             if result and result[0].get('id') == 'verify_test_session_001':
                 print("✓ StudySession node created successfully")
                 self.checks_passed += 1
-                
+
                 # Cleanup
                 cleanup_query = "MATCH (s:StudySession {id: 'verify_test_session_001'}) DELETE s"
                 self.run_query(cleanup_query)
@@ -238,18 +238,18 @@ class MigrationVerifier:
                 print("✗ StudySession node creation failed")
                 self.checks_failed += 1
                 return False
-                
+
         except Exception as e:
             print(f"✗ StudySession creation test failed: {e}")
             self.checks_failed += 1
             return False
-    
+
     def test_message_creation(self):
         """Test creating a Message node."""
         print("\n" + "=" * 70)
         print("TESTING MESSAGE NODE CREATION")
         print("=" * 70)
-        
+
         try:
             create_query = """
             CREATE (m:Message {
@@ -262,11 +262,11 @@ class MigrationVerifier:
             RETURN m.id as id
             """
             result = self.run_query(create_query)
-            
+
             if result and result[0].get('id') == 'verify_test_msg_001':
                 print("✓ Message node created successfully")
                 self.checks_passed += 1
-                
+
                 # Cleanup
                 cleanup_query = "MATCH (m:Message {id: 'verify_test_msg_001'}) DELETE m"
                 self.run_query(cleanup_query)
@@ -276,18 +276,18 @@ class MigrationVerifier:
                 print("✗ Message node creation failed")
                 self.checks_failed += 1
                 return False
-                
+
         except Exception as e:
             print(f"✗ Message creation test failed: {e}")
             self.checks_failed += 1
             return False
-    
+
     def test_document_with_module_id(self):
         """Test creating a Document with module_id."""
         print("\n" + "=" * 70)
         print("TESTING DOCUMENT WITH MODULE_ID")
         print("=" * 70)
-        
+
         try:
             create_query = """
             CREATE (d:Document {
@@ -299,11 +299,11 @@ class MigrationVerifier:
             RETURN d.id as id, d.module_id as module_id
             """
             result = self.run_query(create_query)
-            
+
             if result and result[0].get('module_id') == 'mod_test_001':
                 print("✓ Document with module_id created successfully")
                 self.checks_passed += 1
-                
+
                 # Cleanup
                 cleanup_query = "MATCH (d:Document {id: 'verify_test_doc_001'}) DELETE d"
                 self.run_query(cleanup_query)
@@ -313,18 +313,18 @@ class MigrationVerifier:
                 print("✗ Document with module_id creation failed")
                 self.checks_failed += 1
                 return False
-                
+
         except Exception as e:
             print(f"✗ Document creation test failed: {e}")
             self.checks_failed += 1
             return False
-    
+
     def test_chunk_with_module_id(self):
         """Test creating a Chunk with module_id."""
         print("\n" + "=" * 70)
         print("TESTING CHUNK WITH MODULE_ID")
         print("=" * 70)
-        
+
         try:
             create_query = """
             CREATE (c:Chunk {
@@ -337,11 +337,11 @@ class MigrationVerifier:
             RETURN c.id as id, c.module_id as module_id
             """
             result = self.run_query(create_query)
-            
+
             if result and result[0].get('module_id') == 'mod_test_001':
                 print("✓ Chunk with module_id created successfully")
                 self.checks_passed += 1
-                
+
                 # Cleanup
                 cleanup_query = "MATCH (c:Chunk {id: 'verify_test_chunk_001'}) DELETE c"
                 self.run_query(cleanup_query)
@@ -351,19 +351,19 @@ class MigrationVerifier:
                 print("✗ Chunk with module_id creation failed")
                 self.checks_failed += 1
                 return False
-                
+
         except Exception as e:
             print(f"✗ Chunk creation test failed: {e}")
             self.checks_failed += 1
             return False
-    
+
     def run_all_checks(self):
         """Run all verification checks."""
         print("\n" + "=" * 70)
         print("MIGRATION VERIFICATION SCRIPT")
         print("Neo4j Migration 001: Module Schema")
         print("=" * 70)
-        
+
         # Run all checks
         self.check_constraints()
         self.check_indices()
@@ -373,7 +373,7 @@ class MigrationVerifier:
         self.test_message_creation()
         self.test_document_with_module_id()
         self.test_chunk_with_module_id()
-        
+
         # Final report
         print("\n" + "=" * 70)
         print("VERIFICATION SUMMARY")
@@ -381,7 +381,7 @@ class MigrationVerifier:
         print(f"✓ Checks Passed: {self.checks_passed}")
         print(f"✗ Checks Failed: {self.checks_failed}")
         print("=" * 70)
-        
+
         if self.checks_failed == 0:
             print("\n🎉 ALL CHECKS PASSED! Migration verified successfully.")
             print("=" * 70)
@@ -399,10 +399,10 @@ def main():
         print("✗ Neo4j driver not initialized. Check your .env configuration.")
         print("Required env vars: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD")
         return False
-    
+
     verifier = MigrationVerifier(neo4j_driver)
     success = verifier.run_all_checks()
-    
+
     return success
 
 

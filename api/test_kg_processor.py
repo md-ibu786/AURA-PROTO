@@ -157,7 +157,7 @@ def test_entity_aware_chunker():
     sample_text = """
     Machine learning is a subset of artificial intelligence that enables systems
     to learn and improve from experience without being explicitly programmed.
-    
+
     Neural networks, inspired by biological neural networks in the human brain,
     are a key technology in deep learning.
     """

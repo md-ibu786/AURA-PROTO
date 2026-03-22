@@ -85,10 +85,10 @@ def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
                 doc_ref = module_ref.collection("notes").document(document_id)
                 if doc_ref.get().exists:
                     return doc_ref
-                
+
                 logger.warning(f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})")
                 return None
-            
+
             logger.warning(f"Module {module_id} not found via collection_group query")
             return None
 
@@ -308,7 +308,7 @@ def process_document_task(
 ) -> Dict[str, Any]:
     """
     Process a single document into a knowledge graph asynchronously.
-    
+
     This task orchestrates the full document processing pipeline:
     1. Text extraction from document file
     2. Entity-aware semantic chunking (Phase 2)
@@ -316,16 +316,16 @@ def process_document_task(
     4. Structured entity extraction with retry (Phase 2)
     5. Knowledge graph storage in Neo4j
     6. Firestore status synchronization
-    
+
     This task is IDEMPOTENT: running it multiple times with the same
     inputs produces the same result (MERGE semantics in Neo4j).
-    
+
     Args:
         document_id: Unique document/note identifier in Firestore
         module_id: Module ID for scoping document lookup and tagging nodes
         user_id: User who initiated processing
         file_path: Optional path to document file (PDF/DOCX/TXT)
-    
+
     Returns:
         dict: Processing result with:
             - success: Boolean indicating success/failure
@@ -337,24 +337,24 @@ def process_document_task(
             - processing_time_seconds: Total processing time
             - task_id: Celery task ID
             - error: Error message if failed
-        
+
     Raises:
         SoftTimeLimitExceeded: Task exceeded time limit (25 min soft, 30 min hard)
         MaxRetriesExceededError: All retry attempts exhausted
         ValueError: Invalid input parameters
         Exception: Unexpected processing error
-        
+
     Progress States:
         PENDING (0%) → RECEIVED (5%) → PARSING (10%) → CHUNKING (30%) →
         EMBEDDING (50%) → EXTRACTING (70%) → STORING (90%) → COMPLETED (100%)
-        
+
     Celery Configuration:
         - Max retries: 5
         - Retry backoff: Exponential (max 10 min)
         - Time limit: 30 minutes (hard), 25 minutes (soft)
         - Queue: kg_processing
         - Auto-retry: ConnectionError, TimeoutError
-        
+
     Phase 2 Integration:
         - Uses services/entity_aware_chunker.py for semantic chunking
         - Uses services/llm_entity_extractor.py for structured extraction
@@ -441,17 +441,17 @@ def process_document_task(
         if not is_success:
             error_msg = result.get('error', 'Unknown processing error')
             final_result['error'] = error_msg
-            
+
             # Update state: FAILED
             self.update_progress('failed', 100, final_result)
-            
+
             # Update Firestore status to FAILED
             update_document_status(
-                document_id, "failed", 
-                error=error_msg, 
+                document_id, "failed",
+                error=error_msg,
                 module_id=module_id
             )
-            
+
             task_logger.error(f"Document processing failed: {error_msg}")
             return final_result
 

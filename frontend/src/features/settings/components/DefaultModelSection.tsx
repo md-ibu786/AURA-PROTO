@@ -36,7 +36,7 @@
 
 import { useState, useEffect } from 'react';
 import { useDefaults, useAllModels, useUpdateDefault } from '../hooks/useSettingsApi';
-import { useGroupedModels } from '../hooks/useModelList';
+import { groupModelsByProvider } from '../hooks/useModelList';
 import { HierarchicalModelPicker } from './HierarchicalModelPicker';
 import { UseCase, ModelGroup, ModelInfo } from '@/types/settings';
 import { Check, AlertCircle } from 'lucide-react';
@@ -78,7 +78,7 @@ export function DefaultModelSection() {
                     key={useCase.id}
                     useCase={useCase}
                     currentValue={defaults?.[useCase.id]?.model || ''}
-                    groupedModels={useGroupedModels(allModels, USE_CASE_MODEL_TYPES[useCase.id])}
+                    groupedModels={groupModelsByProvider(allModels || [], USE_CASE_MODEL_TYPES[useCase.id])}
                     allModels={allModels || []}
                 />
             ))}

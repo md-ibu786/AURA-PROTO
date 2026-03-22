@@ -26,7 +26,7 @@ DEPENDENCIES:
 
 USAGE:
     from auth import get_current_user, require_admin
-    
+
     @app.get("/api/users")
     async def list_users(user = Depends(require_admin)):
         ...

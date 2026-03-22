@@ -13,7 +13,7 @@ ROLE IN PROJECT:
     This is the read layer for hierarchy navigation. Used by:
     - main.py for legacy drill-down endpoints (/departments, /semesters/...)
     - Other modules needing to validate or retrieve hierarchy data
-    
+
     Note: CRUD operations are in hierarchy_crud.py; this file is READ-ONLY.
 
 KEY COMPONENTS:
@@ -36,7 +36,7 @@ DEPENDENCIES:
 
 USAGE:
     from hierarchy import get_all_departments, validate_hierarchy
-    
+
     depts = get_all_departments()  # Returns list of {id, label, type, ...}
     is_valid = validate_hierarchy(mod_id, subj_id, sem_id, dept_id)
 ============================================================================
@@ -59,7 +59,7 @@ def get_semesters_by_department(department_id: str) -> List[Dict[str, Any]]:
     ref = db.collection('departments').document(department_id)
     if not ref.get().exists:
         return []
-    
+
     docs = ref.collection('semesters').order_by('semester_number').stream()
     return [{'id': doc.id, 'label': f"{doc.get('semester_number')} - {doc.get('name')}", 'type': 'semester', **doc.to_dict()} for doc in docs]
 
@@ -76,12 +76,12 @@ def get_subjects_by_semester(semester_id: str, department_id: Optional[str] = No
     # But `hierarchy.py` helpers are typically "drill down".
     # Problem: `semester_id` alone isn't enough for direct path unless we map it.
     # For now, we use Collection Group Query to find the semester by ID.
-    
+
     # Efficient way: Assume unique IDs for semesters across the board (they are auto-generated).
     docs = list(db.collection_group('semesters').where('id', '==', semester_id).stream())
     if not docs:
         return []
-    
+
     semester_ref = docs[0].reference
     subjects = semester_ref.collection('subjects').order_by('name').stream()
     return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
@@ -97,7 +97,7 @@ def get_modules_by_subject(subject_id: str, department_id: Optional[str] = None,
     docs = list(db.collection_group('subjects').where('id', '==', subject_id).stream())
     if not docs:
         return []
-    
+
     subject_ref = docs[0].reference
     modules = subject_ref.collection('modules').order_by('module_number').stream()
     return [{'id': doc.id, 'label': f"Module {doc.get('module_number')} - {doc.get('name')}", 'type': 'module', **doc.to_dict()} for doc in modules]

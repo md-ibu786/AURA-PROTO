@@ -513,7 +513,7 @@ class TrendAnalyzer:
                  count(*) as current_count,
                  collect(DISTINCT e.module_id) as modules,
                  min(e.created_at) as first_seen
-            
+
             // Previous period frequency
             OPTIONAL MATCH (e2)
             WHERE (e2:Topic OR e2:Concept OR e2:Methodology OR e2:Finding)
@@ -521,7 +521,7 @@ class TrendAnalyzer:
             AND e2.created_at >= $previous_start AND e2.created_at < $previous_end
             WITH name, type, current_count, modules, first_seen,
                  count(e2) as previous_count
-            
+
             WHERE previous_count > 0
             WITH name, type, current_count, previous_count, modules, first_seen,
                  toFloat(current_count - previous_count) / previous_count as growth_rate
@@ -632,7 +632,7 @@ class TrendAnalyzer:
                  collect(e.module_id)[0] as module_id,
                  collect(e.document_id)[0] as document_id,
                  count(*) as mention_count
-            
+
             // Verify this is truly a new concept (not seen before)
             OPTIONAL MATCH (older)
             WHERE (older:Topic OR older:Concept OR older:Methodology OR older:Finding)
@@ -641,14 +641,14 @@ class TrendAnalyzer:
             WITH name, type, first_seen, module_id, document_id, mention_count,
                  count(older) as older_count
             WHERE older_count = 0
-            
+
             // Get related concepts
             OPTIONAL MATCH (e2)-[r]-(related)
             WHERE e2.name = name
             AND (related:Topic OR related:Concept OR related:Methodology OR related:Finding)
             WITH name, type, first_seen, module_id, document_id, mention_count,
                  collect(DISTINCT related.name)[..5] as related_concepts
-            
+
             RETURN name, type, first_seen, module_id, document_id,
                    mention_count, related_concepts
             ORDER BY first_seen DESC

@@ -39,17 +39,17 @@ from logging_config import logger
 
 class AddModuleSchema(Migration):
     """Migration to add Module, StudySession, Message nodes with constraints."""
-    
+
     version = "001"
     description = "Add Module, StudySession, Message nodes with constraints and vector indices"
-    
+
     def upgrade(self, driver) -> bool:
         """
         Apply migration: Create node constraints and indices.
-        
+
         Args:
             driver: Neo4j driver instance
-            
+
         Returns:
             bool: True if successful
         """
@@ -58,7 +58,7 @@ class AddModuleSchema(Migration):
             # STEP 1: MODULE NODE CONSTRAINTS
             # ========================================
             logger.info("Creating Module node constraints...")
-            
+
             # Unique constraint on Module.id
             module_id_constraint = """
             CREATE CONSTRAINT module_id_unique IF NOT EXISTS
@@ -66,7 +66,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, module_id_constraint)
             logger.info("✓ Created constraint: module_id_unique")
-            
+
             # Index on Module.user_id for fast ownership queries
             module_user_index = """
             CREATE INDEX module_user_idx IF NOT EXISTS
@@ -74,7 +74,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, module_user_index)
             logger.info("✓ Created index: module_user_idx")
-            
+
             # Index on Module.code for fast code lookups
             module_code_index = """
             CREATE INDEX module_code_idx IF NOT EXISTS
@@ -82,7 +82,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, module_code_index)
             logger.info("✓ Created index: module_code_idx")
-            
+
             # Index on Module.kg_status for filtering by processing status
             module_status_index = """
             CREATE INDEX module_status_idx IF NOT EXISTS
@@ -90,12 +90,12 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, module_status_index)
             logger.info("✓ Created index: module_status_idx")
-            
+
             # ========================================
             # STEP 2: STUDYSESSION NODE CONSTRAINTS
             # ========================================
             logger.info("Creating StudySession node constraints...")
-            
+
             # Unique constraint on StudySession.id
             session_id_constraint = """
             CREATE CONSTRAINT studysession_id_unique IF NOT EXISTS
@@ -103,7 +103,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, session_id_constraint)
             logger.info("✓ Created constraint: studysession_id_unique")
-            
+
             # Index on StudySession.user_id for user's sessions
             session_user_index = """
             CREATE INDEX studysession_user_idx IF NOT EXISTS
@@ -111,7 +111,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, session_user_index)
             logger.info("✓ Created index: studysession_user_idx")
-            
+
             # Index on StudySession.status for filtering active sessions
             session_status_index = """
             CREATE INDEX studysession_status_idx IF NOT EXISTS
@@ -119,12 +119,12 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, session_status_index)
             logger.info("✓ Created index: studysession_status_idx")
-            
+
             # ========================================
             # STEP 3: MESSAGE NODE CONSTRAINTS
             # ========================================
             logger.info("Creating Message node constraints...")
-            
+
             # Unique constraint on Message.id
             message_id_constraint = """
             CREATE CONSTRAINT message_id_unique IF NOT EXISTS
@@ -132,7 +132,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, message_id_constraint)
             logger.info("✓ Created constraint: message_id_unique")
-            
+
             # Index on Message.session_id for fast session message queries
             message_session_index = """
             CREATE INDEX message_session_idx IF NOT EXISTS
@@ -140,7 +140,7 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, message_session_index)
             logger.info("✓ Created index: message_session_idx")
-            
+
             # Index on Message.created_at for chronological ordering
             message_created_index = """
             CREATE INDEX message_created_idx IF NOT EXISTS
@@ -148,12 +148,12 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, message_created_index)
             logger.info("✓ Created index: message_created_idx")
-            
+
             # ========================================
             # STEP 4: DOCUMENT NODE EXTENSION
             # ========================================
             logger.info("Creating Document node indices for module support...")
-            
+
             # Index on Document.module_id for module-scoped queries
             # Documents will be assigned to modules via module_id property
             document_module_index = """
@@ -162,12 +162,12 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, document_module_index)
             logger.info("✓ Created index: document_module_idx")
-            
+
             # ========================================
             # STEP 5: CHUNK NODE EXTENSION
             # ========================================
             logger.info("Creating Chunk node indices for module support...")
-            
+
             # Index on Chunk.module_id for module-filtered search
             chunk_module_index = """
             CREATE INDEX chunk_module_idx IF NOT EXISTS
@@ -175,12 +175,12 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, chunk_module_index)
             logger.info("✓ Created index: chunk_module_idx")
-            
+
             # ========================================
             # STEP 6: VECTOR INDEX FOR SEMANTIC SEARCH
             # ========================================
             logger.info("Creating HNSW vector index for Chunk embeddings...")
-            
+
             # HNSW vector index for Chunk nodes
             # 768 dimensions for Gemini text-embedding-004
             # Cosine similarity for semantic search
@@ -196,20 +196,20 @@ class AddModuleSchema(Migration):
             """
             self.execute_cypher_query(driver, chunk_vector_index)
             logger.info("✓ Created vector index: chunk_vector_index")
-            
+
             logger.info("All constraints and indices created successfully!")
             return True
-            
+
         except Exception as e:
             logger.error(f"Migration failed: {e}")
             raise
-    
+
     def downgrade(self, driver) -> bool:
         """
         Rollback migration (not implemented - forward-only).
-        
+
         To manually rollback, run these Cypher commands:
-        
+
         DROP CONSTRAINT module_id_unique IF EXISTS
         DROP INDEX module_user_idx IF EXISTS
         DROP CONSTRAINT studysession_id_unique IF EXISTS
@@ -233,10 +233,10 @@ def main():
         logger.error("Neo4j driver not initialized. Check your .env configuration.")
         logger.error("Required env vars: NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD")
         return False
-    
+
     migration = AddModuleSchema()
     success = run_migration(migration, neo4j_driver)
-    
+
     if success:
         print("\n" + "=" * 70)
         print("✓ Migration 001 completed successfully!")
@@ -251,7 +251,7 @@ def main():
         print("✗ Migration 001 FAILED")
         print("=" * 70)
         print("Check the logs above for error details.")
-    
+
     return success
 
 

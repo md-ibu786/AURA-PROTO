@@ -90,30 +90,30 @@ class SchemaValidationResult(BaseModel):
     """Complete schema validation result."""
     is_valid: bool
     validated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Index status
     vector_indices: Dict[str, IndexStatus] = Field(default_factory=dict)
     fulltext_indices: Dict[str, IndexStatus] = Field(default_factory=dict)
-    
+
     # Constraint status
     constraints: Dict[str, ConstraintStatus] = Field(default_factory=dict)
-    
+
     # Missing elements
     missing_vector_indices: List[str] = Field(default_factory=list)
     missing_fulltext_indices: List[str] = Field(default_factory=list)
     missing_constraints: List[str] = Field(default_factory=list)
-    
+
     # Extra elements (in DB but not in schema)
     extra_node_types: List[str] = Field(default_factory=list)
     extra_relationship_types: List[str] = Field(default_factory=list)
-    
+
     # Property mismatches
     property_mismatches: List[PropertyMismatch] = Field(default_factory=list)
-    
+
     # Warnings and errors
     warnings: List[str] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
-    
+
     # Summary counts
     total_indices_expected: int = 0
     total_indices_present: int = 0
@@ -129,17 +129,17 @@ class SchemaValidationResult(BaseModel):
 class SchemaComparisonResult(BaseModel):
     """Result of comparing schemas between applications."""
     compared_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Elements unique to each app
     notes_manager_only: Dict[str, List[str]] = Field(default_factory=dict)
     chat_only: Dict[str, List[str]] = Field(default_factory=dict)
-    
+
     # Shared elements
     shared: Dict[str, List[str]] = Field(default_factory=dict)
-    
+
     # Conflicts (same name, different definition)
     conflicts: List[Dict[str, Any]] = Field(default_factory=list)
-    
+
     # Compatibility assessment
     is_compatible: bool = True
     compatibility_notes: List[str] = Field(default_factory=list)
@@ -175,13 +175,13 @@ class MigrationResult(BaseModel):
 class SchemaValidator:
     """
     Validates Neo4j database against the canonical AURA schema definition.
-    
+
     Provides methods to:
     - Validate current database schema against expected schema
     - Identify missing indices, constraints, and node types
     - Generate migration scripts for schema alignment
     - Compare schemas between AURA-NOTES-MANAGER and AURA-CHAT
-    
+
     Usage:
         validator = SchemaValidator(neo4j_driver)
         result = validator.validate_schema()
@@ -189,11 +189,11 @@ class SchemaValidator:
             print(f"Missing indices: {result.missing_vector_indices}")
             migration_script = validator.generate_migration_script()
     """
-    
+
     def __init__(self, driver: Driver):
         """
         Initialize SchemaValidator with a Neo4j driver.
-        
+
         Args:
             driver: Neo4j driver instance (sync or async supported)
         """
@@ -202,12 +202,12 @@ class SchemaValidator:
         self._cached_constraints: Optional[Dict[str, Any]] = None
         self._cached_labels: Optional[Set[str]] = None
         self._cached_rel_types: Optional[Set[str]] = None
-    
+
     def _get_database_indices(self) -> Dict[str, Dict[str, Any]]:
         """Get all indices from the database."""
         if self._cached_indices is not None:
             return self._cached_indices
-        
+
         with self.driver.session() as session:
             result = session.run("SHOW INDEXES")
             self._cached_indices = {
@@ -215,12 +215,12 @@ class SchemaValidator:
                 for record in result
             }
         return self._cached_indices
-    
+
     def _get_database_constraints(self) -> Dict[str, Dict[str, Any]]:
         """Get all constraints from the database."""
         if self._cached_constraints is not None:
             return self._cached_constraints
-        
+
         with self.driver.session() as session:
             result = session.run("SHOW CONSTRAINTS")
             self._cached_constraints = {
@@ -228,22 +228,22 @@ class SchemaValidator:
                 for record in result
             }
         return self._cached_constraints
-    
+
     def _get_database_labels(self) -> Set[str]:
         """Get all node labels in use."""
         if self._cached_labels is not None:
             return self._cached_labels
-        
+
         with self.driver.session() as session:
             result = session.run("CALL db.labels() YIELD label RETURN label")
             self._cached_labels = {record["label"] for record in result}
         return self._cached_labels
-    
+
     def _get_database_relationship_types(self) -> Set[str]:
         """Get all relationship types in use."""
         if self._cached_rel_types is not None:
             return self._cached_rel_types
-        
+
         with self.driver.session() as session:
             result = session.run(
                 "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
@@ -252,48 +252,48 @@ class SchemaValidator:
                 record["relationshipType"] for record in result
             }
         return self._cached_rel_types
-    
+
     def _clear_cache(self):
         """Clear cached database state."""
         self._cached_indices = None
         self._cached_constraints = None
         self._cached_labels = None
         self._cached_rel_types = None
-    
+
     def validate_schema(self) -> SchemaValidationResult:
         """
         Validate current database against expected schema definition.
-        
+
         Checks:
         - All vector indices exist and are ONLINE
         - All fulltext indices exist and are ONLINE
         - All constraints exist
         - No unexpected node types or relationship types
-        
+
         Returns:
             SchemaValidationResult with detailed validation outcome
         """
         self._clear_cache()
         result = SchemaValidationResult(is_valid=True)
-        
+
         try:
             # Get current database state
             db_indices = self._get_database_indices()
             db_constraints = self._get_database_constraints()
             db_labels = self._get_database_labels()
             db_rel_types = self._get_database_relationship_types()
-            
+
             # Expected elements from schema definition
             expected_vector_indices = {vi.name for vi in VECTOR_INDICES}
             expected_fulltext_indices = {fi.name for fi in FULLTEXT_INDICES}
             expected_constraints = {c.name for c in CONSTRAINTS}
             expected_node_types = set(get_node_types())
             expected_rel_types = set(get_relationship_types())
-            
+
             # Set totals
             result.total_indices_expected = len(expected_vector_indices) + len(expected_fulltext_indices)
             result.total_constraints_expected = len(expected_constraints)
-            
+
             # Check vector indices
             for vi in VECTOR_INDICES:
                 if vi.name in db_indices:
@@ -308,7 +308,7 @@ class SchemaValidator:
                     )
                     result.vector_indices[vi.name] = status
                     result.total_indices_present += 1
-                    
+
                     if status.state != "ONLINE":
                         result.warnings.append(
                             f"Vector index '{vi.name}' state is {status.state}"
@@ -322,7 +322,7 @@ class SchemaValidator:
                     )
                     result.missing_vector_indices.append(vi.name)
                     result.is_valid = False
-            
+
             # Check fulltext indices
             for fi in FULLTEXT_INDICES:
                 if fi.name in db_indices:
@@ -337,7 +337,7 @@ class SchemaValidator:
                     )
                     result.fulltext_indices[fi.name] = status
                     result.total_indices_present += 1
-                    
+
                     if status.state != "ONLINE":
                         result.warnings.append(
                             f"Fulltext index '{fi.name}' state is {status.state}"
@@ -351,7 +351,7 @@ class SchemaValidator:
                     )
                     result.missing_fulltext_indices.append(fi.name)
                     result.is_valid = False
-            
+
             # Check constraints
             for c in CONSTRAINTS:
                 if c.name in db_constraints:
@@ -374,7 +374,7 @@ class SchemaValidator:
                     )
                     result.missing_constraints.append(c.name)
                     result.is_valid = False
-            
+
             # Check for extra node types (in DB but not in schema)
             for label in db_labels:
                 if label not in expected_node_types:
@@ -382,7 +382,7 @@ class SchemaValidator:
                     result.warnings.append(
                         f"Unexpected node type in database: {label}"
                     )
-            
+
             # Check for extra relationship types
             for rel_type in db_rel_types:
                 if rel_type not in expected_rel_types:
@@ -392,73 +392,73 @@ class SchemaValidator:
                         result.warnings.append(
                             f"Unexpected relationship type in database: {rel_type}"
                         )
-            
+
         except Exception as e:
             result.is_valid = False
             result.errors.append(f"Validation failed: {str(e)}")
-        
+
         return result
-    
+
     def get_missing_indices(self) -> List[str]:
         """Get list of missing index names."""
         result = self.validate_schema()
         return result.missing_vector_indices + result.missing_fulltext_indices
-    
+
     def get_missing_constraints(self) -> List[str]:
         """Get list of missing constraint names."""
         result = self.validate_schema()
         return result.missing_constraints
-    
+
     def get_extra_node_types(self) -> List[str]:
         """Get list of node types in DB but not in schema."""
         result = self.validate_schema()
         return result.extra_node_types
-    
+
     def generate_migration_script(self) -> str:
         """
         Generate a Cypher migration script to align database with schema.
-        
+
         Returns:
             String containing Cypher statements to create missing elements.
         """
         result = self.validate_schema()
         statements = []
-        
+
         # Generate statements for missing vector indices
         for vi in VECTOR_INDICES:
             if vi.name in result.missing_vector_indices:
                 statements.append(generate_vector_index_cypher(vi).strip())
-        
+
         # Generate statements for missing fulltext indices
         for fi in FULLTEXT_INDICES:
             if fi.name in result.missing_fulltext_indices:
                 statements.append(generate_fulltext_index_cypher(fi).strip())
-        
+
         # Generate statements for missing constraints
         for c in CONSTRAINTS:
             if c.name in result.missing_constraints:
                 statements.append(generate_constraint_cypher(c).strip())
-        
+
         if not statements:
             return "-- No migration needed, schema is aligned"
-        
+
         header = f"""-- AURA Schema Alignment Migration
 -- Generated: {datetime.utcnow().isoformat()}
 -- Missing elements: {len(statements)}
--- 
+--
 -- Run each statement sequentially.
 -- All statements use IF NOT EXISTS for idempotency.
 """
         return header + "\n\n" + ";\n\n".join(statements) + ";"
-    
+
     def run_migration(self, dry_run: bool = True) -> MigrationResult:
         """
         Run migration to align database with schema.
-        
+
         Args:
             dry_run: If True, only generate statements without executing.
                     Default is True for safety.
-        
+
         Returns:
             MigrationResult with execution details.
         """
@@ -468,27 +468,27 @@ class SchemaValidator:
             statements_executed=0,
             statements_failed=0,
         )
-        
+
         validation = self.validate_schema()
         statements = []
-        
+
         # Collect statements for missing elements
         for vi in VECTOR_INDICES:
             if vi.name in validation.missing_vector_indices:
                 statements.append(("vector_index", vi.name, generate_vector_index_cypher(vi)))
-        
+
         for fi in FULLTEXT_INDICES:
             if fi.name in validation.missing_fulltext_indices:
                 statements.append(("fulltext_index", fi.name, generate_fulltext_index_cypher(fi)))
-        
+
         for c in CONSTRAINTS:
             if c.name in validation.missing_constraints:
                 statements.append(("constraint", c.name, generate_constraint_cypher(c)))
-        
+
         if dry_run:
             result.executed_statements = [stmt for _, _, stmt in statements]
             return result
-        
+
         # Execute statements
         for stmt_type, name, cypher in statements:
             try:
@@ -506,23 +506,23 @@ class SchemaValidator:
                 })
                 result.errors.append(f"Failed to create {stmt_type} '{name}': {e}")
                 result.success = False
-        
+
         # Clear cache after migration
         self._clear_cache()
-        
+
         return result
-    
+
     def get_schema_status(self) -> SchemaStatus:
         """Get high-level schema status summary."""
         validation = self.validate_schema()
         schema_def = get_schema_definition()
-        
+
         missing_count = (
             len(validation.missing_vector_indices) +
             len(validation.missing_fulltext_indices) +
             len(validation.missing_constraints)
         )
-        
+
         # Check if all indices are ready (present and ONLINE)
         indices_ready = (
             len(validation.missing_vector_indices) == 0 and
@@ -538,7 +538,7 @@ class SchemaValidator:
                 if idx.exists
             )
         )
-        
+
         return SchemaStatus(
             is_valid=validation.is_valid,
             schema_version=schema_def.version,
@@ -557,15 +557,15 @@ class SchemaValidator:
 def get_schema_validator() -> SchemaValidator:
     """
     Dependency injection helper for FastAPI.
-    
+
     Usage in routers:
         @router.get("/validate")
         async def validate(validator: SchemaValidator = Depends(get_schema_validator)):
             return validator.validate_schema()
     """
     from neo4j_config import neo4j_driver
-    
+
     if neo4j_driver is None:
         raise RuntimeError("Neo4j driver not initialized")
-    
+
     return SchemaValidator(neo4j_driver)

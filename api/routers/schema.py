@@ -79,7 +79,7 @@ class SchemaDefinitionResponse(BaseModel):
     vector_indices_count: int
     fulltext_indices_count: int
     constraints_count: int
-    
+
     class Config:
         json_encoders = {
             datetime: lambda v: v.isoformat()
@@ -122,16 +122,16 @@ def get_validator() -> SchemaValidator:
 async def get_schema_definition_endpoint() -> SchemaDefinitionResponse:
     """
     Get the canonical schema definition.
-    
+
     Returns the expected schema that both AURA-NOTES-MANAGER and AURA-CHAT
     should adhere to. This is the single source of truth for the Neo4j
     graph structure.
-    
+
     Returns:
         SchemaDefinitionResponse with node types, relationships, and counts
     """
     schema = get_schema_definition()
-    
+
     return SchemaDefinitionResponse(
         version=schema.version,
         updated_at=schema.updated_at,
@@ -153,21 +153,21 @@ async def get_schema_definition_endpoint() -> SchemaDefinitionResponse:
 async def get_schema_elements() -> SchemaElementsResponse:
     """
     Get detailed schema elements.
-    
+
     Returns full details about each node type with its properties,
     all relationship types, and complete index/constraint definitions.
-    
+
     Returns:
         SchemaElementsResponse with detailed schema elements
     """
     from api.schemas.neo4j_schema import NODE_PROPERTIES
-    
+
     # Build node type -> properties map
     node_props = {}
     for node_type in NodeType:
         props = NODE_PROPERTIES.get(node_type, [])
         node_props[node_type.value] = props
-    
+
     return SchemaElementsResponse(
         node_types=node_props,
         relationship_types=[rt.value for rt in RelationshipType],
@@ -188,20 +188,20 @@ async def validate_schema(
 ) -> SchemaValidationResult:
     """
     Validate current database against schema definition.
-    
+
     Checks that all expected indices, constraints, and node types exist
     in the Neo4j database. Reports missing elements and any extra
     (unexpected) elements found.
-    
+
     Returns:
         SchemaValidationResult with validation outcome and details
-        
+
     Raises:
         HTTPException 503: If Neo4j connection is not available
     """
     try:
         result = validator.validate_schema()
-        
+
         if not result.is_valid:
             logger.warning(
                 f"Schema validation failed: "
@@ -209,9 +209,9 @@ async def validate_schema(
                 f"{len(result.missing_fulltext_indices)} missing fulltext indices, "
                 f"{len(result.missing_constraints)} missing constraints"
             )
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Schema validation error: {e}")
         raise HTTPException(
@@ -231,19 +231,19 @@ async def get_schema_status(
 ) -> SchemaStatus:
     """
     Get current schema status and statistics.
-    
+
     Provides a quick overview of whether the schema is valid, how many
     elements are missing, and whether indices are ready for queries.
-    
+
     Returns:
         SchemaStatus with summary information
-        
+
     Raises:
         HTTPException 503: If Neo4j connection is not available
     """
     try:
         return validator.get_schema_status()
-        
+
     except Exception as e:
         logger.error(f"Schema status error: {e}")
         raise HTTPException(
@@ -262,23 +262,23 @@ async def get_missing_elements(
 ) -> dict:
     """
     Get missing schema elements.
-    
+
     Returns specific lists of which indices and constraints are missing
     from the database and need to be created.
-    
+
     Returns:
         Dict with missing_indices and missing_constraints lists
     """
     try:
         missing_indices = validator.get_missing_indices()
         missing_constraints = validator.get_missing_constraints()
-        
+
         return {
             "missing_indices": missing_indices,
             "missing_constraints": missing_constraints,
             "total_missing": len(missing_indices) + len(missing_constraints),
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting missing elements: {e}")
         raise HTTPException(
@@ -297,21 +297,21 @@ async def get_migration_script(
 ) -> dict:
     """
     Generate migration script for schema alignment.
-    
+
     Returns Cypher statements that would create any missing indices
     and constraints. All statements use IF NOT EXISTS for idempotency.
-    
+
     Returns:
         Dict with script content
     """
     try:
         script = validator.generate_migration_script()
-        
+
         return {
             "script": script,
             "generated_at": datetime.utcnow().isoformat(),
         }
-        
+
     except Exception as e:
         logger.error(f"Error generating migration script: {e}")
         raise HTTPException(
@@ -335,19 +335,19 @@ async def run_migration(
 ) -> MigrationResult:
     """
     Run schema migration.
-    
+
     Creates any missing indices and constraints to align the database
     with the canonical schema definition.
-    
+
     IMPORTANT: dry_run defaults to True for safety. Set to False to
     actually execute the migration.
-    
+
     Args:
         dry_run: If True (default), only show what would be done
-        
+
     Returns:
         MigrationResult with execution details
-        
+
     Raises:
         HTTPException 503: If Neo4j connection is not available
         HTTPException 500: If migration fails
@@ -357,18 +357,18 @@ async def run_migration(
             logger.info("Running migration in dry-run mode")
         else:
             logger.info("Running migration (LIVE)")
-        
+
         result = validator.run_migration(dry_run=dry_run)
-        
+
         if not result.success and not dry_run:
             logger.error(f"Migration failed: {result.errors}")
         elif not dry_run:
             logger.info(
                 f"Migration complete: {result.statements_executed} statements executed"
             )
-        
+
         return result
-        
+
     except Exception as e:
         logger.error(f"Migration error: {e}")
         raise HTTPException(
@@ -385,10 +385,10 @@ async def run_migration(
 async def schema_health_check() -> dict:
     """
     Quick schema health check.
-    
+
     Returns basic information about schema validity without
     full validation details.
-    
+
     Returns:
         Dict with health status
     """
@@ -399,10 +399,10 @@ async def schema_health_check() -> dict:
                 "neo4j_connected": False,
                 "message": "Neo4j driver not initialized"
             }
-        
+
         validator = SchemaValidator(neo4j_driver)
         status = validator.get_schema_status()
-        
+
         return {
             "healthy": status.is_valid,
             "neo4j_connected": True,
@@ -411,7 +411,7 @@ async def schema_health_check() -> dict:
             "constraints_ready": status.constraints_ready,
             "missing_count": status.missing_count,
         }
-        
+
     except Exception as e:
         return {
             "healthy": False,

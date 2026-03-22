@@ -437,9 +437,9 @@ class FeedbackManager:
                     RETURN
                         count(f) as total,
                         avg(CASE WHEN f.is_positive THEN 1.0 ELSE 0.0 END) as positive_ratio,
-                        avg(COALESCE(f.relevance_score, 
-                            CASE WHEN f.helpful THEN 1.0 
-                                 WHEN f.helpful = false THEN 0.0 
+                        avg(COALESCE(f.relevance_score,
+                            CASE WHEN f.helpful THEN 1.0
+                                 WHEN f.helpful = false THEN 0.0
                                  ELSE 0.5 END)) as avg_relevance
                     """,
                     params,

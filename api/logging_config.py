@@ -33,7 +33,7 @@ DEPENDENCIES:
 
 USAGE:
     from logging_config import get_logger
-    
+
     logger = get_logger("audio")
     logger.info("Processing started")
     logger.error("Failed to transcribe", exc_info=True)
@@ -48,7 +48,7 @@ from typing import Optional
 
 class StructuredFormatter(logging.Formatter):
     """JSON-style structured log formatter for production."""
-    
+
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
             "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -56,27 +56,27 @@ class StructuredFormatter(logging.Formatter):
             "module": record.module,
             "message": record.getMessage(),
         }
-        
+
         # Add function name if available
         if record.funcName:
             log_data["function"] = record.funcName
-            
+
         # Add exception info if present
         if record.exc_info:
             log_data["exception"] = self.formatException(record.exc_info)
-            
+
         # Add extra fields if provided
         if hasattr(record, 'extra_data'):
             log_data.update(record.extra_data)
-            
+
         return json.dumps(log_data)
 
 
 class DevelopmentFormatter(logging.Formatter):
     """Human-readable log formatter for development."""
-    
+
     FORMAT = "%(asctime)s [%(levelname)s] %(module)s: %(message)s"
-    
+
     def __init__(self):
         super().__init__(self.FORMAT, datefmt="%H:%M:%S")
 
@@ -88,35 +88,35 @@ def setup_logging(
 ) -> logging.Logger:
     """
     Configure application logging.
-    
+
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         production: Use JSON format if True, human-readable if False
         logger_name: Name of the logger instance
-        
+
     Returns:
         Configured logger instance
     """
     logger = logging.getLogger(logger_name)
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Clear existing handlers
     logger.handlers.clear()
-    
+
     # Create handler
     handler = logging.StreamHandler(sys.stdout)
-    
+
     # Choose formatter based on environment
     if production:
         handler.setFormatter(StructuredFormatter())
     else:
         handler.setFormatter(DevelopmentFormatter())
-    
+
     logger.addHandler(handler)
-    
+
     # Prevent propagation to root logger
     logger.propagate = False
-    
+
     return logger
 
 

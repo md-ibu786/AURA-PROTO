@@ -498,7 +498,7 @@ class GraphManager:
             UNWIND nodes(path) as node
             UNWIND relationships(path) as rel
             WITH COLLECT(DISTINCT node) as all_nodes, COLLECT(DISTINCT rel) as all_rels
-            RETURN 
+            RETURN
                 [n IN all_nodes | {{
                     id: n.id,
                     name: n.name,
@@ -757,9 +757,9 @@ class GraphManager:
                        labels(hop1)[0] as entity_type, hop1.module_id as module_id,
                        type(r1) as relationship_type, r1.confidence as confidence,
                        hops
-                
+
                 UNION ALL
-                
+
                 // 2-hop results
                 MATCH (start)-[r1]->(hop1)-[r2]->(hop2)
                 WHERE (start:Topic OR start:Concept OR start:Methodology OR start:Finding)

@@ -36,7 +36,7 @@ class DepartmentResponse(BaseModel):
     id: str = Field(..., description="Department ID")
     code: str = Field(..., description="Department code (e.g., 'CS', 'IT')")
     name: str = Field(..., description="Department display name")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -54,7 +54,7 @@ class SemesterResponse(BaseModel):
     name: str = Field(..., description="Semester display name")
     year: Optional[int] = Field(None, description="Academic year")
     semester_number: int = Field(..., description="Semester number (1-8)")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -73,7 +73,7 @@ class SubjectResponse(BaseModel):
     code: str = Field(..., description="Subject code (e.g., 'CS201')")
     name: str = Field(..., description="Subject display name")
     module_count: int = Field(0, description="Number of modules in this subject")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -94,7 +94,7 @@ class ModuleHierarchyResponse(BaseModel):
     description: Optional[str] = Field(None, description="Module description")
     document_count: int = Field(0, description="Number of documents in this module")
     module_number: Optional[int] = Field(None, description="Module ordering number")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -115,7 +115,7 @@ class DepartmentListResponse(BaseModel):
     """Response model for list of departments."""
     items: List[DepartmentResponse] = Field(default_factory=list, description="List of departments")
     total: int = Field(..., description="Total count of departments")
-    
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
