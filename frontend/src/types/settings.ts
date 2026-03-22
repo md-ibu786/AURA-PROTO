@@ -35,6 +35,7 @@ export interface ModelInfo {
     name: string;
     provider: ProviderType;
     display_name: string | null;
+    model_type: 'generation' | 'embedding';
 }
 
 export interface VendorGroup {

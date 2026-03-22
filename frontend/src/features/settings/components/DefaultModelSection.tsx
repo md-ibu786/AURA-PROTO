@@ -47,10 +47,15 @@ const USE_CASES: { id: UseCase; label: string; description: string }[] = [
     { id: 'entity_extraction', label: 'Entity Extraction Model', description: 'Used for building knowledge graphs from documents' }
 ];
 
+const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
+    chat: 'generation',
+    embeddings: 'embedding',
+    entity_extraction: 'generation',
+};
+
 export function DefaultModelSection() {
     const { data: defaults, isLoading: loadingDefaults } = useDefaults();
     const { data: allModels, isLoading: loadingModels } = useAllModels();
-    const groupedModels = useGroupedModels(allModels);
     
     if (loadingDefaults || loadingModels) {
         return (
@@ -73,7 +78,7 @@ export function DefaultModelSection() {
                     key={useCase.id}
                     useCase={useCase}
                     currentValue={defaults?.[useCase.id]?.model || ''}
-                    groupedModels={groupedModels}
+                    groupedModels={useGroupedModels(allModels, USE_CASE_MODEL_TYPES[useCase.id])}
                     allModels={allModels || []}
                 />
             ))}

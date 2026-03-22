@@ -50,11 +50,18 @@ function getVendorLabel(vendor: string): string {
     return vendor.charAt(0).toUpperCase() + vendor.slice(1);
 }
 
-export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
+export function groupModelsByProvider(
+    models: ModelInfo[],
+    modelType?: 'generation' | 'embedding'
+): ModelGroup[] {
     if (!models || models.length === 0) return [];
 
+    const filtered = modelType
+        ? models.filter(m => m.model_type === modelType)
+        : models;
+
     const providerMap = new Map<ProviderType, ModelInfo[]>();
-    for (const model of models) {
+    for (const model of filtered) {
         if (!providerMap.has(model.provider)) {
             providerMap.set(model.provider, []);
         }
@@ -111,9 +118,12 @@ export function groupModelsByProvider(models: ModelInfo[]): ModelGroup[] {
     return result;
 }
 
-export function useGroupedModels(models: ModelInfo[] | undefined) {
+export function useGroupedModels(
+    models: ModelInfo[] | undefined,
+    modelType?: 'generation' | 'embedding'
+) {
     return useMemo(() => {
         if (!models) return [];
-        return groupModelsByProvider(models);
-    }, [models]);
+        return groupModelsByProvider(models, modelType);
+    }, [models, modelType]);
 }
