@@ -43,13 +43,8 @@ from typing import Dict, List, Literal, Optional, Any, Tuple
 from json_repair import repair_json
 from pydantic import BaseModel, Field
 
+from model_router.settings_store import get_default_sync
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
-
-# Load config directly from environment to avoid circular import with api package
-LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
-    "LLM_ENTITY_EXTRACTION_MODEL",
-    "gemini-2.5-flash-lite",
-)
 
 # ============================================================================
 # CONFIGURATION CONSTANTS
@@ -204,6 +199,27 @@ For each extracted entity, provide this exact structure:
 # ============================================================================
 
 logger = logging.getLogger(__name__)
+
+# Resolve model from SettingsStore defaults first, fall back to env var
+_LLM_ENTITY_EXTRACTION_DEFAULT = get_default_sync(
+    "entity_extraction",
+    redis_url=os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+)
+if _LLM_ENTITY_EXTRACTION_DEFAULT is not None:
+    LLM_ENTITY_EXTRACTION_MODEL = _LLM_ENTITY_EXTRACTION_DEFAULT["model"]
+    logger.info(
+        "Entity extraction model from SettingsStore: %s",
+        LLM_ENTITY_EXTRACTION_MODEL,
+    )
+else:
+    LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
+        "LLM_ENTITY_EXTRACTION_MODEL",
+        "gemini-2.5-flash-lite",
+    )
+    logger.info(
+        "Entity extraction model from env var: %s",
+        LLM_ENTITY_EXTRACTION_MODEL,
+    )
 
 
 # ============================================================================
