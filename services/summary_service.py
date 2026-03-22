@@ -43,6 +43,8 @@ from pydantic import BaseModel, Field
 
 from api.config import LLM_SUMMARIZATION_MODEL
 from services.vertex_ai_client import GenerationConfig, generate_content
+from model_router.settings_store import get_default_sync
+from api.config import REDIS_URL
 
 
 # ============================================================================
@@ -239,7 +241,7 @@ class SummaryService:
         Initialize SummaryService.
 
         Args:
-            model_name: Vertex AI Gemini model to use for summarization.
+            model_name: Default model name (overridden by admin settings).
             graph_manager: Optional GraphManager for entity retrieval.
             neo4j_driver: Optional Neo4j driver for direct queries.
         """
@@ -249,7 +251,28 @@ class SummaryService:
         self._neo4j_driver = neo4j_driver
         self._cache = None
 
-        logger.info(f"SummaryService initialized with model={model_name}")
+        # Resolve admin-configured default from SettingsStore
+        try:
+            _admin_default = get_default_sync("summarization", redis_url=REDIS_URL)
+            if _admin_default is not None:
+                _admin_model = _admin_default.get("model", "")
+                if _admin_model and _admin_model != self.model_name:
+                    self.model_name = _admin_model
+                    logger.info(
+                        "SummaryService model from admin default: %s",
+                        _admin_model,
+                    )
+        except Exception:
+            logger.debug(
+                "SummaryService admin default unavailable, using env fallback: %s",
+                self.model_name,
+            )
+
+        logger.info(f"SummaryService initialized with model={self.model_name}")
+
+    def _get_model(self):
+        """Return model name string for generate_content (router resolves)."""
+        return self.model_name
 
     def _cache_summary(
         self,

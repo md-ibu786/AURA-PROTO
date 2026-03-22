@@ -35,6 +35,8 @@ from types import SimpleNamespace
 from services import genai_client
 from services.genai_client import get_genai_model
 from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+from api.config import LLM_SUMMARIZATION_MODEL, REDIS_URL
+from model_router.settings_store import get_default_sync
 
 
 def _build_generation_config():
@@ -57,6 +59,17 @@ def _build_generation_config():
 
 def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
     """Generates structured, university-grade notes from a cleaned transcript."""
+
+    # Resolve model: admin default > env fallback
+    _summarization_model = LLM_SUMMARIZATION_MODEL
+    try:
+        _admin_default = get_default_sync("summarization", redis_url=REDIS_URL)
+        if _admin_default is not None:
+            _admin_model = _admin_default.get("model", "")
+            if _admin_model:
+                _summarization_model = _admin_model
+    except Exception:
+        pass
 
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
@@ -114,7 +127,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         """
 
     try:
-        genai_model = get_genai_model("gemini-2.5-pro")
+        genai_model = get_genai_model(_summarization_model)
         if genai_model is not None:
             response = genai_client.generate_content_with_thinking(
                 genai_model,
@@ -125,7 +138,7 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         return f"Note Generation Failed: {str(e)}"
 
     try:
-        model = get_model(model_name="models/gemini-2.5-pro")
+        model = get_model(model_name=f"models/{_summarization_model}")
     except Exception as e:
         return f"Note Generation Failed: {str(e)}"
 
