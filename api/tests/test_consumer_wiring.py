@@ -112,9 +112,9 @@ async def test_kg_processor_uses_resolve_config():
     with (
         patch("api.kg_processor.get_model", return_value=mock_model),
         patch("api.kg_processor.EMBEDDING_MODEL", "text-embedding-004"),
-        patch("model_router.get_default_router", return_value=mock_router),
+        patch("api.kg_processor.get_default_router", return_value=mock_router),
         patch(
-            "services.embeddings.resolve_use_case_config",
+            "api.kg_processor.resolve_use_case_config",
             return_value={
                 "provider": "openrouter",
                 "model": "anthropic/claude-3.7-sonnet",
@@ -130,8 +130,8 @@ async def test_kg_processor_uses_resolve_config():
 
         result = await client.generate_text("Test prompt")
 
-        # The model's generate_content (backed by router) should have been called
-        assert mock_model.generate_content.called or mock_generate.called
+        # Verify router.generate was called with resolved config
+        assert mock_generate.called
         assert result == "Test extraction response"
 
 

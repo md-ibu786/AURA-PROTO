@@ -84,10 +84,10 @@ except ImportError:
         AURA_TEST_MODE,
     )
 
+from model_router import get_default_router, resolve_use_case_config
+
 from services.vertex_ai_client import (
     get_model,
-    generate_content,
-    GenerationConfig,
 )
 
 # Import chunking utilities (ported from AURA-CHAT)
@@ -473,6 +473,7 @@ class GeminiClient:
         self.extraction_model = model_name
         self._test_mode = AURA_TEST_MODE
         self._model = None
+        self._resolved_cfg = None  # Lazy-resolved at call time
         self._embedding_service = EmbeddingService()
 
         if not self._test_mode:
@@ -575,17 +576,16 @@ class GeminiClient:
             Generated text response
         """
         try:
-            model = self._get_model()
-            if model is None:
-                raise RuntimeError("Vertex AI model not initialized")
+            # Resolve provider/model from SettingsStore at call time
+            cfg = resolve_use_case_config("entity_extraction")
+            router = get_default_router()
 
-            response = generate_content(
-                model,
-                prompt,
-                generation_config=GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=0.2,
-                ),
+            response = await router.generate(
+                model=cfg["model"],
+                contents=prompt,
+                provider=cfg["provider"],
+                max_output_tokens=max_tokens,
+                temperature=0.2,
             )
 
             return response.text
@@ -704,22 +704,20 @@ class GeminiClient:
             List of extracted entity dicts
         """
         try:
-            model = self._get_model()
-            if model is None:
-                raise RuntimeError("Vertex AI model not initialized")
-
             # Build prompt with entity extraction template
             prompt = ENTITY_EXTRACTION_PROMPT.format(chunk_text=chunk_text[:5000])
 
-            response = generate_content(
-                model,
-                prompt,
-                generation_config=GenerationConfig(
-                    max_output_tokens=max_tokens,
-                    temperature=0.2,
-                ),
-            )
+            # Resolve provider/model from SettingsStore at call time
+            cfg = resolve_use_case_config("entity_extraction")
+            router = get_default_router()
 
+            response = await router.generate(
+                model=cfg["model"],
+                contents=prompt,
+                provider=cfg["provider"],
+                max_output_tokens=max_tokens,
+                temperature=0.2,
+            )
             response_text = response.text
 
             if not response_text:
