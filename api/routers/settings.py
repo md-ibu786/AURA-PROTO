@@ -52,7 +52,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/settings", tags=["Settings"])
 
-ALLOWED_USE_CASES = {"chat", "embeddings", "entity_extraction", "summarization"}
+ALLOWED_USE_CASES = {
+    "chat",
+    "embeddings",
+    "entity_extraction",
+    "summarization",
+    "gatekeeper",
+    "relationship_extraction",
+}
 DEFAULT_REDIS_URL = "redis://localhost:6379"
 MODEL_CACHE_TTL_ENV = "MODEL_CACHE_TTL_SECONDS"
 OPENROUTER_VALIDATION_METHOD = "health_check"
