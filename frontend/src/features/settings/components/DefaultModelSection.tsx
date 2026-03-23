@@ -44,13 +44,17 @@ import { Check, AlertCircle } from 'lucide-react';
 const USE_CASES: { id: UseCase; label: string; description: string }[] = [
     { id: 'chat', label: 'Chat Model', description: 'Used for conversational responses and RAG' },
     { id: 'embeddings', label: 'Embeddings Model', description: 'Used for document indexing and vector search' },
-    { id: 'entity_extraction', label: 'Entity Extraction Model', description: 'Used for building knowledge graphs from documents' }
+    { id: 'entity_extraction', label: 'Entity Extraction Model', description: 'Used for building knowledge graphs from documents' },
+    { id: 'gatekeeper', label: 'Gatekeeper Model', description: 'Used for query validation and access control' },
+    { id: 'relationship_extraction', label: 'Relationship Extraction Model', description: 'Used for extracting relationships between entities in documents' }
 ];
 
 const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
     chat: 'generation',
     embeddings: 'embedding',
     entity_extraction: 'generation',
+    gatekeeper: 'generation',
+    relationship_extraction: 'generation',
 };
 
 export function DefaultModelSection() {
