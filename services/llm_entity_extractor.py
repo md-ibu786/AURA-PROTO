@@ -43,8 +43,8 @@ from typing import Dict, List, Literal, Optional, Any, Tuple
 from json_repair import repair_json
 from pydantic import BaseModel, Field
 
-from model_router.settings_store import get_default_sync
-from services.vertex_ai_client import GenerationConfig, generate_content, get_model
+from model_router import get_default_router, resolve_use_case_config
+from services.vertex_ai_client import get_model
 
 # ============================================================================
 # CONFIGURATION CONSTANTS
@@ -200,26 +200,11 @@ For each extracted entity, provide this exact structure:
 
 logger = logging.getLogger(__name__)
 
-# Resolve model from SettingsStore defaults first, fall back to env var
-_LLM_ENTITY_EXTRACTION_DEFAULT = get_default_sync(
-    "entity_extraction",
-    redis_url=os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0"),
+# Default model name — actual routing uses resolve_use_case_config() at call time
+LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
+    "LLM_ENTITY_EXTRACTION_MODEL",
+    "gemini-2.5-flash-lite",
 )
-if _LLM_ENTITY_EXTRACTION_DEFAULT is not None:
-    LLM_ENTITY_EXTRACTION_MODEL = _LLM_ENTITY_EXTRACTION_DEFAULT["model"]
-    logger.info(
-        "Entity extraction model from SettingsStore: %s",
-        LLM_ENTITY_EXTRACTION_MODEL,
-    )
-else:
-    LLM_ENTITY_EXTRACTION_MODEL = os.getenv(
-        "LLM_ENTITY_EXTRACTION_MODEL",
-        "gemini-2.5-flash-lite",
-    )
-    logger.info(
-        "Entity extraction model from env var: %s",
-        LLM_ENTITY_EXTRACTION_MODEL,
-    )
 
 
 # ============================================================================
@@ -464,22 +449,22 @@ class LLMEntityExtractor:
             # Build prompt
             prompt = self._build_extraction_prompt(batch_text)
 
-            # Configure generation with JSON response mode for structured output
-            generation_config = GenerationConfig(
-                temperature=LLM_ENTITY_TEMPERATURE,
-                max_output_tokens=4096,
-                response_mime_type="application/json",
-            )
+            # Resolve provider/model from SettingsStore at call time
+            cfg = resolve_use_case_config("entity_extraction")
+            router = get_default_router()
 
             logger.debug(
                 f"Calling LLM for batch ({len(batch_text)} chars), attempt {retry_count + 1}/{MAX_RETRIES + 1}"
             )
 
-            # Generate response
-            response = generate_content(
-                self._model,
-                prompt,
-                generation_config=generation_config,
+            # Generate response via ModelRouter with explicit provider
+            response = await router.generate(
+                model=cfg["model"],
+                contents=prompt,
+                provider=cfg["provider"],
+                temperature=LLM_ENTITY_TEMPERATURE,
+                max_output_tokens=4096,
+                response_mime_type="application/json",
             )
 
             response_text = response.text.strip() if response.text else ""
@@ -970,19 +955,20 @@ No markdown, no explanations. Return empty array if no relationships found.
             List of raw relationship dicts from LLM
         """
         try:
-            generation_config = GenerationConfig(
-                temperature=LLM_ENTITY_TEMPERATURE,
-                max_output_tokens=4096,
-            )
+            # Resolve provider/model from SettingsStore at call time
+            cfg = resolve_use_case_config("entity_extraction")
+            router = get_default_router()
 
             logger.debug(
                 f"Calling LLM for relationship extraction, attempt {retry_count + 1}/{MAX_RETRIES + 1}"
             )
 
-            response = generate_content(
-                self._model,
-                prompt,
-                generation_config=generation_config,
+            response = await router.generate(
+                model=cfg["model"],
+                contents=prompt,
+                provider=cfg["provider"],
+                temperature=LLM_ENTITY_TEMPERATURE,
+                max_output_tokens=4096,
             )
 
             response_text = response.text.strip() if response.text else ""
