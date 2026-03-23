@@ -317,31 +317,24 @@ def test_summarizer_uses_router():
     PP-08: Verify generate_university_notes reads from SettingsStore and
     routes through the model router.
 
-    The summarizer's genai model lookup will return None (mocked), causing
-    fallback to vertex_ai_client.generate_content which routes through
-    router.generate. We verify the function completes without crashing
-    and that the router path is exercised.
+    The summarizer calls resolve_use_case_config('summarization') at runtime
+    and routes through router.generate() with explicit provider. We verify
+    the function completes without crashing and that the router is called.
     """
     mock_router = MagicMock()
-    mock_generate = AsyncMock()
     mock_response = MagicMock()
     mock_response.text = "Generated notes content"
     mock_response.metadata = {}
-    mock_generate.return_value = mock_response
-    mock_router.generate = mock_generate
 
-    mock_model = MagicMock()
-    mock_model.generate_content = MagicMock(return_value=mock_response)
+    def mock_run_sync(coro):
+        """Mock _run_sync that returns test data without executing coroutines."""
+        return mock_response
 
-    mock_gds = _mock_get_default_sync_for(
-        "summarization", "vertex_ai", "gemini-summarization"
-    )
+    mock_router.generate = MagicMock(return_value=mock_response)
 
     with (
-        patch("services.summarizer.get_genai_model", return_value=None),
-        patch("services.summarizer.get_model", return_value=mock_model),
-        patch("services.summarizer.get_default_sync", side_effect=mock_gds),
-        patch("model_router.get_default_router", return_value=mock_router),
+        patch("services.summarizer.get_default_router", return_value=mock_router),
+        patch("services.summarizer._run_sync", side_effect=mock_run_sync),
     ):
         from services.summarizer import generate_university_notes
 
@@ -353,9 +346,8 @@ def test_summarizer_uses_router():
         assert isinstance(result, str)
         assert len(result) > 0
 
-        # The summarizer should have routed through vertex_ai_client.generate_content
-        # since genai model returned None
-        assert mock_model.generate_content.called or mock_generate.called
+        # Verify router.generate was called
+        assert mock_router.generate.called
 
 
 def test_summarizer_resolves_config():

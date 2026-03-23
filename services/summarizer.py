@@ -1,8 +1,8 @@
 """
-============================================================================
+========================================================================
 FILE: summarizer.py
 LOCATION: services/summarizer.py
-============================================================================
+========================================================================
 
 PURPOSE:
     AI-powered lecture note generator that transforms cleaned transcripts into
@@ -11,65 +11,37 @@ PURPOSE:
 ROLE IN PROJECT:
     Generates structured academic notes from cleaned lecture transcripts with
     executive summaries, core concepts, glossaries, and key takeaways.
+    Routes through ModelRouter for provider-agnostic generation.
     - Key responsibility 1: Transform transcripts to structured academic notes
-    - Key responsibility 2: Create hierarchical document structure with sections
+    - Key responsibility 2: Route generation through ModelRouter with
+      call-time provider resolution from SettingsStore
 
 KEY COMPONENTS:
     - generate_university_notes: Main function generating structured notes
-    - _build_generation_config: Configure Gemini model parameters
-    - _build_notes_prompt: Create structured prompt for note generation
 
 DEPENDENCIES:
-    - External: None (uses internal clients)
-    - Internal: services.genai_client, services.vertex_ai_client
+    - External: model_router (shared router), model_router.compat
+    - Internal: api.config
 
 USAGE:
     from services.summarizer import generate_university_notes
-    notes = generate_university_notes(topic="Machine Learning", cleaned_transcript=text)
-============================================================================
+    notes = generate_university_notes(topic="Machine Learning",
+                                      cleaned_transcript=text)
+========================================================================
 """
 
-import os
-from types import SimpleNamespace
+import logging
 
-from services import genai_client
-from services.genai_client import get_genai_model
-from services.vertex_ai_client import GenerationConfig, generate_content, get_model
 from api.config import LLM_SUMMARIZATION_MODEL, REDIS_URL
-from model_router.settings_store import get_default_sync
+from model_router import get_default_router, resolve_use_case_config
+from model_router.compat import _run_sync
 
-
-def _build_generation_config():
-    base_config = GenerationConfig(
-        temperature=1.0,
-        top_p=0.95,
-        max_output_tokens=32000,
-    )
-
-    if os.getenv("AURA_TEST_MODE", "").lower() == "true":
-        return SimpleNamespace(
-            temperature=1.0,
-            top_p=0.95,
-            max_output_tokens=32000,
-            _delegate=base_config,
-        )
-
-    return base_config
+logger = logging.getLogger(__name__)
 
 
 def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
     """Generates structured, university-grade notes from a cleaned transcript."""
-
-    # Resolve model: admin default > env fallback
-    _summarization_model = LLM_SUMMARIZATION_MODEL
-    try:
-        _admin_default = get_default_sync("summarization", redis_url=REDIS_URL)
-        if _admin_default is not None:
-            _admin_model = _admin_default.get("model", "")
-            if _admin_model:
-                _summarization_model = _admin_model
-    except Exception:
-        pass
+    cfg = resolve_use_case_config("summarization")
 
     note_taking_prompt = f"""
         ### SYSTEM ROLE & PERSONA
@@ -127,31 +99,24 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         """
 
     try:
-        genai_model = get_genai_model(_summarization_model)
-        if genai_model is not None:
-            response = genai_client.generate_content_with_thinking(
-                genai_model,
-                note_taking_prompt,
+        router = get_default_router()
+        response = _run_sync(
+            router.generate(
+                model=cfg["model"],
+                contents=note_taking_prompt,
+                provider=cfg["provider"],
+                temperature=1.0,
+                top_p=0.95,
+                max_output_tokens=32000,
             )
-            return response.text
-    except Exception as e:
-        return f"Note Generation Failed: {str(e)}"
-
-    try:
-        model = get_model(model_name=f"models/{_summarization_model}")
-    except Exception as e:
-        return f"Note Generation Failed: {str(e)}"
-
-    # Note: Gemini 3 Flash is a "thinking model" by design, with inherent reasoning capabilities
-    # The temperature=1.0 setting encourages more diverse and creative reasoning
-    # top_p=0.95 allows for broader exploration of ideas while maintaining coherence
-    try:
-        # thinking_level="MEDIUM" (documented for compliance)
-        response = generate_content(
-            model,
-            note_taking_prompt,
-            generation_config=_build_generation_config(),
         )
         return response.text
     except Exception as e:
+        logger.warning(
+            "Summarization failed via ModelRouter, provider=%s model=%s: %s",
+            cfg["provider"],
+            cfg["model"],
+            e,
+            exc_info=True,
+        )
         return f"Note Generation Failed: {str(e)}"
