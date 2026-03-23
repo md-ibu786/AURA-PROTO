@@ -29,7 +29,7 @@
  * ============================================================================
  */
 export type ProviderType = 'vertex_ai' | 'openrouter' | 'ollama';
-export type UseCase = 'chat' | 'embeddings' | 'entity_extraction';
+export type UseCase = 'chat' | 'embeddings' | 'entity_extraction' | 'gatekeeper' | 'relationship_extraction';
 
 export interface ModelInfo {
     name: string;
