@@ -94,7 +94,7 @@ async def test_kg_processor_uses_resolve_config():
     generate_text with test mode disabled.
 
     This test:
-    1. Mocks get_default_sync so no Redis connection is attempted
+    1. Mocks resolve_use_case_config so no Redis connection is attempted
     2. Creates GeminiClient with test mode disabled
     3. Calls generate_text and verifies the router path is exercised
     """
@@ -109,15 +109,17 @@ async def test_kg_processor_uses_resolve_config():
     mock_model = MagicMock()
     mock_model.generate_content = MagicMock(return_value=mock_response)
 
-    mock_gds = _mock_get_default_sync_for(
-        "entity_extraction", "openrouter", "anthropic/claude-3.7-sonnet"
-    )
-
     with (
         patch("api.kg_processor.get_model", return_value=mock_model),
         patch("api.kg_processor.EMBEDDING_MODEL", "text-embedding-004"),
         patch("model_router.get_default_router", return_value=mock_router),
-        patch("services.embeddings.get_default_sync", side_effect=mock_gds),
+        patch(
+            "services.embeddings.resolve_use_case_config",
+            return_value={
+                "provider": "openrouter",
+                "model": "anthropic/claude-3.7-sonnet",
+            },
+        ),
     ):
         from api.kg_processor import GeminiClient
 
@@ -164,7 +166,7 @@ async def test_entity_extractor_passes_provider():
     through router.generate when calling extract_entities.
 
     This test:
-    1. Mocks get_default_sync so no Redis connection is attempted
+    1. Mocks resolve_use_case_config so no Redis connection is attempted
     2. Disables test mode so extract_entities uses the real LLM path
     3. Verifies router.generate (via vertex_ai_client) was called
     """
@@ -181,14 +183,15 @@ async def test_entity_extractor_passes_provider():
     mock_model = MagicMock()
     mock_model.generate_content = MagicMock(return_value=mock_response)
 
-    mock_gds = _mock_get_default_sync_for(
-        "entity_extraction", "vertex_ai", "gemini-test"
-    )
-
     with (
-        patch("model_router.get_default_router", return_value=mock_router),
+        patch(
+            "services.llm_entity_extractor.get_default_router", return_value=mock_router
+        ),
         patch("services.llm_entity_extractor.get_model", return_value=mock_model),
-        patch("services.llm_entity_extractor.get_default_sync", side_effect=mock_gds),
+        patch(
+            "services.llm_entity_extractor.resolve_use_case_config",
+            return_value={"provider": "vertex_ai", "model": "gemini-test"},
+        ),
     ):
         from services.llm_entity_extractor import LLMEntityExtractor
 
@@ -239,7 +242,7 @@ def test_embeddings_passes_provider():
     PP-07: Verify EmbeddingService passes provider parameter to router.embed().
 
     This test:
-    1. Mocks get_default_sync to return cached embeddings config
+    1. Mocks resolve_use_case_config to return embeddings config
     2. Mocks _run_sync to capture the provider from the embed call
     3. Disables test mode so embed_text uses the real router path
     4. Calls embed_text and verifies router.embed was called with provider="vertex_ai"
@@ -250,8 +253,6 @@ def test_embeddings_passes_provider():
     def mock_run_sync(coro):
         """Mock _run_sync that returns test data without executing coroutines."""
         nonlocal captured_provider
-        # The coro is actually a MagicMock from router.embed()
-        # Extract call args from the mock
         return [[0.1] * 768]
 
     mock_router = MagicMock()
@@ -259,27 +260,23 @@ def test_embeddings_passes_provider():
     def capturing_embed(texts, provider=None):
         nonlocal captured_provider
         captured_provider = provider
-        # Return a coroutine-like MagicMock so _run_sync can process it
         mock_coro = MagicMock()
         mock_coro.__await__ = MagicMock(return_value=iter([[[0.1] * 768]]))
         return mock_coro
 
     mock_router.embed = MagicMock(side_effect=capturing_embed)
 
-    mock_gds = _mock_get_default_sync_for(
-        "embeddings", "vertex_ai", "text-embedding-004"
-    )
-
     with (
         patch("services.embeddings.get_default_router", return_value=mock_router),
         patch("services.embeddings._run_sync", side_effect=mock_run_sync),
-        patch("services.embeddings.get_default_sync", side_effect=mock_gds),
+        patch(
+            "services.embeddings.resolve_use_case_config",
+            return_value={"provider": "vertex_ai", "model": "text-embedding-004"},
+        ),
     ):
         from services.embeddings import EmbeddingService
 
         service = EmbeddingService()
-        # Verify model was resolved from SettingsStore config
-        assert service.model_name == "text-embedding-004"
 
         # Disable test mode to exercise the real router path
         service._test_mode = False
@@ -554,15 +551,16 @@ def test_router_embed_receives_provider():
     mock_router = MagicMock()
     mock_router.embed = MagicMock(side_effect=capturing_embed)
 
-    mock_gds = _mock_get_default_sync_for("embeddings", "openrouter", "embed-001")
-
     def mock_run_sync(coro):
         return [[0.1] * 768]
 
     with (
         patch("services.embeddings.get_default_router", return_value=mock_router),
         patch("services.embeddings._run_sync", side_effect=mock_run_sync),
-        patch("services.embeddings.get_default_sync", side_effect=mock_gds),
+        patch(
+            "services.embeddings.resolve_use_case_config",
+            return_value={"provider": "openrouter", "model": "embed-001"},
+        ),
     ):
         from services.embeddings import EmbeddingService
 

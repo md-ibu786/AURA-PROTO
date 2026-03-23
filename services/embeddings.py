@@ -44,10 +44,9 @@ import unicodedata
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
-from model_router import get_default_router
+from model_router import get_default_router, resolve_use_case_config
 from model_router.compat import _run_sync
 from model_router.errors import ModelRouterError, RateLimitError
-from model_router.settings_store import get_default_sync
 
 _api_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "api"))
 if _api_dir not in sys.path:
@@ -81,30 +80,12 @@ class EmbeddingService:
         self.model_name = model_name
         self._test_mode = os.getenv("AURA_TEST_MODE", "").lower() == "true"
 
-        self._embedding_default = get_default_sync(
-            "embeddings",
-            redis_url=REDIS_URL,
+        logger.info(
+            "EmbeddingService initialized",
+            extra={
+                "model": self.model_name,
+            },
         )
-        if self._embedding_default is not None:
-            admin_model = self._embedding_default.get("model", "")
-            if admin_model and admin_model != self.model_name:
-                self.model_name = admin_model
-            logger.info(
-                "Using admin-configured embedding default",
-                extra={
-                    "provider": self._embedding_default.get("provider"),
-                    "model": self.model_name,
-                    "source": "admin_settings",
-                },
-            )
-        else:
-            logger.info(
-                "No admin embedding default; using hardcoded model",
-                extra={
-                    "model": self.model_name,
-                    "source": "hardcoded",
-                },
-            )
 
         self.batch_size = EMBEDDING_BATCH_SIZE
         self.rpm_limit = RATE_LIMIT_RPM
@@ -208,14 +189,13 @@ class EmbeddingService:
         """Delegate a single embedding batch to model_router synchronously."""
         router = get_default_router()
         normalized = self._normalize_texts(texts)
-        if self._embedding_default is not None:
-            return _run_sync(
-                router.embed(
-                    normalized,
-                    provider=self._embedding_default["provider"],
-                )
+        cfg = resolve_use_case_config("embeddings")
+        return _run_sync(
+            router.embed(
+                normalized,
+                provider=cfg["provider"],
             )
-        return _run_sync(router.embed(normalized))
+        )
 
     def _call_embedding_api(self, texts: List[str]) -> List[List[float]]:
         """Call router embeddings with retry logic for transient failures."""
