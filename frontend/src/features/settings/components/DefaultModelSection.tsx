@@ -154,6 +154,23 @@ function UseCaseSection({
                         </span>
                     )}
                 </div>
+
+                {/* OpenRouter Embeddings Warning */}
+                {useCase.id === 'embeddings' && (() => {
+                    const modelInfo = allModels.find(m => m.name === selected);
+                    const isOpenRouter = modelInfo?.provider === 'openrouter';
+                    if (!isOpenRouter || !selected) return null;
+                    return (
+                        <div className="mt-2 p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                <AlertCircle className="w-3 h-3 inline mr-1" />
+                                OpenRouter embeddings only support{' '}
+                                <code className="px-1 py-0.5 bg-amber-500/20 rounded text-[10px]">openai/text-embedding*</code>{' '}
+                                models. Non-compatible models may fail.
+                            </p>
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );
