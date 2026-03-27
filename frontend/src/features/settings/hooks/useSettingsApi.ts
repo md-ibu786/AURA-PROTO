@@ -85,6 +85,7 @@ export const useApiKeyStatus = (provider: ProviderType | string) => {
             return await fetchApi<ApiKeyStatus>(`/v1/settings/providers/${provider}/api-key`);
         },
         enabled: !!provider,
+        refetchOnWindowFocus: false,
     });
 };
 
