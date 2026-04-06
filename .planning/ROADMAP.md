@@ -3,7 +3,7 @@
 **Milestone:** v1.1 Codebase Reliability and Hygiene
 **Phase numbering:** Continued from v1.0 (starts at Phase 6)
 **Granularity:** Standard (inferred; no planning granularity setting was available)
-**Last updated:** 2026-04-06 (Phase 6 planned)
+**Last updated:** 2026-04-06 (Phase 7 planned)
 
 ---
 
@@ -28,11 +28,11 @@
 **Plans:** 5 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Fix broken fixture imports (useMockAuth export)
-- [ ] 06-02-PLAN.md — Fix auth setup wiring and standardize timeouts
-- [ ] 06-03-PLAN.md — Replace fixed waits with deterministic assertions
-- [ ] 06-04-PLAN.md — Consolidate E2E stacks (migrate root e2e/ to frontend/e2e/)
-- [ ] 06-05-PLAN.md — Update documentation for single verification stack
+- [x] 06-01-PLAN.md — Fix broken fixture imports (useMockAuth export)
+- [x] 06-02-PLAN.md — Fix auth setup wiring and standardize timeouts
+- [x] 06-03-PLAN.md — Replace fixed waits with deterministic assertions
+- [x] 06-04-PLAN.md — Consolidate E2E stacks (migrate root e2e/ to frontend/e2e/)
+- [x] 06-05-PLAN.md — Update documentation for single verification stack
 
 **UI hint**: yes
 
@@ -45,7 +45,13 @@ Plans:
   2. Audited backend failures produce actionable logs or structured failure outcomes instead of being swallowed.
   3. High-risk frontend request flows use one canonical auth and error-handling path, so equivalent failures present consistently across pages.
   4. Proven-equivalent duplicate request, helper, or config seams are centralized so reliability fixes land in one place instead of drifting.
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — Backend silent failure remediation (audio_processing.py)
+- [ ] 07-02-PLAN.md — Frontend error infrastructure (client.ts consolidation)
+- [ ] 07-03-PLAN.md — Auth store migration (useAuthStore fetch consolidation)
+
 **UI hint**: yes
 
 ### Phase 8: Runtime Hotspot Remediation
@@ -75,6 +81,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 6. Verification Recovery | 0/5 | Planned | - |
-| 7. Failure Hardening & Shared Seams | 0/0 | Not started | - |
+| 7. Failure Hardening & Shared Seams | 0/3 | Planned | - |
 | 8. Runtime Hotspot Remediation | 0/0 | Not started | - |
 | 9. Safe Cleanup & Repo Hygiene | 0/0 | Not started | - |
