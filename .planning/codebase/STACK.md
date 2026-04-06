@@ -24,8 +24,8 @@
 
 **Package Manager:**
 - `pip` with pinned `requirements.txt` in `requirements.txt`
-- `npm` with lockfiles in `package-lock.json`, `frontend/package.json`, and `e2e/package.json`
-- Lockfile: present (`package-lock.json`, `e2e/package-lock.json`)
+- `npm` with lockfiles in `package-lock.json`, `frontend/package.json`
+- Lockfile: present (`package-lock.json`, `frontend/package-lock.json`)
 
 ## Frameworks
 

@@ -9,8 +9,7 @@
 | Frontend Unit | Vitest | `npm test` | `frontend/src/**/*.test.ts(x)` |
 | Frontend Component | React Testing Library | Vitest | `frontend/src/**/*.test.tsx` |
 | Firestore Rules | Jest | `npm run test:rules` | `frontend/src/tests/firestore.rules.test.ts` |
-| E2E (Frontend) | Playwright | `npm run test:e2e` | `frontend/e2e/*.spec.ts` |
-| E2E (Standalone) | Playwright | `npm test` | `e2e/tests/*.spec.ts` |
+| E2E | Playwright | `npm run test:e2e` | `frontend/e2e/*.spec.ts` |
 | Backend | pytest | `pytest` | `tests/test_*.py`, `api/tests/test_*.py` |
 
 ## Frontend Testing (Vitest)
@@ -172,7 +171,6 @@ npm run test:rules:run
 
 **Configuration:**
 - Frontend E2E: `frontend/playwright.config.ts`
-- Standalone E2E: `e2e/playwright.config.ts`
 
 **Run Commands (from frontend/):**
 ```bash
@@ -188,11 +186,6 @@ npm run test:e2e:headed
 # Run specific spec
 npx playwright test e2e/explorer.spec.ts
 ```
-
-**Run Commands (from e2e/):**
-```bash
-# Run all E2E tests
-npm test
 
 # Run specific test types
 npm run test:api      # API endpoint tests only

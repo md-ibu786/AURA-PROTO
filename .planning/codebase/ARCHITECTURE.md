@@ -53,7 +53,7 @@
 - Location: `api/main.py`
 - Contains: CORS, security headers, rate limiting, router mounting, health/readiness endpoints, PDF download endpoints, a few legacy direct endpoints.
 - Depends on: Router modules, config, static file serving.
-- Used by: Uvicorn entrypoint and E2E tests in `e2e/playwright.config.ts`.
+- Used by: Uvicorn entrypoint and E2E tests in `frontend/playwright.config.ts`.
 
 **Backend Read/Write Hierarchy Layer:**
 - Purpose: Expose Firestore-backed hierarchy browsing and mutations.
@@ -162,7 +162,7 @@
 
 **Backend HTTP Entry:**
 - Location: `api/main.py`
-- Triggers: `uvicorn main:app` or Playwright web server startup in `e2e/playwright.config.ts`.
+- Triggers: `uvicorn main:app` or Playwright web server startup in `frontend/playwright.config.ts`.
 - Responsibilities: Load env, configure middleware, include routers, expose health and PDF endpoints.
 
 **Celery Worker Entry:**

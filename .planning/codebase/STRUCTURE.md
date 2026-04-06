@@ -84,9 +84,9 @@
 - Key files: `frontend/src/types/FileSystemNode.ts`, `frontend/src/types/user.ts`, `frontend/src/types/index.ts`
 
 **`e2e/`:**
-- Purpose: Separate Playwright workspace for browser and API end-to-end verification.
-- Contains: Test specs, page objects, local package manifest, reports.
-- Key files: `e2e/playwright.config.ts`, `e2e/tests/explorer.spec.ts`, `e2e/tests/api.spec.ts`, `e2e/tests/audio.spec.ts`, `e2e/README.md`
+- Purpose: DEPRECATED tombstone - retained for historical reference only.
+- Contains: Only `DEPRECATED.md` tombstone file. All Playwright E2E tests moved to `frontend/e2e/`.
+- Note: The active E2E test stack is `frontend/e2e/`. Do not use files from root `e2e/` directory.
 
 **`tools/`:**
 - Purpose: Operator scripts for data lifecycle and environment verification.
