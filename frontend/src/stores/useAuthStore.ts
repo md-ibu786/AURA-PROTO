@@ -40,6 +40,7 @@ import {
     type User as FirebaseUser
 } from 'firebase/auth';
 import { auth } from '../api/firebaseClient';
+import { fetchAuthApi } from '../api/client';
 import type { FirestoreUser, UserRole, UserStatus } from '../types/user';
 
 export type { UserRole };
@@ -215,23 +216,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({ firebaseUser });
 
             const idToken = await firebaseUser.getIdToken();
-            const syncResponse = await fetch(`${API_BASE}/auth/sync`, {
+            await fetchAuthApi<void>('/auth/sync', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${idToken}`,
-                },
                 body: JSON.stringify({
                     displayName: firebaseUser.displayName ?? '',
                 }),
-            });
-
-            if (!syncResponse.ok) {
-                const err = await syncResponse.json().catch(() => ({
-                    detail: 'Login failed',
-                }));
-                throw new Error(err.detail || 'Login failed');
-            }
+            }, idToken);
 
             await get().refreshUser();
             set({ isLoading: false, error: null });
