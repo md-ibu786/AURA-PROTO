@@ -22,7 +22,7 @@ A simplified hierarchy and note management prototype with React frontend and Fas
 3. Generate a service account key:
    - Go to Project Settings > Service Accounts
    - Click "Generate New Private Key"
-   - Save as `serviceAccountKey-auth.json` in the project root
+   - **IMPORTANT:** Save the key locally (e.g., `serviceAccountKey-local.json`) and add it to `.gitignore`. **Never commit service account keys to the repository.**
 
 ### 2. Backend Setup
 ```bash
@@ -39,8 +39,9 @@ pip install -r requirements.txt
 Create a `.env` file in the root directory:
 ```
 DEEPGRAM_API_KEY=your_deepgram_key_here
-GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey-auth.json
+GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey-local.json
 ```
+**Security:** Never commit `.env` or credential files to git. The repository uses gitleaks CI to prevent secret leaks.
 
 ### 3. Frontend Setup
 ```bash
@@ -96,14 +97,14 @@ Set `USE_REAL_FIREBASE=true` to use real Firebase Authentication.
 
 ## E2E Testing
 
-Comprehensive end-to-end tests using Playwright are located in the `e2e/` folder.
+Comprehensive end-to-end tests using Playwright are located in `frontend/e2e/`.
 
 ### Quick Start
 ```bash
-cd e2e
+cd frontend
 npm install
 npx playwright install --with-deps
-npm test
+npm run test:e2e
 ```
 
 ### Test Suites
@@ -113,15 +114,15 @@ npm test
 
 ### Running Specific Tests
 ```bash
-npm run test:api      # API endpoint tests
-npm run test:ui       # UI interaction tests
-npm run test:audio    # Audio processing tests
-npm run test:headed   # Run with visible browser
-npm run show-report   # View HTML test report
+cd frontend
+npm run test:e2e         # All E2E tests
+npm run test:e2e:ui      # Run with Playwright UI
+npm run test:e2e:headed  # Run with visible browser
+npx playwright test tests/explorer.spec.ts  # Specific test
 ```
 
 ### Test Documentation
-See `e2e/README.md` for detailed test documentation, utilities, and best practices.
+See `frontend/e2e/` for test implementation. The root `e2e/` directory is deprecated.
 
 ## Features
 - **Explorer**: Navigate hierarchies (Computer Science > Semester > Subject > Module)
@@ -133,10 +134,11 @@ See `e2e/README.md` for detailed test documentation, utilities, and best practic
 AURA-PROTO/
 ├── api/               # FastAPI backend
 ├── frontend/          # React frontend
-├── e2e/               # Playwright E2E tests
+│   └── e2e/          # Playwright E2E tests (canonical location)
+├── e2e/               # DEPRECATED - retained as tombstone only
 ├── pdfs/              # Generated PDF files
 ├── services/          # Backend services (STT, PDF generation)
 ├── firestore.rules    # Firestore security rules
 ├── firestore.indexes.json # Firestore indexes
-└── serviceAccountKey-auth.json # Firebase credentials (gitignored)
+└── .env              # Environment variables (never commit credentials)
 ```

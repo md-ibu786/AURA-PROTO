@@ -270,6 +270,9 @@ serviceAccountKey*.json
 *.crt
 ```
 
+**Protected by CI (gitleaks):**
+The repository runs [gitleaks](https://github.com/gitleaks/gitleaks) on every push to detect accidentally committed secrets. The workflow is defined in `.github/workflows/gitleaks.yml` and uses the config at `.gitleaks.toml`.
+
 ### Credential Storage
 
 - **Development:** Local `.env` file (not committed)

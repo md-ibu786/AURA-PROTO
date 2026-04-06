@@ -64,15 +64,6 @@ pytest api/test_kg_processor.py::test_function_name
 pytest -k "test_name_pattern"  # Run tests matching pattern
 ```
 
-### E2E Tests (from `e2e/`)
-```bash
-npm test              # Run all E2E tests
-npm run test:api      # API endpoint tests only
-npm run test:ui       # UI interaction tests only
-npm run test:audio    # Audio processing tests only
-npm run show-report   # View HTML test report
-```
-
 ### Python Environment
 - **ALWAYS use the root virtual environment** for all Python tasks
 - **NEVER install dependencies globally** or create local venvs
@@ -287,7 +278,7 @@ AURA-NOTES-MANAGER/
 │   ├── vite.config.ts    # Proxy to 127.0.0.1:8001, port 5174
 │   ├── playwright.config.ts # E2E test configuration
 │   └── vitest.config.ts  # Unit test configuration
-├── e2e/                   # Playwright E2E tests (root level)
+├── e2e/                   # DEPRECATED - retained as tombstone only
 ├── tools/                 # Utility scripts
 ├── documentations/        # Project documentation
 │   └── code_styleguides/  # Style guide references
@@ -382,7 +373,7 @@ AURA-NOTES-MANAGER/
 **Common Tasks:**
 - API changes → Test with backend running on port 8000
 - Frontend changes → Test with dev server on port 5173
-- Full E2E flow → Both servers + `npm test` in e2e/
+- Full E2E flow → Both servers + `npm run test:e2e` in frontend/
 - Type errors → Run `npm run build` in frontend/
 - Python tests → Run `pytest` from project root with venv activated
 

@@ -8,7 +8,8 @@ to Firestore and provides rollback procedures.
 ## Pre-Migration Checklist
 
 - [ ] Cloud Storage bucket created for backups
-- [ ] `serviceAccountKey-auth.json` downloaded and secure
+- [ ] Service account key downloaded and stored locally (e.g., `serviceAccountKey-local.json`)
+- [ ] Service account key path set in `GOOGLE_APPLICATION_CREDENTIALS` environment variable
 - [ ] `mock_db.json` is up to date
 - [ ] Firebase project configured (Phase 1 complete)
 - [ ] Security rules deployed (Phase 2 complete)
@@ -29,7 +30,7 @@ Example from 2026-02-05:
 ### 2. Dry Run
 
 ```bash
-python tools/seed_firestore.py --dry-run --credentials serviceAccountKey-auth.json
+python tools/seed_firestore.py --dry-run --credentials %GOOGLE_APPLICATION_CREDENTIALS%
 ```
 
 Review output for errors or unexpected behavior.
@@ -37,7 +38,7 @@ Review output for errors or unexpected behavior.
 ### 3. Execute Migration
 
 ```bash
-python tools/seed_firestore.py --credentials serviceAccountKey-auth.json
+python tools/seed_firestore.py --credentials %GOOGLE_APPLICATION_CREDENTIALS%
 ```
 
 Monitor output for errors.
@@ -75,7 +76,7 @@ If only specific collections have issues:
 
 ```bash
 python tools/seed_firestore.py --collection users \
-    --credentials serviceAccountKey-auth.json
+    --credentials %GOOGLE_APPLICATION_CREDENTIALS%
 ```
 
 ### Option 3: Reset and Re-run
@@ -84,7 +85,7 @@ python tools/seed_firestore.py --collection users \
 
 ```bash
 python tools/seed_firestore.py --reset \
-    --credentials serviceAccountKey-auth.json
+    --credentials %GOOGLE_APPLICATION_CREDENTIALS%
 ```
 
 You must confirm by typing "yes".
@@ -93,8 +94,8 @@ You must confirm by typing "yes".
 
 ### Issue: "Service account key not found"
 
-**Solution**: Download `serviceAccountKey-auth.json` from Firebase
-Console → Project Settings → Service Accounts → Generate new private key.
+**Solution**: Download service account key from Firebase Console → Project Settings → Service Accounts → Generate new private key.
+Store the file locally (e.g., `serviceAccountKey-local.json`) and set the path in `GOOGLE_APPLICATION_CREDENTIALS` environment variable.
 
 ### Issue: "Permission denied"
 
