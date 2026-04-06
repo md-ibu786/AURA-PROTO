@@ -1,0 +1,36 @@
+[]
+# =============================================================================
+# Gitleaks Configuration - AURA-NOTES-MANAGER
+# =============================================================================
+# This configuration enables secret scanning for the repository.
+# Gitleaks scans commits for secrets and will fail if any are detected.
+# =============================================================================
+
+# =============================================================================
+# REDACTION
+# =============================================================================
+# Secrets detected will be redacted in logs and reports.
+# =============================================================================
+redact = true
+
+# =============================================================================
+# ALLOWLIST - Narrowly scoped exceptions only
+# =============================================================================
+# Only add allowlist entries for patterns that are definitively NOT secrets.
+# Document the reasoning for each entry.
+# =============================================================================
+
+# Example allowlist (uncomment and modify as needed):
+# [[allowlist]]
+# description = "Example pattern that is not a secret"
+# regex = "pattern"
+
+# =============================================================================
+# GENERAL SETTINGS
+# =============================================================================
+[settings]
+# Scan test files (set to false to skip tests)
+scantest = false
+
+# Include files larger than 1MB (set to false to skip large files)
+include_large_files = false
