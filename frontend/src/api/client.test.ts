@@ -9,30 +9,47 @@
  *
  * ROLE IN PROJECT:
  *    Validates the fetchApi function behavior including error handling
- *    for 409 conflicts with DuplicateError, and generic error responses.
- *    Ensures consistent API error handling across the application.
+ *    for 409 conflicts (DuplicateError), authentication failures (AuthError),
+ *    and generic error responses. Ensures consistent API error handling
+ *    across the application.
  *
  * KEY COMPONENTS:
  *    - fetchApi tests: Validates response parsing and error throwing
  *    - DuplicateError tests: Validates 409 conflict detection
- *    - Mock setup: vi.spyOn for global fetch mocking
+ *    - AuthError tests: Validates auth failure propagation
+ *    - Mock setup: vi.spyOn for global fetch and useAuthStore mocking
  *
  * DEPENDENCIES:
- *    - External: vitest (describe, it, expect, vi, beforeEach)
- *    - Internal: ./client.ts (fetchApi, DuplicateError)
+ *    - External: vitest (describe, it, expect, vi, beforeEach, afterEach)
+ *    - Internal: ./client.ts (fetchApi, DuplicateError, AuthError)
+ *    - Internal: ./errors.ts (AuthError exported from client.ts)
  *
  * USAGE:
  *    npm test -- src/api/client.test.ts
  * ============================================================================
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { fetchApi, DuplicateError } from './client';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { fetchApi, DuplicateError, AuthError } from './client';
+import { useAuthStore } from '../stores/useAuthStore';
+
+// Mock useAuthStore for auth-related tests
+vi.mock('../stores/useAuthStore', () => ({
+    useAuthStore: {
+        getState: vi.fn(() => ({
+            getIdToken: vi.fn().mockResolvedValue('test-token'),
+        })),
+    },
+}));
 
 describe('fetchApi', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         vi.restoreAllMocks();
+    });
+
+    afterEach(() => {
+        vi.clearAllMocks();
     });
 
     it('should throw DuplicateError on 409 with code', async () => {
@@ -70,5 +87,85 @@ describe('fetchApi', () => {
         await expect(fetchApi('/test')).rejects.not.toThrow(DuplicateError);
 
         vi.restoreAllMocks();
+    });
+
+    it('should successfully fetch data with auth token', async () => {
+        const mockData = { id: 1, name: 'test' };
+        const mockResponse = {
+            ok: true,
+            json: vi.fn().mockResolvedValue(mockData),
+        };
+
+        vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as unknown as Response);
+
+        const result = await fetchApi('/test');
+        expect(result).toEqual(mockData);
+
+        vi.restoreAllMocks();
+    });
+});
+
+describe('AuthError', () => {
+    it('should include cause when provided', () => {
+        const cause = new Error('Original error');
+        const authError = new AuthError('Token failed', cause);
+
+        expect(authError.cause).toBe(cause);
+        expect(authError.message).toBe('Token failed');
+        expect(authError.name).toBe('AuthError');
+    });
+
+    it('should work without cause', () => {
+        const authError = new AuthError('Auth failed');
+
+        expect(authError.cause).toBeUndefined();
+        expect(authError.message).toBe('Auth failed');
+        expect(authError.name).toBe('AuthError');
+    });
+});
+
+describe('getAuthHeader auth failure handling', () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.restoreAllMocks();
+    });
+
+    it('should throw AuthError when token retrieval fails', async () => {
+        // Mock useAuthStore.getState().getIdToken to throw
+        vi.mock('../stores/useAuthStore', () => ({
+            useAuthStore: {
+                getState: vi.fn(() => ({
+                    getIdToken: vi.fn().mockRejectedValue(new Error('Token service unavailable')),
+                })),
+            },
+        }));
+
+        // Import fresh after mock
+        // Note: This test will fail until client.ts is refactored to throw AuthError
+        await expect(fetchApi('/protected-endpoint')).rejects.toThrow(AuthError);
+    });
+
+    it('should throw AuthError when 401 retry token refresh fails', async () => {
+        // First call returns 401, then token refresh fails
+        vi.mock('../stores/useAuthStore', () => ({
+            useAuthStore: {
+                getState: vi.fn(() => ({
+                    getIdToken: vi.fn()
+                        .mockResolvedValueOnce('initial-token')
+                        .mockRejectedValueOnce(new Error('Refresh failed')),
+                })),
+            },
+        }));
+
+        const mockResponse401 = {
+            ok: false,
+            status: 401,
+            json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+        };
+
+        vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockResponse401 as unknown as Response);
+
+        // Note: This test will fail until client.ts is refactored
+        await expect(fetchApi('/protected-endpoint')).rejects.toThrow(AuthError);
     });
 });
