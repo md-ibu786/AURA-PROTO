@@ -178,8 +178,11 @@ $RECYCLE.BIN/
 tests/
 test_women_empowerment.py
 # e2e/ - Keep E2E tests tracked (frontend/e2e/)
+# Generated test artifacts - explicit patterns for nested paths
 test-results/
-playwright-report/
+e2e/test-results/
+e2e/playwright-report/
+frontend/coverage/
 .pytest_cache/
 # Firestore security rules tests (keep tracked)
 !tests/
