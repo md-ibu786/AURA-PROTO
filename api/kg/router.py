@@ -31,6 +31,7 @@ USAGE:
     app.include_router(kg_router, prefix="/api/v1")
 ============================================================================
 """
+
 from fastapi import APIRouter, HTTPException, status
 from typing import List
 from datetime import datetime
@@ -64,11 +65,16 @@ except ImportError:
     )
 
 try:
-    from tasks.document_processing_tasks import process_batch_task, get_task_progress
+    from tasks.document_processing_tasks import (
+        process_batch_task,
+        get_task_progress,
+        _find_note_by_id as tasks_find_note_by_id,
+    )
 except ImportError:
     from api.tasks.document_processing_tasks import (
         process_batch_task,
         get_task_progress,
+        _find_note_by_id as tasks_find_note_by_id,
     )
 
 try:
@@ -77,6 +83,8 @@ try:
 except ImportError:
     from api.graph_manager import GraphManager
     from api.neo4j_config import neo4j_driver
+
+from google.cloud.firestore import FieldFilter
 
 logger = logging.getLogger(__name__)
 
@@ -101,20 +109,14 @@ async def get_document_kg_status(document_id: str):
     """
     logger.debug(f"Getting KG status for document: {document_id}")
 
-    # Use collection_group to find the note in nested subcollections
+    # Bounded lookup: query by stored 'id' field with limit(1)
+    # This avoids scanning the full notes collection group
     notes = list(
         db.collection_group("notes")
-        .where("__name__", ">=", document_id)
-        .where("__name__", "<=", document_id + "\uf8ff")
+        .where(filter=FieldFilter("id", "==", document_id))
         .limit(1)
         .stream()
     )
-
-    # Also try direct lookup if collection_group doesn't work
-    if not notes:
-        # Try to find by iterating (fallback)
-        notes = list(db.collection_group("notes").stream())
-        notes = [n for n in notes if n.id == document_id]
 
     if not notes:
         raise HTTPException(
@@ -149,16 +151,6 @@ async def get_document_kg_status(document_id: str):
 # ============================================================================
 
 
-def _find_note_by_id(note_id: str):
-    """Find a note document by ID using collection_group query."""
-    # Try to find the note in nested subcollections
-    notes = list(db.collection_group("notes").stream())
-    for note in notes:
-        if note.id == note_id:
-            return note
-    return None
-
-
 @router.post("/process-batch", response_model=BatchProcessingResponse)
 async def process_batch(request: BatchProcessingRequest):
     """
@@ -178,15 +170,16 @@ async def process_batch(request: BatchProcessingRequest):
     note_paths = {}  # Store note paths for processing
 
     for doc_id in request.file_ids:
-        # Find note using collection_group
-        note = _find_note_by_id(doc_id)
+        # Find note using bounded lookup from tasks module
+        note_ref = tasks_find_note_by_id(doc_id, module_id=request.module_id)
 
-        if not note:
+        if not note_ref:
             logger.warning(f"Note {doc_id} not found, skipping")
             continue  # Skip non-existent docs
 
+        note = note_ref.get()
         doc_data = note.to_dict()
-        note_path = note.reference.path
+        note_path = note_ref.path
 
         # Extract module_id from the note path (e.g., departments/.../modules/{module_id}/notes/{note_id})
         path_parts = note_path.split("/")
@@ -255,17 +248,27 @@ async def get_processing_queue():
 
     queue = []
 
-    # Scan all notes and filter in Python (avoids Firestore index requirement)
+    # Query only notes with kg_status == 'processing' at Firestore level
+    # This avoids scanning all notes and filtering in Python
     try:
-        all_notes = db.collection_group("notes").stream()
-        for doc in all_notes:
+        processing_notes = (
+            db.collection_group("notes")
+            .where(filter=FieldFilter("kg_status", "==", "processing"))
+            .stream()
+        )
+
+        for doc in processing_notes:
             doc_data = doc.to_dict()
-            if doc_data.get("kg_status") == "processing":
-                queue.append(_doc_to_queue_item(doc, doc_data))
+            queue.append(_doc_to_queue_item(doc, doc_data))
+
     except Exception as e:
         logger.error(f"Failed to fetch processing queue: {e}")
-        # Return empty queue rather than crashing
-        return []
+        # Surface explicit failure instead of silent fallback to empty queue
+        # The client should handle this as an error condition
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch processing queue: {str(e)}",
+        )
 
     logger.debug(f"Processing queue contains {len(queue)} documents")
     return queue
@@ -411,16 +414,17 @@ async def delete_batch(request: BatchDeleteRequest):
     graph_manager = GraphManager(neo4j_driver)
 
     for doc_id in request.file_ids:
-        # Find note using collection_group
-        note = _find_note_by_id(doc_id)
+        # Find note using bounded lookup from tasks module
+        note_ref = tasks_find_note_by_id(doc_id, module_id=request.module_id)
 
-        if not note:
+        if not note_ref:
             logger.warning(f"Note {doc_id} not found, skipping")
             failed_ids.append(doc_id)
             continue
 
+        note = note_ref.get()
         doc_data = note.to_dict()
-        note_path = note.reference.path
+        note_path = note_ref.path
 
         # Extract module_id from the note path
         path_parts = note_path.split("/")
