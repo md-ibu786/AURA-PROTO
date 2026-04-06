@@ -203,7 +203,8 @@ class TestJobStatusStoreMaxEntries:
 class TestPipelineStatusExpiredJobs:
     """Tests for pipeline-status endpoint behavior with expired/evicted jobs."""
 
-    def test_pipeline_status_returns_404_for_expired_jobs(self):
+    @pytest.mark.asyncio
+    async def test_pipeline_status_returns_404_for_expired_jobs(self):
         """Test that GET pipeline-status returns 404 for legitimately expired jobs."""
         # This test verifies the not-found behavior for evicted/expired jobs
 
@@ -227,21 +228,22 @@ class TestPipelineStatusExpiredJobs:
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            # Simulate calling get_pipeline_status
-            ap_module.get_pipeline_status(expired_job_id)
+            # Simulate calling get_pipeline_status (async function)
+            await ap_module.get_pipeline_status(expired_job_id)
 
         assert exc_info.value.status_code == 404, (
             "Should return 404 for evicted/expired job"
         )
 
-    def test_pipeline_status_returns_404_for_nonexistent_jobs(self):
+    @pytest.mark.asyncio
+    async def test_pipeline_status_returns_404_for_nonexistent_jobs(self):
         """Test that pipeline-status returns 404 for jobs that never existed."""
         nonexistent_job_id = "nonexistent-job-456"
 
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            ap_module.get_pipeline_status(nonexistent_job_id)
+            await ap_module.get_pipeline_status(nonexistent_job_id)
 
         assert exc_info.value.status_code == 404
 

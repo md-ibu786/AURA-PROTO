@@ -148,6 +148,73 @@ MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
 MIN_AUDIO_SIZE = 1024  # 1KB minimum
 ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 
+# Job status retention constants (T-08-04 mitigation)
+JOB_STATUS_TTL_SECONDS = 300  # 5 minutes - terminal jobs expire after this
+JOB_STATUS_MAX_ENTRIES = 100  # Max terminal jobs before oldest are evicted
+
+# Active (non-terminal) job statuses
+_ACTIVE_JOB_STATUSES = {
+    "pending",
+    "transcribing",
+    "refining",
+    "summarizing",
+    "generating_pdf",
+}
+
+
+def _is_terminal_status(status: str) -> bool:
+    """Check if a job status is terminal (complete or error)."""
+    return status in ("complete", "error")
+
+
+def _add_timestamp(job_data: dict) -> dict:
+    """Add or update the updated_at timestamp on a job data dict."""
+    job_data["updated_at"] = time.time()
+    return job_data
+
+
+def _cleanup_job_store() -> None:
+    """
+    Prune expired terminal jobs and evict oldest terminal jobs if store exceeds max entries.
+
+    Cleanup order:
+    1. Remove terminal jobs older than TTL
+    2. If still over max_entries, evict oldest terminal jobs first
+    3. Active in-flight jobs are never evicted by TTL or max-entry pressure
+    """
+    now = time.time()
+    terminal_jobs = []
+    active_jobs = []
+
+    # Separate active and terminal jobs
+    for job_id, job_data in list(job_status_store.items()):
+        if _is_terminal_status(job_data.get("status", "")):
+            terminal_jobs.append((job_id, job_data))
+        else:
+            active_jobs.append((job_id, job_data))
+
+    # Prune terminal jobs older than TTL
+    terminal_jobs = [
+        (job_id, job_data)
+        for job_id, job_data in terminal_jobs
+        if (now - job_data.get("updated_at", 0)) <= JOB_STATUS_TTL_SECONDS
+    ]
+
+    # If still over max_entries, evict oldest terminal jobs
+    if len(terminal_jobs) + len(active_jobs) > JOB_STATUS_MAX_ENTRIES:
+        # Sort terminal jobs by updated_at (oldest first)
+        terminal_jobs.sort(key=lambda x: x[1].get("updated_at", 0))
+        # Keep only enough to get under the limit
+        max_terminal = max(0, JOB_STATUS_MAX_ENTRIES - len(active_jobs))
+        terminal_jobs = terminal_jobs[:max_terminal]
+
+    # Rebuild the store with surviving jobs
+    job_status_store.clear()
+    for job_id, job_data in active_jobs:
+        job_status_store[job_id] = job_data
+    for job_id, job_data in terminal_jobs:
+        job_status_store[job_id] = job_data
+
 
 def validate_file_size(content_length: int, max_size: int, file_type: str) -> None:
     """Validate file size and raise HTTPException 413 if exceeded."""
@@ -427,11 +494,13 @@ def _run_pipeline(
     """Background task to run the full processing pipeline."""
     try:
         # Step 1: Transcribe
-        job_status_store[job_id] = {
-            "status": "transcribing",
-            "progress": 10,
-            "message": "Transcribing audio...",
-        }
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "transcribing",
+                "progress": 10,
+                "message": "Transcribing audio...",
+            }
+        )
 
         result = process_audio_file(audio_bytes)
         transcript = result.get("text", "")
@@ -440,29 +509,35 @@ def _run_pipeline(
             raise ValueError("Transcription returned empty result")
 
         # Step 2: Refine
-        job_status_store[job_id] = {
-            "status": "refining",
-            "progress": 35,
-            "message": "Refining transcript...",
-        }
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "refining",
+                "progress": 35,
+                "message": "Refining transcript...",
+            }
+        )
 
         refined = transform_transcript(topic, transcript)
 
         # Step 3: Summarize
-        job_status_store[job_id] = {
-            "status": "summarizing",
-            "progress": 60,
-            "message": "Generating notes...",
-        }
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "summarizing",
+                "progress": 60,
+                "message": "Generating notes...",
+            }
+        )
 
         notes = generate_university_notes(topic, refined)
 
         # Step 4: Generate PDF
-        job_status_store[job_id] = {
-            "status": "generating_pdf",
-            "progress": 85,
-            "message": "Creating PDF...",
-        }
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "generating_pdf",
+                "progress": 85,
+                "message": "Creating PDF...",
+            }
+        )
 
         os.makedirs(PDFS_DIR, exist_ok=True)
         timestamp = int(time.time())
@@ -491,27 +566,33 @@ def _run_pipeline(
                     f"PDF generated but note record creation failed: {str(e)}"
                 )
 
-        # Complete
-        job_status_store[job_id] = {
-            "status": "complete",
-            "progress": 100,
-            "message": "Processing complete!",
-            "result": {
-                "transcript": transcript,
-                "refinedTranscript": refined,
-                "notes": notes,
-                "pdfUrl": pdf_url,
-                "noteId": note_id,
-            },
-        }
+        # Complete - cleanup first to make room if needed, then record terminal state
+        _cleanup_job_store()
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "complete",
+                "progress": 100,
+                "message": "Processing complete!",
+                "result": {
+                    "transcript": transcript,
+                    "refinedTranscript": refined,
+                    "notes": notes,
+                    "pdfUrl": pdf_url,
+                    "noteId": note_id,
+                },
+            }
+        )
 
     except Exception as e:
-        job_status_store[job_id] = {
-            "status": "error",
-            "progress": 0,
-            "message": f"Error: {str(e)}",
-            "result": None,
-        }
+        _cleanup_job_store()
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "error",
+                "progress": 0,
+                "message": f"Error: {str(e)}",
+                "result": None,
+            }
+        )
 
 
 @router.post("/process-pipeline")
@@ -534,13 +615,18 @@ async def start_pipeline(
         # Validate file size
         validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
 
+        # Cleanup before creating new job to maintain bounded store
+        _cleanup_job_store()
+
         # Create job
         job_id = str(uuid.uuid4())
-        job_status_store[job_id] = {
-            "status": "pending",
-            "progress": 0,
-            "message": "Starting pipeline...",
-        }
+        job_status_store[job_id] = _add_timestamp(
+            {
+                "status": "pending",
+                "progress": 0,
+                "message": "Starting pipeline...",
+            }
+        )
 
         # Start background task
         background_tasks.add_task(_run_pipeline, job_id, audio_bytes, topic, moduleId)
@@ -555,7 +641,11 @@ async def start_pipeline(
 async def get_pipeline_status(job_id: str):
     """
     Get the status of a processing pipeline job.
+    Cleanup runs before read to ensure expired/evicted jobs return 404.
     """
+    # Cleanup first to evict any expired terminal jobs
+    _cleanup_job_store()
+
     if job_id not in job_status_store:
         raise HTTPException(status_code=404, detail="Job not found")
 
