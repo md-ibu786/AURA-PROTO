@@ -3,7 +3,7 @@
 **Milestone:** v1.1 Codebase Reliability and Hygiene
 **Phase numbering:** Continued from v1.0 (starts at Phase 6)
 **Granularity:** Standard (inferred; no planning granularity setting was available)
-**Last updated:** 2026-04-06 (Phase 7 planned)
+**Last updated:** 2026-04-06 (Phase 9 planned)
 
 ---
 
@@ -48,9 +48,9 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 07-01-PLAN.md — Backend silent failure remediation (audio_processing.py)
-- [ ] 07-02-PLAN.md — Frontend error infrastructure (client.ts consolidation)
-- [ ] 07-03-PLAN.md — Auth store migration (useAuthStore fetch consolidation)
+- [x] 07-01-PLAN.md — Backend silent failure remediation (audio_processing.py)
+- [x] 07-02-PLAN.md — Frontend error infrastructure (client.ts consolidation)
+- [x] 07-03-PLAN.md — Auth store migration (useAuthStore fetch consolidation)
 
 **UI hint**: yes
 
@@ -63,7 +63,11 @@ Plans:
   2. Long-running job and task-status tracking stays bounded during extended use instead of growing without limit in memory.
   3. Audited async request paths avoid blocking the event loop with synchronous external I/O patterns.
   4. Frontend polling and upload flows clean up timers and in-flight requests safely on close, unmount, or navigation.
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [x] 08-01-PLAN.md — Remove KG request-path note scans and align bounded note lookup behavior
+- [x] 08-02-PLAN.md — Bound audio job status retention and lock in frontend polling cleanup
 **UI hint**: yes
 
 ### Phase 9: Safe Cleanup & Repo Hygiene
@@ -74,7 +78,12 @@ Plans:
   1. High-confidence dead code and placeholder components identified in the audit are removed without breaking app or test entrypoints.
   2. Secret-like residue and stale generated artifacts identified in the audit are removed or remediated so checkout and review no longer expose audited leftovers.
   3. Unused or stale test utilities and repo artifacts are either pruned or explicitly quarantined with rationale.
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [x] 09-01-PLAN.md — Remove tracked credential leaks and add secret-scan guardrails
+- [ ] 09-02-PLAN.md — Purge generated artifacts and retire the deprecated root E2E implementation
+- [ ] 09-03-PLAN.md — Refresh docs and planning maps to the cleaned canonical workflows
 
 ## Progress Table
 
@@ -82,5 +91,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 6. Verification Recovery | 0/5 | Planned | - |
 | 7. Failure Hardening & Shared Seams | 0/3 | Planned | - |
-| 8. Runtime Hotspot Remediation | 0/0 | Not started | - |
-| 9. Safe Cleanup & Repo Hygiene | 0/0 | Not started | - |
+| 8. Runtime Hotspot Remediation | 0/2 | Planned | - |
+| 9. Safe Cleanup & Repo Hygiene | 0/3 | Planned | - |
