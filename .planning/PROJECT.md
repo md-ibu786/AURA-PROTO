@@ -1,7 +1,7 @@
 # AURA-NOTES-MANAGER
 
-**Status:** v1.1 Planned (2026-04-06)
-**Last updated:** 2026-04-06 after milestone v1.1 start
+**Status:** v1.1 Complete (2026-04-06)
+**Last updated:** 2026-04-06 after phase 09 completion
 
 ---
 
@@ -47,8 +47,23 @@ The system must let the right users browse, manage, process, and validate depart
 - [ ] Known runtime hanging, blocking, and full-scan hotspots are removed or bounded
 - [ ] Frontend, backend, and E2E tests reflect current behavior and run deterministically
 - [ ] Silent failure paths are replaced with explicit handling and observability
-- [ ] High-confidence dead code, stale artifacts, and secret-like leftovers are removed safely
-- [ ] Duplicate or drift-prone setup is reduced where low-risk consolidation is possible
+
+### Validated in Phase 08
+
+- ✓ KG note lookup paths use bounded Firestore queries instead of full-collection scans
+- ✓ Job status store has TTL-based eviction and max-entry bounds
+- ✓ Frontend polling cleanup verified with regression tests
+
+### Validated in Phase 09
+
+- ✓ Committed credential files removed from repository tracking
+- ✓ Gitleaks CI guardrail added to prevent future secret leaks
+- ✓ Human credential rotation checkpoint completed
+- ✓ Generated coverage and test report artifacts purged
+- ✓ Deprecated root E2E implementation removed (tombstone retained)
+- ✓ Explicit .gitignore patterns for cleaned artifact classes
+- ✓ Operator docs refreshed to reflect cleaned canonical workflows
+- ✓ Planning codebase maps updated to remove stale references
 
 ### Out of Scope
 
