@@ -1,7 +1,7 @@
 # AURA-NOTES-MANAGER
 
-**Status:** v1.1 Complete (2026-04-06)
-**Last updated:** 2026-04-06 after phase 09 completion
+**Status:** v1.1 COMPLETE (Shipped: 2026-04-06)
+**Last updated:** 2026-04-06 after v1.1 milestone completion
 
 ---
 
@@ -19,7 +19,14 @@ The system must let the right users browse, manage, process, and validate depart
 
 ---
 
-## Current Milestone: v1.1 Codebase Reliability and Hygiene
+## Current Milestone: v1.2 (Next)
+
+**Status:** Not yet defined
+**Next milestone:** Awaiting scope definition
+
+---
+
+## Completed Milestone: v1.1 Codebase Reliability and Hygiene
 
 **Goal:** Eliminate the audited runtime, test, performance, dead-code, duplication, and repo-cleanup issues with a safe-first cleanup strategy.
 
@@ -29,6 +36,8 @@ The system must let the right users browse, manage, process, and validate depart
 - Replace silent failure patterns and tighten observability and error handling
 - Remove high-confidence dead code and stale artifacts
 - Clean up duplicate or drift-prone setup where the fix is low risk
+
+**Outcome:** All 17 requirements validated across 4 phases (13 plans executed)
 
 ---
 
@@ -104,9 +113,9 @@ The system must let the right users browse, manage, process, and validate depart
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Scope v1.1 around all audited issue buckets | User wants the milestone to address the full audit, not a subset | — Pending |
-| Use safe-first cleanup rather than aggressive deletion | Reduces risk in a brownfield codebase with stale planning docs and possible hidden consumers | — Pending |
-| Continue milestone numbering to v1.1 | Follows shipped v1.0 milestone and reflects an incremental stabilization release | — Pending |
+| Scope v1.1 around all audited issue buckets | User wants the milestone to address the full audit, not a subset | ✓ Resolved — All 17 requirements validated |
+| Use safe-first cleanup rather than aggressive deletion | Reduces risk in a brownfield codebase with stale planning docs and possible hidden consumers | ✓ Resolved — Dead code removed with tombstone pattern, secrets remediated via CI |
+| Continue milestone numbering to v1.1 | Follows shipped v1.0 milestone and reflects an incremental stabilization release | ✓ Resolved — Milestone v1.1 complete |
 
 ---
 
@@ -128,4 +137,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-06 after milestone v1.1 start*
+*Last updated: 2026-04-06 after v1.1 milestone completion*
