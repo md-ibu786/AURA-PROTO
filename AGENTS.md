@@ -64,14 +64,21 @@ pytest api/test_kg_processor.py::test_function_name
 pytest -k "test_name_pattern"  # Run tests matching pattern
 ```
 
-### E2E Tests (from `e2e/`)
+### E2E Tests (from `frontend/`)
 ```bash
-npm test              # Run all E2E tests
-npm run test:api      # API endpoint tests only
-npm run test:ui       # UI interaction tests only
-npm run test:audio    # Audio processing tests only
-npm run show-report   # View HTML test report
+npm run test:e2e              # Run all E2E tests
+npm run test:e2e:ui           # Run E2E tests with Playwright UI
+npm run test:e2e:headed       # Run E2E tests with visible browser
 ```
+
+**Run a single E2E test:**
+```bash
+npx playwright test e2e/explorer.spec.ts
+npx playwright test --grep "test name pattern"
+npx playwright test --debug  # Debug mode
+```
+
+> **Note:** The root-level `e2e/` directory is deprecated. All E2E tests live in `frontend/e2e/`.
 
 ### Python Environment
 - **ALWAYS use the root virtual environment** for all Python tasks
@@ -283,11 +290,11 @@ AURA-NOTES-MANAGER/
 │   │   ├── test/         # Vitest setup
 │   │   ├── tests/        # Firestore rules tests (Jest)
 │   │   └── types/        # TypeScript interfaces
-│   ├── e2e/              # Playwright E2E tests
+│   ├── e2e/              # Playwright E2E tests (active stack)
 │   ├── vite.config.ts    # Proxy to 127.0.0.1:8001, port 5174
 │   ├── playwright.config.ts # E2E test configuration
 │   └── vitest.config.ts  # Unit test configuration
-├── e2e/                   # Playwright E2E tests (root level)
+├── e2e/                   # DEPRECATED - see frontend/e2e/
 ├── tools/                 # Utility scripts
 ├── documentations/        # Project documentation
 │   └── code_styleguides/  # Style guide references
