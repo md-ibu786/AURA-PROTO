@@ -81,6 +81,13 @@ export function LoginPage() {
         <div className="login-page">
             <div className="login-container">
                 <div className="login-header">
+                    <div className="logo-container">
+                        <img
+                            src="/logo.png"
+                            alt="AURA Notes Manager Logo"
+                            className="login-logo"
+                        />
+                    </div>
                     <h1>AURA</h1>
                     <p>Academic Notes Management System</p>
                 </div>
@@ -138,17 +145,47 @@ export function LoginPage() {
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    background: #000000;
+                    background: #0a0a0a;
                     padding: 20px;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .login-page::before {
+                    content: '';
+                    position: absolute;
+                    top: 5%;
+                    left: 10%;
+                    width: 600px;
+                    height: 600px;
+                    background: radial-gradient(circle, rgba(255, 212, 0, 0.2) 0%, transparent 70%);
+                    border-radius: 50%;
+                    pointer-events: none;
+                    z-index: 0;
+                }
+
+                .login-page::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0%;
+                    right: 5%;
+                    width: 500px;
+                    height: 500px;
+                    background: radial-gradient(circle, rgba(255, 212, 0, 0.15) 0%, transparent 70%);
+                    border-radius: 50%;
+                    pointer-events: none;
+                    z-index: 0;
                 }
 
                 .login-container {
-                    background: #0a0a0a;
+                    position: relative;
+                    z-index: 1;
+                    background: rgba(10, 10, 10, 0.95);
                     backdrop-filter: blur(10px);
                     border-radius: 16px;
-                    padding: 40px;
+                    padding: 32px;
                     width: 100%;
-                    max-width: 400px;
+                    max-width: 448px;
                     border: 1px solid #222;
                     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
                 }
@@ -158,12 +195,31 @@ export function LoginPage() {
                     margin-bottom: 32px;
                 }
 
+                .logo-container {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 80px;
+                    height: 80px;
+                    border-radius: 16px;
+                    background: rgba(255, 212, 0, 0.1);
+                    border: 1px solid rgba(255, 212, 0, 0.2);
+                    margin-bottom: 16px;
+                    padding: 8px;
+                }
+
+                .login-logo {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                }
+
                 .login-header h1 {
-                    font-size: 2.5rem;
+                    font-size: 1.5rem;
                     font-weight: 700;
                     color: #FFD400;
-                    margin: 0 0 8px 0;
-                    letter-spacing: 4px;
+                    margin: 0 0 4px 0;
+                    letter-spacing: 0;
                 }
 
                 .login-header p {
@@ -227,7 +283,7 @@ export function LoginPage() {
                 }
 
                 .login-button {
-                    padding: 14px;
+                    padding: 12px 16px;
                     border-radius: 8px;
                     border: none;
                     background: #FFD400;
@@ -236,7 +292,7 @@ export function LoginPage() {
                     font-weight: 600;
                     cursor: pointer;
                     transition: all 0.2s ease;
-                    margin-top: 8px;
+                    margin-top: 4px;
                 }
 
                 .login-button:hover:not(:disabled) {
@@ -256,7 +312,7 @@ export function LoginPage() {
                 }
 
                 .login-footer p {
-                    color: rgba(255, 255, 255, 0.4);
+                    color: rgba(82, 82, 82, 1);
                     font-size: 0.75rem;
                     margin: 0;
                 }

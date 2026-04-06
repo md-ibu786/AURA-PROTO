@@ -43,7 +43,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { SidebarTree } from '../explorer/SidebarTree';
 import { UploadDialog } from '../explorer/UploadDialog';
 import type { FileSystemNode, HierarchyType } from '../../types';
-import { FolderTree, Upload, Plus, LogOut, Shield, LayoutGrid, X } from 'lucide-react';
+import { Upload, Plus, LogOut, Shield, LayoutGrid, X } from 'lucide-react';
 import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 
 interface SidebarProps {
@@ -119,9 +119,16 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
             <aside className={`explorer-sidebar ${isMobile && mobileMenuOpen ? 'mobile-open' : ''}`}>
                 <div className="sidebar-header">
                     <div className="flex items-center gap-sm" style={{ justifyContent: 'space-between', width: '100%' }}>
-                        <div className="flex items-center gap-sm">
-                            <FolderTree size={18} className="text-accent" />
-                            <span className="sidebar-title">AURA</span>
+                        <div className="flex items-center gap-4">
+                            <img
+                                src="/logo.png"
+                                alt="AURA Notes"
+                                style={{ width: '56px', height: '56px', objectFit: 'contain', background: 'rgba(255, 212, 0, 0.15)', borderRadius: '8px', padding: '6px' }}
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-lg font-bold text-primary">AURA</span>
+                                <span className="text-xs text-muted-foreground">Academic Notes Management System</span>
+                            </div>
                         </div>
                         {isMobile && (
                             <button

@@ -108,7 +108,6 @@ export default function ExplorerPage() {
             if (user?.role === 'student' && user?.departmentId) {
                 const userDept = tree.find(dept => dept.id === user.departmentId);
                 if (userDept) {
-                    console.log("Auto-navigating student to department:", userDept.label);
                     navigateTo(userDept, []);
                     hasRedirected.current = true;
                 }

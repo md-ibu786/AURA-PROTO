@@ -71,8 +71,8 @@ async def verify_firebase_token(token: str) -> dict:
 
     try:
         auth_client = get_auth()
-        # Allow 10 seconds of clock skew to prevent "Token used too early" errors
-        decoded_token = auth_client.verify_id_token(token, clock_skew_seconds=10)
+        # Allow 30 seconds of clock skew to prevent "Token used too early" errors
+        decoded_token = auth_client.verify_id_token(token, clock_skew_seconds=30)
         return decoded_token
     except auth.InvalidIdTokenError as exc:
         print(f"DEBUG: Invalid token error: {exc}")

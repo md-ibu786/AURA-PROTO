@@ -74,6 +74,8 @@ pnpm-debug.log*
 .eslintcache
 .stylelintcache
 .tsbuildinfo
+tsconfig.tsbuildinfo
+tsconfig.tsbuildinfo
 
 # =============================================================================
 # FIREBASE / FIRESTORE
