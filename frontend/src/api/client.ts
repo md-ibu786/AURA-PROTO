@@ -241,6 +241,37 @@ async function fetchFormData<T>(
     return response.json();
 }
 
+/**
+ * Fetch helper for auth store usage where token is already available.
+ * Unlike fetchApi, this accepts an explicit token parameter rather than
+ * calling getAuthHeader(), avoiding circular dependency during auth flows.
+ *
+ * Does NOT include 401 retry logic - auth store handles its own retry.
+ */
+export async function fetchAuthApi<T>(
+    endpoint: string,
+    options: RequestInit,
+    token: string
+): Promise<T> {
+    const url = `${API_BASE}${endpoint}`;
+
+    const response = await fetch(url, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            ...options.headers,
+        },
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+}
+
 // Health check response type
 export interface ChatHealthStatus {
     status: string;
@@ -348,3 +379,4 @@ export async function checkHealth(): Promise<HealthStatus> {
 // Re-export error classes for backward compatibility and convenience
 export { DuplicateError, AuthError } from './errors';
 export { fetchApi, fetchBlob, fetchFormData, API_BASE };
+// fetchAuthApi is already exported as an async function above
