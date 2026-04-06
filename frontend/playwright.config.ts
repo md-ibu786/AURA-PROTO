@@ -81,22 +81,34 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    /* Auth setup project - runs before other tests */
+    /* Auth setup project - MUST run before browser tests */
     {
       name: 'auth-setup',
       testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: './playwright-report/.auth/admin.json',
+      },
+      dependencies: ['auth-setup'],
+    },
+    {
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        storageState: './playwright-report/.auth/admin.json',
+      },
+      dependencies: ['auth-setup'],
+    },
+    {
+      name: 'webkit',
+      use: {
+        ...devices['Desktop Safari'],
+        storageState: './playwright-report/.auth/admin.json',
+      },
+      dependencies: ['auth-setup'],
     },
   ],
 
