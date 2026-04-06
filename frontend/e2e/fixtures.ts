@@ -703,20 +703,48 @@ export async function mockKGProcessingResponses(page: Page): Promise<void> {
 }
 
 /**
- * Waits for loading state to complete.
+ * Waits for loading state to complete using deterministic assertions.
+ * Checks for common loading indicators and waits for them to disappear.
  */
 export async function waitForLoading(page: Page): Promise<void> {
-  // Wait for any spinners to disappear
-  const spinner = page.locator('.spinner, [data-loading="true"], [aria-busy="true"]');
+  // Wait for any spinners or loading indicators to disappear
+  const loadingIndicators = [
+    '.spinner',
+    '[data-loading="true"]',
+    '[aria-busy="true"]',
+    '.loading',
+    '[data-testid="loading"]',
+  ];
 
-  // First check if spinner exists
-  const spinnerCount = await spinner.count();
-  if (spinnerCount > 0) {
-    await expect(spinner.first()).not.toBeVisible({ timeout: 10000 });
+  for (const selector of loadingIndicators) {
+    const element = page.locator(selector);
+    // Only wait if the element exists
+    const count = await element.count();
+    if (count > 0) {
+      await expect(element.first()).not.toBeVisible({ timeout: 10000 });
+    }
   }
 
-  // Also wait for network to be idle
+  // Wait for network to be idle as final check
   await page.waitForLoadState('networkidle');
+}
+
+/**
+ * Waits for an element to be visible using Playwright's built-in assertions.
+ * Prefer this over waitForTimeout for deterministic tests.
+ */
+export async function waitForElement(
+  page: Page,
+  selector: string,
+  options?: { timeout?: number; state?: 'visible' | 'hidden' }
+): Promise<void> {
+  const element = page.locator(selector);
+  const timeout = options?.timeout ?? 5000;
+  if (options?.state === 'hidden') {
+    await expect(element).not.toBeVisible({ timeout });
+  } else {
+    await expect(element).toBeVisible({ timeout });
+  }
 }
 
 /**
