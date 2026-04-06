@@ -308,6 +308,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
     },
 
+    /**
+     * Refresh user data from backend.
+     * 
+     * NOTE: This function intentionally uses direct fetch() calls rather than
+     * fetchAuthApi for the following reasons:
+     * 1. Specialized 401 handling (sync-then-retry pattern)
+     * 2. Avoids circular dependency during auth initialization
+     * 3. Error handling needs are different (silent fail vs throw)
+     * 
+     * See Phase 7 research: 07-RESEARCH.md "Open Questions" section.
+     */
     refreshUser: async () => {
         const { firebaseUser } = get();
         if (!firebaseUser) {
