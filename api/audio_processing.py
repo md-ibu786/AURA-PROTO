@@ -201,6 +201,7 @@ class GeneratePdfResponse(BaseModel):
     pdfUrl: Optional[str] = None
     noteId: Optional[str] = None  # Updated to str
     error: Optional[str] = None
+    warning: Optional[str] = None  # Partial failure indicator
 
 
 class PipelineRequest(BaseModel):
@@ -396,16 +397,24 @@ async def generate_pdf(request: GeneratePdfRequest):
         note_id = None
 
         # Optionally save to database if moduleId is provided
+        warning_message = None
         if request.moduleId:
             try:
                 note = create_note_record(request.moduleId, request.title, pdf_url)
                 if note:
                     note_id = note["id"]
             except Exception as db_error:
-                # PDF was generated but DB save failed - still return success
-                logger.warning(f"Failed to save note to database: {db_error}")
+                # PDF was generated but DB save failed
+                logger.error(
+                    f"Failed to save note to database: {db_error}", exc_info=True
+                )
+                warning_message = (
+                    f"PDF generated but note record creation failed: {str(db_error)}"
+                )
 
-        return GeneratePdfResponse(success=True, pdfUrl=pdf_url, noteId=note_id)
+        return GeneratePdfResponse(
+            success=True, pdfUrl=pdf_url, noteId=note_id, warning=warning_message
+        )
     except Exception as e:
         return GeneratePdfResponse(
             success=False, error=f"PDF generation failed: {str(e)}"
