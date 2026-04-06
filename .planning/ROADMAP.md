@@ -83,7 +83,7 @@ Plans:
 Plans:
 - [x] 09-01-PLAN.md — Remove tracked credential leaks and add secret-scan guardrails
 - [x] 09-02-PLAN.md — Purge generated artifacts and retire the deprecated root E2E implementation
-- [ ] 09-03-PLAN.md — Refresh docs and planning maps to the cleaned canonical workflows
+- [x] 09-03-PLAN.md — Refresh docs and planning maps to the cleaned canonical workflows
 
 ## Progress Table
 
