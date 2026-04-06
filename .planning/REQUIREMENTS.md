@@ -64,29 +64,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TEST-01 | TDB | Pending |
-| TEST-02 | TDB | Pending |
-| TEST-03 | TDB | Pending |
-| TEST-04 | TDB | Pending |
-| FAIL-01 | TDB | Pending |
-| FAIL-02 | TDB | Pending |
-| FAIL-03 | TDB | Pending |
-| PERF-01 | TDB | Pending |
-| PERF-02 | TDB | Pending |
-| PERF-03 | TDB | Pending |
-| PERF-04 | TDB | Pending |
-| CLEAN-01 | TDB | Pending |
-| CLEAN-02 | TDB | Pending |
-| CLEAN-03 | TDB | Pending |
-| DRIFT-01 | TDB | Pending |
-| DRIFT-02 | TDB | Pending |
-| DRIFT-03 | TDB | Pending |
+| TEST-01 | Phase 6 | Pending |
+| TEST-02 | Phase 6 | Pending |
+| TEST-03 | Phase 6 | Pending |
+| TEST-04 | Phase 6 | Pending |
+| FAIL-01 | Phase 7 | Pending |
+| FAIL-02 | Phase 7 | Pending |
+| FAIL-03 | Phase 7 | Pending |
+| PERF-01 | Phase 8 | Pending |
+| PERF-02 | Phase 8 | Pending |
+| PERF-03 | Phase 8 | Pending |
+| PERF-04 | Phase 8 | Pending |
+| CLEAN-01 | Phase 9 | Pending |
+| CLEAN-02 | Phase 9 | Pending |
+| CLEAN-03 | Phase 9 | Pending |
+| DRIFT-01 | Phase 7 | Pending |
+| DRIFT-02 | Phase 6 | Pending |
+| DRIFT-03 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17 ⚠️
+- Mapped to phases: 17
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-06*
-*Last updated: 2026-04-06 after initial definition*
+*Last updated: 2026-04-06 after roadmap creation*
