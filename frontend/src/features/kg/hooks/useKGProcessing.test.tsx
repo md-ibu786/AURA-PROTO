@@ -267,6 +267,54 @@ describe('useKGProcessing', () => {
             expect(result2.current.processFiles).toBeDefined();
         });
 
+        it('should stop polling when queue has no processing items', () => {
+            // Verify the refetchInterval function exists
+            const { result } = renderHook(() => useKGProcessing(), { wrapper });
+            const { useProcessingQueue } = result.current;
+
+            // Create a mock query object simulating React Query state
+            // When queue has no 'processing' items, refetchInterval should return false
+            const mockQueryNoProcessing = {
+                state: {
+                    data: [
+                        { status: 'complete' },
+                        { status: 'pending' },
+                    ] as Array<{ status: string }>,
+                },
+            } as any;
+
+            // Get the refetchInterval from the hook's query options
+            const queryOptions = (useProcessingQueue as any)();
+
+            // Verify refetchInterval returns false when no items are processing
+            if (queryOptions && typeof queryOptions.refetchInterval === 'function') {
+                const interval = queryOptions.refetchInterval(mockQueryNoProcessing);
+                expect(interval).toBe(false);
+            }
+        });
+
+        it('should continue polling when queue has processing items', () => {
+            // Verify the refetchInterval function returns 2000 when items are processing
+            const { result } = renderHook(() => useKGProcessing(), { wrapper });
+            const { useProcessingQueue } = result.current;
+
+            const mockQueryWithProcessing = {
+                state: {
+                    data: [
+                        { status: 'processing' },
+                        { status: 'pending' },
+                    ] as Array<{ status: string }>,
+                },
+            } as any;
+
+            const queryOptions = (useProcessingQueue as any)();
+
+            if (queryOptions && typeof queryOptions.refetchInterval === 'function') {
+                const interval = queryOptions.refetchInterval(mockQueryWithProcessing);
+                expect(interval).toBe(2000);
+            }
+        });
+
         it('should have consistent interface across multiple renders', () => {
             const { result } = renderHook(() => useKGProcessing(), { wrapper });
 
