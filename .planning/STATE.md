@@ -1,23 +1,26 @@
-# State: AURA-NOTES-MANAGER Authentication
+# State: AURA-NOTES-MANAGER
 
-**Version:** v1.0
-**Last Updated:** 2026-03-08
-**Status:** Milestone Complete
+**Version:** v1.1
+**Last Updated:** 2026-04-06
+**Status:** Defining requirements
 
 ---
 
-## Current Phase
+## Current Position
 
-**None** — All 5 phases of v1.0 complete. Ready for next milestone.
+Phase: Not started (defining requirements)
+Plan: -
+Status: Defining requirements
+Last activity: 2026-04-06 - Milestone v1.1 started
 
 ---
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-08)
+See: .planning/PROJECT.md (updated 2026-04-06)
 
-**Core value:** Secure, role-based access to departmental content management
-**Current focus:** Planning next milestone
+**Core value:** Reliable, role-aware management of departmental learning content and processing workflows
+**Current focus:** Milestone v1.1 Codebase Reliability and Hygiene
 
 ---
 
@@ -25,20 +28,19 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 ### Decisions Made
 
-- Use mock Firestore for local development (avoids Firebase credential requirements)
-- Zustand for auth state (lightweight, no Redux boilerplate)
-- Three-tier role system (admin/staff/student)
-- Bearer token auth (works with both mock and real Firebase)
-- localStorage for session persistence (v1.0 simplicity)
+- Use mock-capable auth and role-aware access controls for local and protected workflows
+- Keep the existing FastAPI + React/Vite stack and improve it in place
+- Treat v1.1 as a reliability-and-hygiene milestone, not a new feature milestone
+- Prefer safe removals and low-risk cleanup over aggressive deletion in uncertain areas
 
 ### Blockers
 
-None currently.
+- None currently.
 
 ### Open Questions
 
-- Next milestone priority: Real Firebase auth vs KG processing vs UI enhancements?
-- Should we migrate from localStorage to httpOnly cookies?
+- Which issue buckets need research versus direct remediation planning?
+- Which duplicate stacks or orphan candidates should be retired versus merely quarantined?
 
 ---
 
@@ -46,6 +48,7 @@ None currently.
 
 | Date | Event |
 |------|-------|
+| 2026-04-06 | v1.1 milestone started for codebase reliability and hygiene |
 | 2026-03-08 | v1.0 milestone completed and archived |
 | 2026-03-06 | Documentation updates (AGENTS.md, CLAUDE.md, GEMINI.md) |
 | 2026-02-04 | Phase 5 completed (Seed Data & Integration) |
@@ -55,9 +58,9 @@ None currently.
 
 ## Next Actions
 
-- [ ] Define requirements for v1.1 milestone
-- [ ] Research Firebase Auth integration approach
-- [ ] Consider security audit before production deployment
+- [ ] Decide whether milestone-level research is needed
+- [ ] Define scoped requirements for v1.1
+- [ ] Create roadmap phases for the audited fixes
 
 ---
 
@@ -65,4 +68,4 @@ None currently.
 
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
-| 2 | check if the current test files are compatibe with the currect projects functionalities and recent updates, verify both frontend and backend test files | 2026-03-08 | 7759b67 | [2-check-if-the-current-test-files-are-comp](./quick/2-check-if-the-current-test-files-are-comp/)
+| 2 | check if the current test files are compatibe with the currect projects functionalities and recent updates, verify both frontend and backend test files | 2026-03-08 | 7759b67 | [2-check-if-the-current-test-files-are-comp](./quick/2-check-if-the-current-test-files-are-comp/) |

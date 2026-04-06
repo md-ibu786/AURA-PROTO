@@ -1,125 +1,116 @@
-# AURA-NOTES-MANAGER Authentication
+# AURA-NOTES-MANAGER
 
-**Status:** v1.0 Shipped (2026-03-08)
-**Last updated:** 2026-03-08 after v1.0 milestone
+**Status:** v1.1 Planned (2026-04-06)
+**Last updated:** 2026-04-06 after milestone v1.1 start
 
 ---
 
 ## What This Is
 
-AURA-NOTES-MANAGER is a staff portal for document management and knowledge graph processing. The v1.0 milestone delivered a complete role-based authentication system that enables:
-
-- Secure user login with email/password (mock auth for local development)
-- Three-tier access control (admin, staff, student)
-- Department-level data isolation
-- Session persistence across page refreshes
-- Protected routes with role-based guards
+AURA-NOTES-MANAGER is a full-stack departmental note and hierarchy management system with role-based access, document/audio processing, and knowledge graph workflows. It serves admins, staff, and students through an explorer-style UI, backend APIs, and supporting admin/settings/usage tools.
 
 ---
 
 ## Core Value
 
-**Secure, role-based access to departmental content management.**
+**Reliable, role-aware management of departmental learning content and processing workflows.**
 
-The system ensures that staff can only manage notes in their assigned department, students can only view content, and administrators have full user management capabilities—all without requiring real Firebase credentials for local development.
+The system must let the right users browse, manage, process, and validate departmental content without unsafe access, flaky behavior, or opaque failures.
+
+---
+
+## Current Milestone: v1.1 Codebase Reliability and Hygiene
+
+**Goal:** Eliminate the audited runtime, test, performance, dead-code, duplication, and repo-cleanup issues with a safe-first cleanup strategy.
+
+**Target features:**
+- Fix broken and flaky tests, invalid assertions, and mismatched fixtures
+- Remove hanging and performance risks in backend and frontend hot paths
+- Replace silent failure patterns and tighten observability and error handling
+- Remove high-confidence dead code and stale artifacts
+- Clean up duplicate or drift-prone setup where the fix is low risk
 
 ---
 
 ## Requirements
 
-### Validated (v1.0)
+### Validated
 
-- ✓ Users can log in with email/password and receive a mock token — v1.0
-- ✓ Protected routes redirect unauthenticated users to login page — v1.0
-- ✓ Admin users can access `/admin/*` routes and user management endpoints — v1.0
-- ✓ Staff users can access their assigned department's data — v1.0
-- ✓ Student users have read-only access to their department's notes — v1.0
-- ✓ Auth state persists across page refreshes — v1.0
-- ✓ Mock authentication works without real Firebase credentials — v1.0
+- ✓ Users can authenticate and access role-appropriate application routes and APIs — v1.0
+- ✓ Users can browse and manage hierarchical department, semester, subject, module, and note data — pre-v1.1 existing product behavior
+- ✓ Staff can upload and process documents or audio through backend processing flows — pre-v1.1 existing product behavior
+- ✓ Users can view knowledge graph processing state and batch operations in the explorer flow — pre-v1.1 existing product behavior
+- ✓ Admins can access user, settings, and usage-management surfaces — pre-v1.1 existing product behavior
 
-### Active (Next Milestone)
+### Active
 
-- [ ] Real Firebase Authentication integration
-- [ ] Password reset functionality
-- [ ] Email verification
-- [ ] Session expiration warnings
-- [ ] Audit logging for user actions
+- [ ] Known runtime hanging, blocking, and full-scan hotspots are removed or bounded
+- [ ] Frontend, backend, and E2E tests reflect current behavior and run deterministically
+- [ ] Silent failure paths are replaced with explicit handling and observability
+- [ ] High-confidence dead code, stale artifacts, and secret-like leftovers are removed safely
+- [ ] Duplicate or drift-prone setup is reduced where low-risk consolidation is possible
 
 ### Out of Scope
 
-- OAuth/social login providers — not needed for internal staff tool
-- Multi-factor authentication — deferred until security audit
-- Mobile app authentication — web-first approach
+- New end-user product features unrelated to the audit findings — this milestone is stabilization and cleanup
+- Broad architectural rewrites without direct linkage to audited issues — safe-first delivery takes priority
+- Deleting uncertain runtime artifacts with weak evidence — defer until usage is confirmed
 
 ---
 
 ## Context
 
-### Current State (v1.0)
+### Current State
 
-**Codebase:**
-- Backend: FastAPI with Python 3.10+, mock Firestore implementation
-- Frontend: React 18 + TypeScript 5.6 + Vite + Zustand
-- Lines of Code: ~2,000 (auth system only)
-- Test Coverage: 8 integration tests, 8 unit tests for mock Firestore
+- Frontend: React 18, TypeScript, Vite, Zustand, TanStack Query, Playwright, Vitest
+- Backend: FastAPI with Firebase/Firestore, Neo4j, Redis-adjacent caching, and AI processing integrations
+- Existing product areas include explorer navigation, user/admin management, settings, usage reporting, document/audio processing, and KG operations
+- The current planning docs were stale and still framed the project primarily as an authentication milestone, so this milestone resets planning artifacts around the actual codebase
 
-**Shipped Features:**
-- Mock Firestore with collection/document/query support
-- Token verification supporting mock tokens (`mock-token-{role}-{uid}`)
-- FastAPI dependencies for role-based protection
-- User CRUD API (admin only)
-- Zustand auth store with localStorage persistence
-- Login page with form validation
-- ProtectedRoute component
-- Logout functionality in sidebar
-- Seed script with 3 test users
+### Audit Context Driving v1.1
 
-### Key Decisions
-
-| Decision | Rationale | Status |
-|----------|-----------|--------|
-| Mock Firestore for local dev | Avoid Firebase credential requirements for development | ✓ Good |
-| Zustand for auth state | Lightweight, no Redux boilerplate | ✓ Good |
-| Three-tier role system | Matches organizational structure (admin/staff/student) | ✓ Good |
-| Bearer token auth | Standard approach, works with both mock and real Firebase | ✓ Good |
-| localStorage for session | Simple persistence, acceptable for v1.0 | ⚠️ Revisit (consider httpOnly cookies) |
-
-### Technical Debt
-
-- Mock Firestore is in-memory only (data lost on restart)
-- No session expiration handling on frontend
-- localStorage session storage (vulnerable to XSS)
-- No rate limiting on login attempts
+- Runtime hotspots were found in async request paths, KG note lookup scans, and unbounded in-memory task stores
+- E2E suites contain broken fixture imports, tautological assertions, and heavy fixed-time waits
+- Several dead-code, orphaned-file, duplicate-config, and duplicate-helper candidates were identified
+- Repo hygiene issues include duplicate test stacks, stale generated artifacts, and a secret-like legacy credential file
 
 ---
 
-## Current Focus
+## Constraints
 
-**Planning next milestone** — Considering:
-1. Real Firebase Authentication integration
-2. Knowledge Graph processing improvements
-3. Note management UI enhancements
-
----
-
-## Files
-
-**Backend:**
-- `api/mock_firestore.py` — Mock Firestore implementation
-- `api/auth.py` — Authentication module
-- `api/users.py` — User management endpoints
-- `api/test_auth_integration.py` — Integration tests
-
-**Frontend:**
-- `frontend/src/stores/useAuthStore.ts` — Auth state
-- `frontend/src/api/client.ts` — API client with auth headers
-- `frontend/src/pages/LoginPage.tsx` — Login UI
-- `frontend/src/components/ProtectedRoute.tsx` — Route guards
-
-**Tools:**
-- `tools/seed_users.py` — Database seeding
-- `TEST_CREDENTIALS.md` — Test account reference
+- **Tech stack**: Must stay within the current FastAPI + React/Vite architecture — avoid unnecessary platform changes
+- **Safety**: Prefer safe removals and low-risk cleanup over broad rewrites — user explicitly chose safe-first cleanup
+- **Behavior preservation**: Existing shipped capabilities must keep working while reliability improves — cleanup cannot regress core flows
+- **Verification**: Changes should be backed by targeted tests, lint/build checks, or equivalent validation where feasible
 
 ---
 
-*Last updated: 2026-03-08 after v1.0 milestone*
+## Key Decisions
+
+| Decision | Rationale | Outcome |
+|----------|-----------|---------|
+| Scope v1.1 around all audited issue buckets | User wants the milestone to address the full audit, not a subset | — Pending |
+| Use safe-first cleanup rather than aggressive deletion | Reduces risk in a brownfield codebase with stale planning docs and possible hidden consumers | — Pending |
+| Continue milestone numbering to v1.1 | Follows shipped v1.0 milestone and reflects an incremental stabilization release | — Pending |
+
+---
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd-transition`):
+1. Requirements invalidated? -> Move to Out of Scope with reason
+2. Requirements validated? -> Move to Validated with phase reference
+3. New requirements emerged? -> Add to Active
+4. Decisions to log? -> Add to Key Decisions
+5. "What This Is" still accurate? -> Update if drifted
+
+**After each milestone** (via `/gsd-complete-milestone`):
+1. Full review of all sections
+2. Core Value check - still the right priority?
+3. Audit Out of Scope - reasons still valid?
+4. Update Context with current state
+
+---
+*Last updated: 2026-04-06 after milestone v1.1 start*
