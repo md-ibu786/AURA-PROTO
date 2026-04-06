@@ -131,31 +131,24 @@ describe('getAuthHeader auth failure handling', () => {
     });
 
     it('should throw AuthError when token retrieval fails', async () => {
-        // Mock useAuthStore.getState().getIdToken to throw
-        vi.mock('../stores/useAuthStore', () => ({
-            useAuthStore: {
-                getState: vi.fn(() => ({
-                    getIdToken: vi.fn().mockRejectedValue(new Error('Token service unavailable')),
-                })),
-            },
-        }));
+        // Mock getIdToken to throw
+        const mockGetIdToken = vi.fn().mockRejectedValue(new Error('Token service unavailable'));
+        vi.spyOn(useAuthStore, 'getState').mockReturnValue({
+            getIdToken: mockGetIdToken,
+        } as unknown as ReturnType<typeof useAuthStore.getState>);
 
-        // Import fresh after mock
-        // Note: This test will fail until client.ts is refactored to throw AuthError
         await expect(fetchApi('/protected-endpoint')).rejects.toThrow(AuthError);
     });
 
     it('should throw AuthError when 401 retry token refresh fails', async () => {
-        // First call returns 401, then token refresh fails
-        vi.mock('../stores/useAuthStore', () => ({
-            useAuthStore: {
-                getState: vi.fn(() => ({
-                    getIdToken: vi.fn()
-                        .mockResolvedValueOnce('initial-token')
-                        .mockRejectedValueOnce(new Error('Refresh failed')),
-                })),
-            },
-        }));
+        // First call returns token, 401 happens, then token refresh fails
+        const mockGetIdToken = vi.fn()
+            .mockResolvedValueOnce('initial-token')
+            .mockRejectedValueOnce(new Error('Refresh failed'));
+
+        vi.spyOn(useAuthStore, 'getState').mockReturnValue({
+            getIdToken: mockGetIdToken,
+        } as unknown as ReturnType<typeof useAuthStore.getState>);
 
         const mockResponse401 = {
             ok: false,
@@ -165,7 +158,6 @@ describe('getAuthHeader auth failure handling', () => {
 
         vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockResponse401 as unknown as Response);
 
-        // Note: This test will fail until client.ts is refactored
         await expect(fetchApi('/protected-endpoint')).rejects.toThrow(AuthError);
     });
 });

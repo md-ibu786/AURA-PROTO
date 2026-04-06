@@ -16,60 +16,102 @@
  *
  * KEY COMPONENTS:
  *    - API_BASE: Base URL for all API calls ('/api')
- *    - DuplicateError: Custom error class for 409 conflicts (duplicate names)
- *    - fetchApi<T>: Generic typed fetch for JSON requests
+ *    - fetchApi<T>: Generic typed fetch for JSON requests with auth retry
  *    - fetchBlob: Fetch wrapper for binary downloads (Blob responses)
  *    - fetchFormData<T>: Fetch wrapper for file uploads (FormData)
+ *    - executeWithRetry: Shared 401 retry logic for all fetch functions
+ *    - getAuthHeader: Authentication header helper with explicit error handling
  *
  * ERROR HANDLING:
  *    - 409 responses with DUPLICATE_NAME code throw DuplicateError
+ *    - Auth token failures throw AuthError (explicit failure mode)
+ *    - Network failures throw NetworkError
  *    - Other errors throw standard Error with detail message
- *    - Network errors return generic 'Network error' message
  *
  * DEPENDENCIES:
  *    - External: None (uses native fetch)
- *    - Internal: None
+ *    - Internal: ../stores/useAuthStore (auth state), ./errors (error classes)
  *
  * USAGE:
- *    import { fetchApi, fetchFormData, DuplicateError } from './client';
+ *    import { fetchApi, fetchFormData, DuplicateError, AuthError } from './client';
  *
  *    // JSON request
  *    const data = await fetchApi<MyType>('/endpoint', { method: 'POST', body: JSON.stringify(payload) });
  *
  *    // File upload
  *    const result = await fetchFormData<ResponseType>('/upload', formData);
+ *
+ *    // Error handling
+ *    try {
+ *        await fetchApi(...)
+ *    } catch (e) {
+ *        if (e instanceof AuthError) { ... }
+ *        else if (e instanceof DuplicateError) { ... }
+ *    }
  * ============================================================================
  */
 
 import { useAuthStore } from '../stores/useAuthStore';
+import { DuplicateError, AuthError } from './errors';
 
 const API_BASE = '/api';
-
-export class DuplicateError extends Error {
-    code: string;
-
-    constructor(message: string, code: string) {
-        super(message);
-        this.name = 'DuplicateError';
-        this.code = code;
-    }
-}
 
 export interface BlobResponse {
     blob: Blob;
     filename: string | null;
 }
 
+/**
+ * Get authentication header for API requests.
+ * Throws AuthError if token retrieval fails unexpectedly.
+ * Returns empty object if no token is available (expected for unauthenticated routes).
+ */
 async function getAuthHeader(): Promise<Record<string, string>> {
     try {
         const token = await useAuthStore.getState().getIdToken();
         if (token) {
             return { 'Authorization': `Bearer ${token}` };
         }
+        // No token available - expected for unauthenticated routes
+        return {};
     } catch (e) {
-        console.warn('Failed to get auth token', e);
+        // Token retrieval failed - this is unexpected
+        console.error('Auth token retrieval failed:', e);
+        throw new AuthError('Failed to retrieve authentication token', e);
     }
-    return {};
+}
+
+/**
+ * Execute a fetch with 401 retry logic.
+ * If initial response is 401, attempts token refresh and retries once.
+ * Throws AuthError if token refresh fails during retry.
+ */
+async function executeWithRetry(
+    url: string,
+    options: RequestInit
+): Promise<Response> {
+    let response = await fetch(url, options);
+
+    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
+        try {
+            const newToken = await useAuthStore.getState().getIdToken(true);
+            if (newToken) {
+                const retryHeaders = {
+                    ...options.headers,
+                    'Authorization': `Bearer ${newToken}`,
+                };
+                response = await fetch(url, {
+                    ...options,
+                    headers: retryHeaders,
+                });
+            }
+        } catch (e) {
+            console.error('Token refresh failed', e);
+            throw new AuthError('Token refresh failed during retry', e);
+        }
+    }
+
+    return response;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,7 +162,7 @@ async function fetchApi<T>(
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
 
-    let response = await fetch(url, {
+    const response = await executeWithRetry(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -128,26 +170,6 @@ async function fetchApi<T>(
             ...options?.headers,
         },
     });
-
-    // 401 Retry Logic
-    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
-        try {
-             // Force refresh token
-             const newToken = await useAuthStore.getState().getIdToken(true);
-             if (newToken) {
-                 response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${newToken}`,
-                        ...options?.headers,
-                    },
-                 });
-             }
-        } catch (e) {
-            console.error('Token refresh failed', e);
-        }
-    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
@@ -173,7 +195,7 @@ async function fetchBlob(
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
 
-    let response = await fetch(url, {
+    const response = await executeWithRetry(url, {
         ...options,
         headers: {
             'Content-Type': 'application/json',
@@ -181,26 +203,6 @@ async function fetchBlob(
             ...options?.headers,
         },
     });
-
-    // 401 Retry Logic
-    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
-        try {
-             // Force refresh token
-             const newToken = await useAuthStore.getState().getIdToken(true);
-             if (newToken) {
-                 response = await fetch(url, {
-                    ...options,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${newToken}`,
-                        ...options?.headers,
-                    },
-                 });
-             }
-        } catch (e) {
-            console.error('Token refresh failed', e);
-        }
-    }
 
     if (!response.ok) {
         const message = await parseErrorMessage(response);
@@ -223,31 +225,13 @@ async function fetchFormData<T>(
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
 
-    let response = await fetch(url, {
+    const response = await executeWithRetry(url, {
         method: 'POST',
         headers: {
             ...authHeaders,
         },
         body: formData,
     });
-
-    // 401 Retry Logic
-    if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
-        try {
-             const newToken = await useAuthStore.getState().getIdToken(true);
-             if (newToken) {
-                 response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${newToken}`,
-                    },
-                    body: formData,
-                 });
-             }
-        } catch (e) {
-            console.error('Token refresh failed', e);
-        }
-    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ detail: 'Network error' }));
@@ -361,4 +345,6 @@ export async function checkHealth(): Promise<HealthStatus> {
     };
 }
 
+// Re-export error classes for backward compatibility and convenience
+export { DuplicateError, AuthError } from './errors';
 export { fetchApi, fetchBlob, fetchFormData, API_BASE };
