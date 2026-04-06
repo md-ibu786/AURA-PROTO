@@ -77,6 +77,10 @@ export default defineConfig({
 
     /* Ignore HTTPS errors for local development */
     ignoreHTTPSErrors: true,
+
+    /* Action and navigation timeouts for deterministic behavior */
+    actionTimeout: 10_000,
+    navigationTimeout: 15_000,
   },
 
   /* Configure projects for major browsers */
@@ -138,5 +142,5 @@ export default defineConfig({
   shard: undefined,
 
   /* Maximum number of test failures before stopping */
-  maxFailures: process.env.CI ? 10 : undefined,
+  maxFailures: process.env.CI ? 5 : 3,
 });
