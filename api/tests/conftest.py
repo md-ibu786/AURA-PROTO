@@ -41,8 +41,8 @@ class MockModule(types.ModuleType):
             child_name = f"{self.__name__}.{name}"
             child = MockModule(child_name, self._auto_register)
             self._attrs[name] = child
-            # Auto-register in sys.modules if it's a sub-module (has a dot)
-            if self._auto_register and "." in self.__name__:
+            # Always auto-register in sys.modules for sub-modules
+            if self._auto_register:
                 sys.modules[child_name] = child
         return self._attrs[name]
 
