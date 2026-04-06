@@ -64,6 +64,7 @@ USAGE:
     Returns: {status: "transcribing", progress: 35, ...}
 ============================================================================
 """
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
@@ -74,13 +75,16 @@ import uuid
 # Structured logging
 try:
     from logging_config import get_logger
+
     logger = get_logger("audio")
 except ImportError:
     import logging
+
     logger = logging.getLogger("audio")
 
 # Import services (with fallbacks if dependencies are missing)
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import services
@@ -96,23 +100,30 @@ except ImportError as exc:
             f"Service unavailable due to import error: {_stt_import_error}"
         ) from _stt_import_error
 
+
 try:
     from services.coc import transform_transcript
 except ImportError:
+
     def transform_transcript(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
+
 
 try:
     from services.summarizer import generate_university_notes
 except ImportError:
+
     def generate_university_notes(*args, **kwargs):
         raise ImportError("AI dependencies not installed")
+
 
 try:
     from services.pdf_generator import create_pdf
 except ImportError:
+
     def create_pdf(*args, **kwargs):
         raise ImportError("fpdf dependency not installed. Run: pip install fpdf2")
+
 
 # Import note creation helper
 try:
@@ -129,13 +140,13 @@ router = APIRouter(prefix="/api/audio", tags=["audio-processing"])
 job_status_store = {}
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PDFS_DIR = os.path.join(BASE_DIR, 'pdfs')
+PDFS_DIR = os.path.join(BASE_DIR, "pdfs")
 
 # File size limits (in bytes)
 MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100MB for audio files
 MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
-MIN_AUDIO_SIZE = 1024 # 1KB minimum
-ALLOWED_AUDIO_EXTENSIONS = {'.mp3', '.wav', '.m4a', '.ogg', '.flac'}
+MIN_AUDIO_SIZE = 1024  # 1KB minimum
+ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 
 
 def validate_file_size(content_length: int, max_size: int, file_type: str) -> None:
@@ -144,11 +155,12 @@ def validate_file_size(content_length: int, max_size: int, file_type: str) -> No
         max_mb = max_size / (1024 * 1024)
         raise HTTPException(
             status_code=413,
-            detail=f"{file_type} file too large. Maximum size: {max_mb:.0f}MB"
+            detail=f"{file_type} file too large. Maximum size: {max_mb:.0f}MB",
         )
 
 
 # ========== MODELS ==========
+
 
 class TranscribeResponse(BaseModel):
     success: bool
@@ -181,19 +193,19 @@ class SummarizeResponse(BaseModel):
 class GeneratePdfRequest(BaseModel):
     title: str
     notes: str
-    moduleId: Optional[str] = None # Updated to str
+    moduleId: Optional[str] = None  # Updated to str
 
 
 class GeneratePdfResponse(BaseModel):
     success: bool
     pdfUrl: Optional[str] = None
-    noteId: Optional[str] = None # Updated to str
+    noteId: Optional[str] = None  # Updated to str
     error: Optional[str] = None
 
 
 class PipelineRequest(BaseModel):
     topic: str
-    moduleId: Optional[str] = None # Updated to str
+    moduleId: Optional[str] = None  # Updated to str
 
 
 class PipelineStatusResponse(BaseModel):
@@ -207,27 +219,27 @@ class PipelineStatusResponse(BaseModel):
 # ========== ENDPOINTS ==========
 
 # Document uploads directory
-DOCS_DIR = os.path.join(BASE_DIR, 'pdfs')  # Store docs alongside PDFs
+DOCS_DIR = os.path.join(BASE_DIR, "pdfs")  # Store docs alongside PDFs
 
 
 @router.post("/upload-document")
 async def upload_document(
     file: UploadFile = File(...),
     title: str = Form(...),
-    moduleId: str = Form(...) # Updated to str
+    moduleId: str = Form(...),  # Updated to str
 ):
     """
     Upload a document (PDF, DOC, TXT) and create a note entry.
     """
     try:
         # Validate file type
-        allowed_extensions = {'.pdf', '.doc', '.docx', '.txt', '.md'}
-        file_ext = os.path.splitext(file.filename or '')[1].lower()
+        allowed_extensions = {".pdf", ".doc", ".docx", ".txt", ".md"}
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
 
         if file_ext not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"File type {file_ext} not allowed. Allowed: {', '.join(allowed_extensions)}"
+                detail=f"File type {file_ext} not allowed. Allowed: {', '.join(allowed_extensions)}",
             )
 
         # Read file content
@@ -244,13 +256,15 @@ async def upload_document(
 
         # Generate unique filename
         timestamp = int(time.time())
-        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in title)
-        safe_title = safe_title.replace(' ', '_')[:50]
+        safe_title = "".join(
+            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in title
+        )
+        safe_title = safe_title.replace(" ", "_")[:50]
         filename = f"{safe_title}_{timestamp}{file_ext}"
         filepath = os.path.join(DOCS_DIR, filename)
 
         # Save file
-        with open(filepath, 'wb') as f:
+        with open(filepath, "wb") as f:
             f.write(file_content)
 
         # Create URL (documents served from same /pdfs route)
@@ -259,20 +273,21 @@ async def upload_document(
         # Insert into database using helper
         note = create_note_record(moduleId, title, doc_url)
         if not note:
-             raise HTTPException(status_code=404, detail="Module not found")
+            raise HTTPException(status_code=404, detail="Module not found")
 
         return {
             "success": True,
-            "noteId": note['id'],
+            "noteId": note["id"],
             "documentUrl": doc_url,
             "filename": filename,
-            "message": f"Document '{title}' uploaded successfully!"
+            "message": f"Document '{title}' uploaded successfully!",
         }
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
 
 @router.post("/transcribe", response_model=TranscribeResponse)
 async def transcribe_audio(file: UploadFile = File(...)):
@@ -281,11 +296,11 @@ async def transcribe_audio(file: UploadFile = File(...)):
     """
     try:
         # Validate extension
-        file_ext = os.path.splitext(file.filename or '')[1].lower()
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
         if file_ext not in ALLOWED_AUDIO_EXTENSIONS:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported file format {file_ext}. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}"
+                detail=f"Unsupported file format {file_ext}. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}",
             )
 
         # Read file bytes
@@ -296,26 +311,27 @@ async def transcribe_audio(file: UploadFile = File(...)):
 
         # Validate file size
         if len(audio_bytes) < MIN_AUDIO_SIZE:
-            raise HTTPException(status_code=400, detail="File too small to be a valid audio recording")
+            raise HTTPException(
+                status_code=400, detail="File too small to be a valid audio recording"
+            )
 
         validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
 
         # Process with Deepgram
         result = process_audio_file(audio_bytes)
 
-        return TranscribeResponse(
-            success=True,
-            transcript=result.get('text', '')
-        )
+        return TranscribeResponse(success=True, transcript=result.get("text", ""))
     except HTTPException as e:
-        raise e # Re-raise 400/413 errors
+        raise e  # Re-raise 400/413 errors
     except ValueError as e:
         return TranscribeResponse(success=False, error=str(e))
     except Exception as e:
         error_msg = str(e)
         if "timed out" in error_msg.lower():
             error_msg = "Transcription timed out. Please try a shorter recording or check your connection."
-        return TranscribeResponse(success=False, error=f"Transcription failed: {error_msg}")
+        return TranscribeResponse(
+            success=False, error=f"Transcription failed: {error_msg}"
+        )
 
 
 @router.post("/refine", response_model=RefineResponse)
@@ -329,10 +345,7 @@ async def refine_transcript(request: RefineRequest):
 
         refined = transform_transcript(request.topic, request.transcript)
 
-        return RefineResponse(
-            success=True,
-            refinedTranscript=refined
-        )
+        return RefineResponse(success=True, refinedTranscript=refined)
     except Exception as e:
         return RefineResponse(success=False, error=f"Refinement failed: {str(e)}")
 
@@ -344,14 +357,13 @@ async def summarize_transcript(request: SummarizeRequest):
     """
     try:
         if not request.refinedTranscript:
-            raise HTTPException(status_code=400, detail="Refined transcript is required")
+            raise HTTPException(
+                status_code=400, detail="Refined transcript is required"
+            )
 
         notes = generate_university_notes(request.topic, request.refinedTranscript)
 
-        return SummarizeResponse(
-            success=True,
-            notes=notes
-        )
+        return SummarizeResponse(success=True, notes=notes)
     except Exception as e:
         return SummarizeResponse(success=False, error=f"Summarization failed: {str(e)}")
 
@@ -370,8 +382,10 @@ async def generate_pdf(request: GeneratePdfRequest):
 
         # Generate unique filename
         timestamp = int(time.time())
-        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in request.title)
-        safe_title = safe_title.replace(' ', '_')[:50]
+        safe_title = "".join(
+            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in request.title
+        )
+        safe_title = safe_title.replace(" ", "_")[:50]
         filename = f"{safe_title}_{timestamp}.pdf"
         filepath = os.path.join(PDFS_DIR, filename)
 
@@ -386,65 +400,67 @@ async def generate_pdf(request: GeneratePdfRequest):
             try:
                 note = create_note_record(request.moduleId, request.title, pdf_url)
                 if note:
-                    note_id = note['id']
+                    note_id = note["id"]
             except Exception as db_error:
                 # PDF was generated but DB save failed - still return success
                 logger.warning(f"Failed to save note to database: {db_error}")
 
-        return GeneratePdfResponse(
-            success=True,
-            pdfUrl=pdf_url,
-            noteId=note_id
-        )
+        return GeneratePdfResponse(success=True, pdfUrl=pdf_url, noteId=note_id)
     except Exception as e:
-        return GeneratePdfResponse(success=False, error=f"PDF generation failed: {str(e)}")
+        return GeneratePdfResponse(
+            success=False, error=f"PDF generation failed: {str(e)}"
+        )
 
 
-def _run_pipeline(job_id: str, audio_bytes: bytes, topic: str, module_id: Optional[str]):
+def _run_pipeline(
+    job_id: str, audio_bytes: bytes, topic: str, module_id: Optional[str]
+):
     """Background task to run the full processing pipeline."""
     try:
         # Step 1: Transcribe
         job_status_store[job_id] = {
-            'status': 'transcribing',
-            'progress': 10,
-            'message': 'Transcribing audio...'
+            "status": "transcribing",
+            "progress": 10,
+            "message": "Transcribing audio...",
         }
 
         result = process_audio_file(audio_bytes)
-        transcript = result.get('text', '')
+        transcript = result.get("text", "")
 
         if not transcript:
             raise ValueError("Transcription returned empty result")
 
         # Step 2: Refine
         job_status_store[job_id] = {
-            'status': 'refining',
-            'progress': 35,
-            'message': 'Refining transcript...'
+            "status": "refining",
+            "progress": 35,
+            "message": "Refining transcript...",
         }
 
         refined = transform_transcript(topic, transcript)
 
         # Step 3: Summarize
         job_status_store[job_id] = {
-            'status': 'summarizing',
-            'progress': 60,
-            'message': 'Generating notes...'
+            "status": "summarizing",
+            "progress": 60,
+            "message": "Generating notes...",
         }
 
         notes = generate_university_notes(topic, refined)
 
         # Step 4: Generate PDF
         job_status_store[job_id] = {
-            'status': 'generating_pdf',
-            'progress': 85,
-            'message': 'Creating PDF...'
+            "status": "generating_pdf",
+            "progress": 85,
+            "message": "Creating PDF...",
         }
 
         os.makedirs(PDFS_DIR, exist_ok=True)
         timestamp = int(time.time())
-        safe_title = "".join(c if c.isalnum() or c in (' ', '-', '_') else '_' for c in topic)
-        safe_title = safe_title.replace(' ', '_')[:50]
+        safe_title = "".join(
+            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in topic
+        )
+        safe_title = safe_title.replace(" ", "_")[:50]
         filename = f"{safe_title}_{timestamp}.pdf"
         filepath = os.path.join(PDFS_DIR, filename)
 
@@ -456,30 +472,36 @@ def _run_pipeline(job_id: str, audio_bytes: bytes, topic: str, module_id: Option
             try:
                 note = create_note_record(module_id, topic, pdf_url)
                 if note:
-                    note_id = note['id']
-            except Exception:
-                pass
+                    note_id = note["id"]
+            except Exception as e:
+                logger.error(f"Failed to save note to database: {e}", exc_info=True)
+                # Track partial failure - PDF was created but DB save failed
+                if "warnings" not in job_status_store[job_id]:
+                    job_status_store[job_id]["warnings"] = []
+                job_status_store[job_id]["warnings"].append(
+                    f"PDF generated but note record creation failed: {str(e)}"
+                )
 
         # Complete
         job_status_store[job_id] = {
-            'status': 'complete',
-            'progress': 100,
-            'message': 'Processing complete!',
-            'result': {
-                'transcript': transcript,
-                'refinedTranscript': refined,
-                'notes': notes,
-                'pdfUrl': pdf_url,
-                'noteId': note_id
-            }
+            "status": "complete",
+            "progress": 100,
+            "message": "Processing complete!",
+            "result": {
+                "transcript": transcript,
+                "refinedTranscript": refined,
+                "notes": notes,
+                "pdfUrl": pdf_url,
+                "noteId": note_id,
+            },
         }
 
     except Exception as e:
         job_status_store[job_id] = {
-            'status': 'error',
-            'progress': 0,
-            'message': f'Error: {str(e)}',
-            'result': None
+            "status": "error",
+            "progress": 0,
+            "message": f"Error: {str(e)}",
+            "result": None,
         }
 
 
@@ -488,7 +510,7 @@ async def start_pipeline(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     topic: str = Form(...),
-    moduleId: Optional[str] = Form(None) # Updated to str
+    moduleId: Optional[str] = Form(None),  # Updated to str
 ):
     """
     Start the full audio processing pipeline (async with status polling).
@@ -506,9 +528,9 @@ async def start_pipeline(
         # Create job
         job_id = str(uuid.uuid4())
         job_status_store[job_id] = {
-            'status': 'pending',
-            'progress': 0,
-            'message': 'Starting pipeline...'
+            "status": "pending",
+            "progress": 0,
+            "message": "Starting pipeline...",
         }
 
         # Start background task
@@ -532,8 +554,8 @@ async def get_pipeline_status(job_id: str):
 
     return PipelineStatusResponse(
         jobId=job_id,
-        status=status['status'],
-        progress=status['progress'],
-        message=status.get('message'),
-        result=status.get('result')
+        status=status["status"],
+        progress=status["progress"],
+        message=status.get("message"),
+        result=status.get("result"),
     )
