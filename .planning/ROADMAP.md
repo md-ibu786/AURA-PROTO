@@ -3,7 +3,7 @@
 **Milestone:** v1.1 Codebase Reliability and Hygiene
 **Phase numbering:** Continued from v1.0 (starts at Phase 6)
 **Granularity:** Standard (inferred; no planning granularity setting was available)
-**Last updated:** 2026-04-06
+**Last updated:** 2026-04-06 (Phase 6 planned)
 
 ---
 
@@ -25,7 +25,15 @@
   2. Audited critical frontend E2E flows complete using deterministic waits and meaningful assertions instead of fixed sleeps or tautological checks.
   3. Frontend and backend verification commands stop quickly on hangs and surface the milestone's key hygiene failures early.
   4. There is one clear active verification stack and workflow source of truth for the current product surface.
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Fix broken fixture imports (useMockAuth export)
+- [ ] 06-02-PLAN.md — Fix auth setup wiring and standardize timeouts
+- [ ] 06-03-PLAN.md — Replace fixed waits with deterministic assertions
+- [ ] 06-04-PLAN.md — Consolidate E2E stacks (migrate root e2e/ to frontend/e2e/)
+- [ ] 06-05-PLAN.md — Update documentation for single verification stack
+
 **UI hint**: yes
 
 ### Phase 7: Failure Hardening & Shared Seams
@@ -66,7 +74,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 6. Verification Recovery | 0/0 | Not started | - |
+| 6. Verification Recovery | 0/5 | Planned | - |
 | 7. Failure Hardening & Shared Seams | 0/0 | Not started | - |
 | 8. Runtime Hotspot Remediation | 0/0 | Not started | - |
 | 9. Safe Cleanup & Repo Hygiene | 0/0 | Not started | - |
