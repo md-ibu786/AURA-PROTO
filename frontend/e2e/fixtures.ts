@@ -803,3 +803,6 @@ export const test = base.extend<{
 });
 
 export { expect };
+
+// Alias for backward compatibility with test files
+export { isMockAuthEnabled as useMockAuth };
