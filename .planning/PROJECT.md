@@ -53,26 +53,8 @@ The system must let the right users browse, manage, process, and validate depart
 
 ### Active
 
-- [ ] Known runtime hanging, blocking, and full-scan hotspots are removed or bounded
-- [ ] Frontend, backend, and E2E tests reflect current behavior and run deterministically
-- [ ] Silent failure paths are replaced with explicit handling and observability
-
-### Validated in Phase 08
-
-- ✓ KG note lookup paths use bounded Firestore queries instead of full-collection scans
-- ✓ Job status store has TTL-based eviction and max-entry bounds
-- ✓ Frontend polling cleanup verified with regression tests
-
-### Validated in Phase 09
-
-- ✓ Committed credential files removed from repository tracking
-- ✓ Gitleaks CI guardrail added to prevent future secret leaks
-- ✓ Human credential rotation checkpoint completed
-- ✓ Generated coverage and test report artifacts purged
-- ✓ Deprecated root E2E implementation removed (tombstone retained)
-- ✓ Explicit .gitignore patterns for cleaned artifact classes
-- ✓ Operator docs refreshed to reflect cleaned canonical workflows
-- ✓ Planning codebase maps updated to remove stale references
+- [ ] Diagnostics and observability improvements (OBS-01, OBS-02 deferred from v1.1)
+- [ ] Next milestone scope to be defined for v1.2
 
 ### Out of Scope
 
@@ -137,4 +119,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-06 after v1.1 milestone completion*
+*Last updated: 2026-04-07 after v1.1 milestone archival*
