@@ -32,7 +32,7 @@
  * ============================================================================
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import {
     Settings,
     Database,
@@ -57,6 +57,11 @@ export function SettingsPage() {
         queryKey: ['health'],
         queryFn: checkHealth,
         refetchInterval: 30000, // Refresh every 30 seconds
+        staleTime: 30 * 1000,
+        gcTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        placeholderData: keepPreviousData,
     });
 
     return (
