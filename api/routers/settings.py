@@ -227,17 +227,34 @@ async def list_models(
 
 @router.get("/models")
 async def list_all_models(
+    refresh: bool = Query(default=False),
     cache: ModelCache = Depends(get_model_cache),
 ) -> list[dict[str, object]]:
     """Return all models exposed by the current router."""
     models: list[ModelInfo] = []
+    last_router_error: ModelRouterError | None = None
+
     for provider in ProviderType:
         try:
-            models.extend(await cache.get_models(provider.value))
+            models.extend(await cache.get_models(provider.value, force_refresh=refresh))
         except ModelUnavailableError:
+            logger.warning(
+                "Settings model discovery unavailable for provider '%s'",
+                provider.value,
+            )
             continue
         except ModelRouterError as error:
-            raise _map_model_router_error(error) from error
+            logger.warning(
+                "Settings model discovery failed for provider '%s': %s",
+                provider.value,
+                error,
+            )
+            last_router_error = error
+            continue
+
+    if not models and last_router_error is not None:
+        raise _map_model_router_error(last_router_error) from last_router_error
+
     return _serialize_models(models)
 
 
