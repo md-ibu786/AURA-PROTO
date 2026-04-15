@@ -48,13 +48,15 @@ export const settingsKeys = {
     apiKey: (provider: string) => [...settingsKeys.all, 'apiKey', provider] as const,
 };
 
-export const useAllModels = () => {
+export const useAllModels = (refresh: boolean = false) => {
     return useQuery({
-        queryKey: settingsKeys.models(),
+        queryKey: [...settingsKeys.models(), refresh],
         queryFn: async () => {
-            return await fetchApi<ModelInfo[]>('/v1/settings/models');
+            const query = refresh ? '?refresh=true' : '';
+            return await fetchApi<ModelInfo[]>(`/v1/settings/models${query}`);
         },
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: refresh ? 0 : 5 * 60 * 1000, // No stale time if refreshing
+        gcTime: 10 * 60 * 1000, // Keep in cache for 10 min after unmount to survive tab switches
     });
 };
 
@@ -65,6 +67,7 @@ export const useDefaults = () => {
             return await fetchApi<Record<string, DefaultModelSetting>>('/v1/settings/defaults');
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
+        gcTime: 5 * 60 * 1000, // Keep in cache for 5 min after unmount
     });
 };
 
@@ -75,6 +78,7 @@ export const useProviderModels = (provider: ProviderType | string) => {
             return await fetchApi<ModelInfo[]>(`/v1/settings/providers/${provider}/models`);
         },
         enabled: !!provider,
+        gcTime: 10 * 60 * 1000, // Keep in cache for 10 min after unmount
     });
 };
 
@@ -86,6 +90,7 @@ export const useApiKeyStatus = (provider: ProviderType | string) => {
         },
         enabled: !!provider,
         refetchOnWindowFocus: false,
+        gcTime: 2 * 60 * 1000, // Keep in cache for 2 min after unmount
     });
 };
 

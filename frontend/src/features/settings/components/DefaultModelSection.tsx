@@ -39,7 +39,8 @@ import { useDefaults, useAllModels, useUpdateDefault } from '../hooks/useSetting
 import { groupModelsByProvider } from '../hooks/useModelList';
 import { HierarchicalModelPicker } from './HierarchicalModelPicker';
 import { UseCase, ModelGroup, ModelInfo } from '@/types/settings';
-import { Check, AlertCircle } from 'lucide-react';
+import { Check, AlertCircle, RefreshCw } from 'lucide-react';
+import { cn } from '@/lib/cn';
 
 const USE_CASES: { id: UseCase; label: string; description: string }[] = [
     { id: 'chat', label: 'Chat Model', description: 'Used for conversational responses and RAG' },
@@ -58,13 +59,24 @@ const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
 };
 
 export function DefaultModelSection() {
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const { data: defaults, isLoading: loadingDefaults } = useDefaults();
-    const { data: allModels, isLoading: loadingModels } = useAllModels();
+    const { data: allModels, isLoading: loadingModels, refetch: refetchModels } = useAllModels(isRefreshing);
     
-    if (loadingDefaults || loadingModels) {
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        try {
+            await refetchModels();
+        } finally {
+            // Give a little time for the animation
+            setTimeout(() => setIsRefreshing(false), 500);
+        }
+    };
+
+    if (loadingDefaults || (loadingModels && !isRefreshing)) {
         return (
             <div className="space-y-6">
-                {[1, 2, 3].map(i => (
+                {[1, 2, 3, 4, 5].map(i => (
                     <div key={i} className="animate-pulse flex flex-col space-y-2">
                         <div className="h-5 bg-muted/50 rounded w-1/4"></div>
                         <div className="h-4 bg-muted/50 rounded w-2/4 mb-2"></div>
@@ -77,6 +89,16 @@ export function DefaultModelSection() {
 
     return (
         <div className="space-y-8">
+            <div className="flex justify-end -mb-4">
+                <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                    <RefreshCw className={cn("w-3 h-3", isRefreshing && "animate-spin")} />
+                    {isRefreshing ? 'Refreshing models...' : 'Refresh model list'}
+                </button>
+            </div>
             {USE_CASES.map(useCase => (
                 <UseCaseSection
                     key={useCase.id}
@@ -105,8 +127,11 @@ function UseCaseSection({
     const [selected, setSelected] = useState(currentValue);
 
     // Sync local state when server default changes (e.g. via another tab)
+    // Only sync when currentValue is non-empty to preserve local selection during loading
     useEffect(() => {
-        setSelected(currentValue);
+        if (currentValue) {
+            setSelected(currentValue);
+        }
     }, [currentValue]);
 
     const handleChange = (modelName: string) => {
