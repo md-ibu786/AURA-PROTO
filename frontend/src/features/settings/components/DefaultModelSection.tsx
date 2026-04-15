@@ -61,19 +61,20 @@ const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
 export function DefaultModelSection() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const { data: defaults, isLoading: loadingDefaults } = useDefaults();
-    const { data: allModels, isLoading: loadingModels, refetch: refetchModels } = useAllModels(isRefreshing);
+    const { data: allModels, isLoading: loadingModels, refetch: refetchModels } = useAllModels();
     
     const handleRefresh = async () => {
         setIsRefreshing(true);
         try {
-            await refetchModels();
+            // Force refresh by passing refetch option
+            await refetchModels({ throwOnError: true });
         } finally {
             // Give a little time for the animation
             setTimeout(() => setIsRefreshing(false), 500);
         }
     };
 
-    if (loadingDefaults || (loadingModels && !isRefreshing)) {
+    if (loadingDefaults || loadingModels) {
         return (
             <div className="space-y-6">
                 {[1, 2, 3, 4, 5].map(i => (

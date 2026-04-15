@@ -44,7 +44,7 @@ const PROVIDERS: { id: ProviderType; label: string; icon: React.ElementType; nee
 ];
 
 export function ProviderSettingsSection() {
-    const { data: models = [], isLoading } = useAllModels();
+    const { data: models = [], isLoading } = useAllModels(true);
 
     return (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

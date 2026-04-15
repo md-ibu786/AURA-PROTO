@@ -48,15 +48,16 @@ export const settingsKeys = {
     apiKey: (provider: string) => [...settingsKeys.all, 'apiKey', provider] as const,
 };
 
-export const useAllModels = (refresh: boolean = false) => {
+export const useAllModels = (enabled: boolean = true) => {
     return useQuery({
-        queryKey: [...settingsKeys.models(), refresh],
+        queryKey: settingsKeys.models(),
         queryFn: async () => {
-            const query = refresh ? '?refresh=true' : '';
-            return await fetchApi<ModelInfo[]>(`/v1/settings/models${query}`);
+            return await fetchApi<ModelInfo[]>('/v1/settings/models');
         },
-        staleTime: refresh ? 0 : 5 * 60 * 1000, // No stale time if refreshing
+        staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // Keep in cache for 10 min after unmount to survive tab switches
+        refetchOnWindowFocus: false, // Prevent refresh when switching tabs
+        enabled,
     });
 };
 
