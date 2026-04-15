@@ -60,8 +60,21 @@ const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
 
 export function DefaultModelSection() {
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const { data: defaults, isLoading: loadingDefaults } = useDefaults();
-    const { data: allModels, isLoading: loadingModels, refetch: refetchModels } = useAllModels();
+    const {
+        data: defaults,
+        isLoading: loadingDefaults,
+        isFetching: isFetchingDefaults,
+    } = useDefaults();
+    const {
+        data: allModels,
+        isLoading: loadingModels,
+        isFetching: isFetchingModels,
+        refetch: refetchModels,
+    } = useAllModels();
+    const modelList = allModels || [];
+    const shouldShowSkeleton =
+        (loadingDefaults && !defaults) ||
+        (loadingModels && modelList.length === 0);
     
     const handleRefresh = async () => {
         setIsRefreshing(true);
@@ -74,7 +87,7 @@ export function DefaultModelSection() {
         }
     };
 
-    if (loadingDefaults || loadingModels) {
+    if (shouldShowSkeleton) {
         return (
             <div className="space-y-6">
                 {[1, 2, 3, 4, 5].map(i => (
@@ -105,8 +118,9 @@ export function DefaultModelSection() {
                     key={useCase.id}
                     useCase={useCase}
                     currentValue={defaults?.[useCase.id]?.model || ''}
-                    groupedModels={groupModelsByProvider(allModels || [], USE_CASE_MODEL_TYPES[useCase.id])}
-                    allModels={allModels || []}
+                    groupedModels={groupModelsByProvider(modelList, USE_CASE_MODEL_TYPES[useCase.id])}
+                    allModels={modelList}
+                    isRefreshing={isFetchingDefaults || isFetchingModels}
                 />
             ))}
         </div>
@@ -114,26 +128,38 @@ export function DefaultModelSection() {
 }
 
 function UseCaseSection({ 
-    useCase, 
-    currentValue, 
-    groupedModels, 
-    allModels 
-}: { 
+    useCase,
+    currentValue,
+    groupedModels,
+    allModels,
+    isRefreshing,
+}: {
     useCase: typeof USE_CASES[0];
     currentValue: string;
     groupedModels: ModelGroup[];
     allModels: ModelInfo[];
+    isRefreshing: boolean;
 }) {
     const mutation = useUpdateDefault(useCase.id);
     const [selected, setSelected] = useState(currentValue);
 
-    // Sync local state when server default changes (e.g. via another tab)
-    // Only sync when currentValue is non-empty to preserve local selection during loading
+    const hasSelectedModel = selected
+        ? allModels.some(model => model.name === selected)
+        : false;
+
+    // Sync local state when server default changes and the target model is present.
     useEffect(() => {
-        if (currentValue) {
+        const hasServerModel = currentValue
+            ? allModels.some(model => model.name === currentValue)
+            : false;
+        if (currentValue && hasServerModel) {
             setSelected(currentValue);
+            return;
         }
-    }, [currentValue]);
+        if (!selected && currentValue && !hasServerModel && allModels.length > 0) {
+            setSelected(allModels[0].name);
+        }
+    }, [allModels, currentValue, selected]);
 
     const handleChange = (modelName: string) => {
         setSelected(modelName);
@@ -158,7 +184,7 @@ function UseCaseSection({
             <div className="relative">
                 <HierarchicalModelPicker
                     groups={groupedModels}
-                    value={selected}
+                    value={hasSelectedModel ? selected : ''}
                     onChange={handleChange}
                     placeholder={`Select ${useCase.label.toLowerCase()}...`}
                     className="mt-2"
@@ -178,6 +204,9 @@ function UseCaseSection({
                         <span className="text-xs text-destructive flex items-center gap-1">
                             <AlertCircle className="w-3 h-3" /> Failed to update
                         </span>
+                    )}
+                    {!mutation.isPending && !mutation.isSuccess && !mutation.isError && isRefreshing && (
+                        <span className="text-xs text-muted-foreground">Refreshing model availability...</span>
                     )}
                 </div>
 

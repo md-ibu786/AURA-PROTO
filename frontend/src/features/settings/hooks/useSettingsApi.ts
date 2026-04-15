@@ -29,7 +29,7 @@
  *    const updateDefaults = useUpdateDefaults();
  * ============================================================================
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchApi } from '@/api/client';
 import { toast } from 'sonner';
 import type { 
@@ -57,6 +57,8 @@ export const useAllModels = (enabled: boolean = true) => {
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // Keep in cache for 10 min after unmount to survive tab switches
         refetchOnWindowFocus: false, // Prevent refresh when switching tabs
+        refetchOnReconnect: false,
+        placeholderData: keepPreviousData,
         enabled,
     });
 };
@@ -68,7 +70,10 @@ export const useDefaults = () => {
             return await fetchApi<Record<string, DefaultModelSetting>>('/v1/settings/defaults');
         },
         staleTime: 2 * 60 * 1000, // 2 minutes
-        gcTime: 5 * 60 * 1000, // Keep in cache for 5 min after unmount
+        gcTime: 10 * 60 * 1000, // Keep in cache for 10 min after unmount
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        placeholderData: keepPreviousData,
     });
 };
 
