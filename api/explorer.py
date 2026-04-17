@@ -116,14 +116,14 @@ class MoveResponse(BaseModel):
 async def _get_note_count_async(module_path: str) -> int:
     """Count notes in a module asynchronously."""
     notes_ref = async_db.collection(f"{module_path}/notes")
-    docs = [d async for d in notes_ref.stream()]
+    docs = [d async for d in notes_ref.stream()]  # type: ignore[misc]
     return len(docs)
 
 
 async def _has_children_async(parent_path: str, child_collection: str) -> bool:
     """Check if parent has any children in specified collection."""
     coll_ref = async_db.collection(f"{parent_path}/{child_collection}")
-    docs = [d async for d in coll_ref.limit(1).stream()]
+    docs = [d async for d in coll_ref.limit(1).stream()]  # type: ignore[misc]
     return len(docs) > 0
 
 
@@ -133,7 +133,7 @@ async def _build_notes_async(module_path: str, module_id: str) -> List[ExplorerN
         "created_at", direction=firestore.Query.DESCENDING
     )
     result = []
-    async for note in notes_ref.stream():
+    async for note in notes_ref.stream():  # type: ignore[misc]
         data = note.to_dict()
         pdf_url = data.get("pdf_url")
         pdf_filename = pdf_url.split("/")[-1] if pdf_url else None
@@ -191,7 +191,7 @@ async def _build_modules_async(
     modules_ref = async_db.collection(f"{subject_path}/modules").order_by(
         "module_number"
     )
-    mod_docs = [d async for d in modules_ref.stream()]
+    mod_docs = [d async for d in modules_ref.stream()]  # type: ignore[misc]
 
     # Parallel build of each module
     tasks = [
@@ -231,7 +231,7 @@ async def _build_subjects_async(
 ) -> List[ExplorerNode]:
     """Build all subject nodes for a semester asynchronously with parallel fetching."""
     subjects_ref = async_db.collection(f"{semester_path}/subjects").order_by("name")
-    subj_docs = [d async for d in subjects_ref.stream()]
+    subj_docs = [d async for d in subjects_ref.stream()]  # type: ignore[misc]
 
     tasks = [
         _build_single_subject_async(doc, semester_id, semester_path, include_children)
@@ -274,7 +274,7 @@ async def _build_semesters_async(
     semesters_ref = async_db.collection(f"{dept_path}/semesters").order_by(
         "semester_number"
     )
-    sem_docs = [d async for d in semesters_ref.stream()]
+    sem_docs = [d async for d in semesters_ref.stream()]  # type: ignore[misc]
 
     tasks = [
         _build_single_semester_async(doc, dept_id, dept_path, include_children)
@@ -306,7 +306,6 @@ async def _build_single_department_async(dept_doc, depth: int) -> ExplorerNode:
     )
 
 
-# Sync helper for find_doc_ref (unchanged, uses sync db for simplicity in move/delete)
 def find_doc_ref_sync(collection_name: str, doc_id: str):
     """Find a document reference by ID using collection group query (sync)."""
     if collection_name == "departments":
@@ -324,7 +323,7 @@ def find_doc_ref_sync(collection_name: str, doc_id: str):
 async def get_explorer_tree(depth: int = 5):
     """Get the full hierarchy tree asynchronously with parallel fetching."""
     depts_ref = async_db.collection("departments").order_by("name")
-    dept_docs = [d async for d in depts_ref.stream()]
+    dept_docs = [d async for d in depts_ref.stream()]  # type: ignore[misc]
 
     # Build all departments in parallel
     tasks = [_build_single_department_async(doc, depth) for doc in dept_docs]
@@ -410,6 +409,8 @@ def move_node(request: MoveRequest):
     try:
         new_ref = target_parent_ref.collection(source_coll_name).document()
         data = source_ref.get().to_dict()
+        if data is None:
+            raise ValueError(f"Source document not found: {source_ref.id}")
         fk_map = {
             HierarchyType.semester: "department_id",
             HierarchyType.subject: "semester_id",
@@ -451,5 +452,6 @@ def move_node(request: MoveRequest):
         raise HTTPException(status_code=500, detail=f"Move failed: {str(e)}")
 
 
-# Rebuild model for Pydantic v2 recursive references
-ExplorerNode.model_rebuild()
+def _ensure_explorer_node_model() -> None:
+    """Lazily rebuild ExplorerNode model for Pydantic v2 recursive references."""
+    ExplorerNode.model_rebuild()

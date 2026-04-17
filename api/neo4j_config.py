@@ -164,9 +164,10 @@ def test_connection() -> bool:
         # Run a simple query to verify database access
         with driver.session() as session:
             result = session.run("RETURN 1 as test")
-            test_value = result.single()["test"]
-
-            if test_value == 1:
+            test_value = result.single()
+            if test_value is None:
+                return False
+            if test_value["test"] == 1:
                 print("✓ Neo4j connection test passed")
                 return True
 
@@ -190,7 +191,7 @@ def close_neo4j():
         _neo4j_driver = None
 
 
-def get_schema_status(driver: Driver = None) -> Dict[str, Any]:
+def get_schema_status(driver: Driver | None = None) -> Dict[str, Any]:
     """
     Get the current status of all KG enhancement schema elements.
 
@@ -300,7 +301,7 @@ def get_schema_status(driver: Driver = None) -> Dict[str, Any]:
         }
 
 
-def verify_kg_enhancement_schema(driver: Driver = None) -> bool:
+def verify_kg_enhancement_schema(driver: Driver | None = None) -> bool:
     """
     Verify that all KG enhancement schema elements are present and online.
 
@@ -369,7 +370,7 @@ def test_entity_vector_search(
     entity_type: str,
     query_embedding: List[float],
     top_k: int = 5,
-    driver: Driver = None,
+    driver: Driver | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Test entity vector search using Neo4j vector indices.
@@ -425,7 +426,9 @@ def test_entity_vector_search(
 
     # Validate embedding dimensions
     if not query_embedding or len(query_embedding) != 768:
-        print(f"✗ Invalid embedding: expected 768 dimensions, got {len(query_embedding) if query_embedding else 0}")
+        print(
+            f"✗ Invalid embedding: expected 768 dimensions, got {len(query_embedding) if query_embedding else 0}"
+        )
         return []
 
     try:
@@ -449,14 +452,18 @@ def test_entity_vector_search(
 
             results = []
             for record in result:
-                results.append({
-                    "name": record["name"],
-                    "definition": record["definition"],
-                    "score": record["score"],
-                })
+                results.append(
+                    {
+                        "name": record["name"],
+                        "definition": record["definition"],
+                        "score": record["score"],
+                    }
+                )
 
             if results:
-                print(f"✓ Vector search returned {len(results)} results for {entity_type}")
+                print(
+                    f"✓ Vector search returned {len(results)} results for {entity_type}"
+                )
             else:
                 print(f"⚠ No results found for {entity_type} (index may be empty)")
 

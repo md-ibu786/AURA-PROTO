@@ -372,6 +372,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                             });
                             return;
                         }
+                    } else {
+                        console.warn('Token sync failed, user will be logged out');
                     }
                 }
 
@@ -431,8 +433,8 @@ export function initAuthListener() {
                 const parsedUser = JSON.parse(savedUser) as AuthUser;
                 store.setUser(parsedUser);
             }
-        } catch {
-            // Ignore JSON parse errors
+        } catch (error) {
+            console.warn('Failed to parse mock user from localStorage:', error);
         }
         store.setLoading(false);
         store.setInitialized(true);
@@ -443,13 +445,13 @@ export function initAuthListener() {
         if (firebaseUser) {
             store.setFirebaseUser(firebaseUser);
             await store.refreshUser();
+            store.setInitialized(true);
         } else {
             store.setUser(null);
             store.setFirebaseUser(null);
             store.setLoading(false);
+            store.setInitialized(true);
         }
-
-        store.setInitialized(true);
     });
 
     return unsubscribe;

@@ -36,10 +36,16 @@ USAGE:
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from typing import Dict, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from services.summary_service import (
     DocumentSummary,
@@ -294,18 +300,13 @@ def _generate_module_summary_background(
             logger.error(f"Background module summary failed: {e}")
             _background_tasks[task_id] = f"failed: {str(e)}"
 
-    # Run in event loop
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(_run())
-    finally:
-        loop.close()
+    asyncio.run(_run())
 
 
 @router.post("/module/{module_id}", response_model=Union[ModuleSummary, TaskStatus])
 async def summarize_module(
     module_id: str,
+    background_tasks: BackgroundTasks,
     length: SummaryLength = Query(
         default=SummaryLength.STANDARD,
         description="Summary length: brief, standard, detailed",
@@ -318,7 +319,6 @@ async def summarize_module(
         default=False,
         description="Force regeneration even if cached",
     ),
-    background_tasks: BackgroundTasks = None,
     summary_service: SummaryService = Depends(get_summary_service),
 ) -> Union[ModuleSummary, TaskStatus]:
     """
@@ -358,7 +358,7 @@ async def summarize_module(
             )
 
         # For large modules, offer background processing
-        if len(doc_ids) > 10 and background_tasks is not None and force_regenerate:
+        if len(doc_ids) > 10 and force_regenerate:
             import uuid
 
             task_id = str(uuid.uuid4())

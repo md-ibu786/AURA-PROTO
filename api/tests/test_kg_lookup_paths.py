@@ -21,7 +21,8 @@ USAGE:
 """
 
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+import asyncio
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 
 # Import the functions under test
@@ -46,6 +47,8 @@ def test_get_document_kg_status_avoids_full_scan():
     - Does NOT use __name__ range query with Python-side filtering
     - Does NOT fall back to stream-all-notes iteration
     """
+    import asyncio
+
     mock_doc = MagicMock()
     mock_doc.id = "doc123"
     mock_doc.to_dict.return_value = {
@@ -88,7 +91,7 @@ def test_get_document_kg_status_avoids_full_scan():
     mock_db.collection_group = make_collection_group
 
     with patch("api.kg.router.db", mock_db):
-        result = get_document_kg_status("doc123")
+        result = asyncio.run(get_document_kg_status("doc123"))
 
     # Verify we got a result
     assert result.document_id == "doc123"
@@ -114,6 +117,8 @@ def test_get_document_kg_status_404_when_not_found():
     Test that get_document_kg_status returns 404 when no document matches.
     Should use bounded query, not stream-all.
     """
+    import asyncio
+
     mock_db = MagicMock()
 
     class MockCollectionGroup:
@@ -136,7 +141,7 @@ def test_get_document_kg_status_404_when_not_found():
         from fastapi import HTTPException
 
         with pytest.raises(HTTPException) as exc_info:
-            get_document_kg_status("nonexistent_doc")
+            asyncio.run(get_document_kg_status("nonexistent_doc"))
         assert exc_info.value.status_code == 404
 
 
@@ -195,7 +200,7 @@ def test_get_processing_queue_filters_in_firestore():
     mock_db.collection_group = lambda name: MockCollectionGroup(name)
 
     with patch("api.kg.router.db", mock_db):
-        result = get_processing_queue()
+        result = asyncio.run(get_processing_queue())
 
     # Verify we got results
     assert len(result) == 1
@@ -234,7 +239,7 @@ def test_get_processing_queue_returns_empty_on_error():
     mock_db.collection_group = lambda name: MockCollectionGroup()
 
     with patch("api.kg.router.db", mock_db):
-        result = get_processing_queue()
+        result = asyncio.run(get_processing_queue())
 
     # Should return empty list, not crash
     assert result == []
@@ -338,6 +343,9 @@ def test_find_note_by_id_returns_none_when_not_found():
     mock_db = MagicMock()
 
     class MockCollectionGroup:
+        def __init__(self, name=None):
+            self.name = name
+
         def where(self, *args, **kwargs):
             return self
 

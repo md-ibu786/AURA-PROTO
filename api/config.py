@@ -86,6 +86,7 @@ NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 
 # Redis Configuration
 REDIS_URL = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+os.environ["REDIS_URL"] = REDIS_URL
 
 # Celery Configuration
 CELERY_RESULT_EXPIRES = int(os.getenv("CELERY_RESULT_EXPIRES", "3600"))

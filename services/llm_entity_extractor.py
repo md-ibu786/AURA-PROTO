@@ -224,7 +224,9 @@ class LLMEntityExtractor:
     """
 
     def __init__(
-        self, model_name: str = LLM_ENTITY_EXTRACTION_MODEL, api_key: str = None
+        self,
+        model_name: str = LLM_ENTITY_EXTRACTION_MODEL,
+        api_key: Optional[str] = None,
     ):
         """
         Initialize with Gemini model.
@@ -271,7 +273,10 @@ class LLMEntityExtractor:
         return len(text.split())
 
     async def extract_entities(
-        self, text: str, doc_id: str = "unknown", entity_types: List[str] = None
+        self,
+        text: str,
+        doc_id: str = "unknown",
+        entity_types: Optional[List[str]] = None,
     ) -> Dict[str, List[ExtractedEntity]]:
         """
         Extract entities from text.
@@ -351,7 +356,7 @@ class LLMEntityExtractor:
                     try:
                         extracted = ExtractedEntity(
                             name=entity.get("name", ""),
-                            type=type_mapping.get(entity_type, "Concept"),
+                            type=type_mapping.get(entity_type, "Concept"),  # type: ignore[arg-type]
                             definition=entity.get("definition", ""),
                             confidence_score=float(entity.get("confidence", 0.7)),
                             source_text=entity.get("context", "")[:200]
@@ -1185,7 +1190,7 @@ No markdown, no explanations. Return empty array if no relationships found.
         self,
         text: str,
         doc_id: str = "unknown",
-        entity_types: List[str] = None,
+        entity_types: Optional[List[str]] = None,
     ) -> Tuple[Dict[str, List[ExtractedEntity]], List[Relationship]]:
         """
         Combined extraction: entities first, then relationships.

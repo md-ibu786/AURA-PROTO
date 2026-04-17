@@ -39,6 +39,7 @@ USAGE:
     logger.error("Failed to transcribe", exc_info=True)
 ============================================================================
 """
+
 import logging
 import sys
 import json
@@ -66,8 +67,8 @@ class StructuredFormatter(logging.Formatter):
             log_data["exception"] = self.formatException(record.exc_info)
 
         # Add extra fields if provided
-        if hasattr(record, 'extra_data'):
-            log_data.update(record.extra_data)
+        if hasattr(record, "extra_data"):
+            log_data.update(getattr(record, "extra_data", {}))
 
         return json.dumps(log_data)
 
@@ -82,9 +83,7 @@ class DevelopmentFormatter(logging.Formatter):
 
 
 def setup_logging(
-    level: str = "INFO",
-    production: bool = False,
-    logger_name: str = "aura"
+    level: str = "INFO", production: bool = False, logger_name: str = "aura"
 ) -> logging.Logger:
     """
     Configure application logging.

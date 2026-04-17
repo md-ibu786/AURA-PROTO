@@ -171,6 +171,11 @@ async def sync_user(
 
     if user_doc.exists:
         user_data = user_doc.to_dict()
+        if user_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="User data is missing",
+            )
         user_data["uid"] = uid
         return SyncUserResponse(
             message="User already exists",
@@ -367,6 +372,11 @@ async def update_firebase_user(
 
         updated_doc = user_ref.get()
         user_data = updated_doc.to_dict()
+        if user_data is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Updated user data is missing",
+            )
         user_data["uid"] = uid
 
         return FirestoreUser(**user_data)

@@ -24,6 +24,7 @@ USAGE:
     process_audio_file(audio_bytes)
 ============================================================================
 """
+
 import io
 import os
 from typing import Any, BinaryIO, Dict, Optional, Union
@@ -42,7 +43,7 @@ def _read_audio_bytes(audio_input: Union[BinaryIO, bytes, io.BytesIO]) -> bytes:
     # Streamlit UploadedFile supports getvalue(); prefer it to avoid
     # consuming the stream for callers.
     if hasattr(audio_input, "getvalue"):
-        data = audio_input.getvalue()
+        data = audio_input.getvalue()  # type: ignore[union-attr]
         return bytes(data) if isinstance(data, (bytes, bytearray)) else bytes()
 
     # File-like object (standard Python file object)

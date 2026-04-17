@@ -91,7 +91,7 @@ async def verify_firebase_token(token: str) -> dict:
     except auth.RevokedIdTokenError as exc:
         print(f"DEBUG: Revoked token error: {exc}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Authentication token has been revoked: {str(exc)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -174,6 +174,12 @@ async def get_current_user(
         )
 
     user_data = user_doc.to_dict()
+    if user_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User data is missing",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
     if user_data.get("status") != "active":
         raise HTTPException(
@@ -236,6 +242,7 @@ def require_role(*allowed_roles: str):
                 detail="Role access required",
             )
         return user
+
     return role_checker
 
 
@@ -312,4 +319,3 @@ def can_create_note_in_subject(
         bool: True if user can create a note in the subject
     """
     return has_subject_access(user, subject_id)
-

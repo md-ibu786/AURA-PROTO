@@ -79,7 +79,8 @@ class ModuleService:
         doc_ref = self.collection.document(module_id)
 
         # Check if already exists
-        if doc_ref.get().exists:
+        doc_snapshot = doc_ref.get()  # type: ignore[misc]
+        if doc_snapshot.exists:
             raise ValueError(f"Module with ID '{module_id}' already exists")
 
         now = datetime.utcnow()
@@ -110,16 +111,17 @@ class ModuleService:
         Returns:
             Module document as dict, or None if not found
         """
-        doc = self.collection.document(module_id).get()
+        doc = self.collection.document(module_id).get()  # type: ignore[misc]
         if not doc.exists:
             return None
 
         data = doc.to_dict()
         # Convert Firestore Timestamps to datetime
-        if hasattr(data.get("created_at"), "timestamp"):
-            data["created_at"] = data["created_at"].timestamp()
-        if hasattr(data.get("updated_at"), "timestamp"):
-            data["updated_at"] = data["updated_at"].timestamp()
+        if data is not None:
+            if hasattr(data.get("created_at"), "timestamp"):
+                data["created_at"] = data["created_at"].timestamp()
+            if hasattr(data.get("updated_at"), "timestamp"):
+                data["updated_at"] = data["updated_at"].timestamp()
         return data
 
     def list(
@@ -167,6 +169,8 @@ class ModuleService:
         modules = []
         for doc in paginated_docs:
             data = doc.to_dict()
+            if data is None:
+                continue
             # Ensure datetime serialization
             if hasattr(data.get("created_at"), "isoformat"):
                 pass  # Already datetime
@@ -193,7 +197,7 @@ class ModuleService:
             Updated module dict, or None if not found
         """
         doc_ref = self.collection.document(module_id)
-        doc = doc_ref.get()
+        doc = doc_ref.get()  # type: ignore[misc]
 
         if not doc.exists:
             return None
@@ -214,7 +218,7 @@ class ModuleService:
         update_fields["updated_at"] = datetime.utcnow()
 
         doc_ref.update(update_fields)
-        return doc_ref.get().to_dict()
+        return doc_ref.get().to_dict()  # type: ignore[misc]
 
     def delete(self, module_id: str) -> bool:
         """
@@ -227,7 +231,7 @@ class ModuleService:
             True if deleted, False if not found
         """
         doc_ref = self.collection.document(module_id)
-        doc = doc_ref.get()
+        doc = doc_ref.get()  # type: ignore[misc]
 
         if not doc.exists:
             return False
@@ -251,12 +255,13 @@ class ModuleService:
             True if updated, False if module not found
         """
         doc_ref = self.collection.document(module_id)
-        doc = doc_ref.get()
+        doc = doc_ref.get()  # type: ignore[misc]
 
         if not doc.exists:
             return False
 
-        current_count = doc.to_dict().get("document_count", 0)
+        doc_dict = doc.to_dict()
+        current_count = doc_dict.get("document_count", 0) if doc_dict else 0
         new_count = max(0, current_count + delta)  # Prevent negative counts
 
         doc_ref.update({"document_count": new_count, "updated_at": datetime.utcnow()})
@@ -273,7 +278,7 @@ class ModuleService:
             Updated module dict, or None if not found
         """
         doc_ref = self.collection.document(module_id)
-        doc = doc_ref.get()
+        doc = doc_ref.get()  # type: ignore[misc]
 
         if not doc.exists:
             return None
@@ -286,4 +291,4 @@ class ModuleService:
                 "updated_at": now,
             }
         )
-        return doc_ref.get().to_dict()
+        return doc_ref.get().to_dict()  # type: ignore[misc]

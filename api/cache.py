@@ -134,7 +134,7 @@ class RedisClient:
         if client is None:
             return False
         try:
-            return client.ping()
+            return bool(client.ping())  # type: ignore[union-attr]
         except Exception:
             self._available = False
             return False
@@ -160,7 +160,7 @@ class RedisClient:
             return None
 
         try:
-            value = client.get(key)
+            value = client.get(key)  # type: ignore[union-attr]
             if value is None:
                 return None
             return json.loads(value)
@@ -197,26 +197,28 @@ class RedisClient:
             logger.debug(f"Cache set failed for {key}: {e}")
             return False
 
-    def delete(self, key: str) -> bool:
+    def delete(self, *keys: str) -> int:
         """
-        Delete a value from cache.
+        Delete values from cache.
 
         Args:
-            key: Cache key
+            *keys: Cache keys to delete
 
         Returns:
-            True if deleted, False otherwise
+            Number of keys deleted
         """
+        if not keys:
+            return 0
+
         client = self._get_client()
         if client is None:
-            return False
+            return 0
 
         try:
-            client.delete(key)
-            return True
+            return int(client.delete(*keys))
         except Exception as e:
-            logger.debug(f"Cache delete failed for {key}: {e}")
-            return False
+            logger.debug(f"Cache delete failed for {keys}: {e}")
+            return 0
 
     def delete_pattern(self, pattern: str) -> int:
         """
@@ -233,9 +235,9 @@ class RedisClient:
             return 0
 
         try:
-            keys = client.keys(pattern)
+            keys = client.keys(pattern)  # type: ignore[union-attr]
             if keys:
-                return client.delete(*keys)
+                return int(client.delete(*keys))  # type: ignore[union-attr]
             return 0
         except Exception as e:
             logger.debug(f"Cache delete pattern failed for {pattern}: {e}")
@@ -256,7 +258,7 @@ class RedisClient:
             return []
 
         try:
-            return list(client.keys(pattern))
+            return list(client.keys(pattern))  # type: ignore[union-attr]
         except Exception as e:
             logger.debug(f"Cache keys lookup failed for {pattern}: {e}")
             return []

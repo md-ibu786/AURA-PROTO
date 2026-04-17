@@ -52,7 +52,7 @@ def _get_encoding():
 
             _encoding = tiktoken.get_encoding("cl100k_base")
         except ImportError:
-            _encoding = False  # Mark as unavailable
+            _encoding = None  # Mark as unavailable
     return _encoding if _encoding else None
 
 

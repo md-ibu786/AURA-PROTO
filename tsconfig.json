@@ -1,5 +1,7 @@
 {
-  // Visit https://aka.ms/tsconfig to read more about this file
+  // Legacy root config retained for potential future tooling.
+  // Not referenced by frontend tsconfigs (which use tsconfig.app.json)
+  // or any npm scripts. Subject to removal.
   "compilerOptions": {
     // File Layout
     // "rootDir": "./src",

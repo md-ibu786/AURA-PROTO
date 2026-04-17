@@ -150,12 +150,12 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
     response_text = getattr(response, "text", None)
     if not response_text:
-        if getattr(response, "prompt_feedback", None) and getattr(
-            response.prompt_feedback, "block_reason", None
-        ):
-            raise ValueError(
-                f"Gemini blocked the prompt. Reason: {response.prompt_feedback.block_reason}"
-            )
+        prompt_feedback = getattr(response, "prompt_feedback", None)
+        block_reason = (
+            getattr(prompt_feedback, "block_reason", None) if prompt_feedback else None
+        )
+        if block_reason:
+            raise ValueError(f"Gemini blocked the prompt. Reason: {block_reason}")
 
         # Handle empty response (likely due to strict filtering)
         candidates = getattr(response, "candidates", None) or []

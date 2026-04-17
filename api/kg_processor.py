@@ -69,7 +69,6 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from neo4j_config import neo4j_driver
 from logging_config import logger
-from google.cloud.firestore import FieldFilter
 
 try:
     from config import (
@@ -329,6 +328,7 @@ class Chunk:
     token_count: int
     embedding: Optional[List[float]] = None
     entities: List[Entity] = field(default_factory=list)
+    properties: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -445,7 +445,7 @@ class ProcessingProgress:
     message: str
     percent_complete: float = 0.0
 
-    def update(self, current: int, message: str = None):
+    def update(self, current: int, message: str | None = None):
         """Update progress with new values."""
         self.current = current
         if message:
@@ -758,7 +758,7 @@ class KnowledgeGraphProcessor:
     def __init__(
         self,
         driver=None,
-        gemini_client: GeminiClient = None,
+        gemini_client: GeminiClient | None = None,
         chunk_size: int = 800,
         chunk_overlap: int = 100,
         min_chunk_tokens: int = 500,
@@ -838,8 +838,8 @@ class KnowledgeGraphProcessor:
         document_id: str,
         module_id: str,
         user_id: str,
-        file_path: str = None,
-        document_data: Dict[str, Any] = None,
+        file_path: str | None = None,
+        document_data: Dict[str, Any] | None = None,
         use_hierarchical_chunking: bool = False,
         use_llm_extraction: bool = True,
         generate_entity_embeddings: bool = True,
@@ -1282,9 +1282,10 @@ class KnowledgeGraphProcessor:
 
             # Step 4.5: Extract entity-entity relationships using LLM
             entity_relationships: List[EntityRelationship] = []
+            llm_extractor = getattr(self, "_llm_extractor", None)
             if (
                 getattr(self, "_use_llm_extraction", False)
-                and getattr(self, "_llm_extractor", None)
+                and llm_extractor is not None
                 and len(all_entities) >= 2
             ):
                 self._emit_progress(
@@ -1298,10 +1299,8 @@ class KnowledgeGraphProcessor:
                     entities_dict = self._prepare_entities_for_relationship_extraction(
                         all_entities
                     )
-                    entity_relationships = (
-                        await self._llm_extractor.extract_relationships(
-                            text, entities_dict, document_id
-                        )
+                    entity_relationships = await llm_extractor.extract_relationships(
+                        text, entities_dict, document_id
                     )
                     result["relationship_count"] = len(entity_relationships)
                     logger.info(
@@ -1571,7 +1570,7 @@ class KnowledgeGraphProcessor:
             if use_hierarchical_chunking:
                 logger.info(
                     f"Document {document_id} processed (hierarchical): "
-                    f"{len(parent_chunks)} parents, {len(chunks)} children, "
+                    f"{len(parent_chunks) if parent_chunks else 0} parents, {len(chunks)} children, "
                     f"{len(all_entities)} entities"
                 )
             else:
@@ -1593,7 +1592,7 @@ class KnowledgeGraphProcessor:
         document_ids: List[str],
         module_id: str,
         user_id: str,
-        document_map: Dict[str, Dict[str, Any]] = None,
+        document_map: Dict[str, Dict[str, Any]] | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Process multiple documents in batch.
@@ -1715,9 +1714,9 @@ class KnowledgeGraphProcessor:
     async def _parse_document(
         self,
         document_id: str,
-        file_path: str = None,
-        document_data: Dict[str, Any] = None,
-        module_id: str = None,
+        file_path: str | None = None,
+        document_data: Dict[str, Any] | None = None,
+        module_id: str | None = None,
     ) -> str:
         """
         Extract text from PDF or plain text file.
@@ -1810,7 +1809,7 @@ class KnowledgeGraphProcessor:
                 # Modules are nested, find module doc first
                 modules = list(
                     db.collection_group("modules")
-                    .where(filter=FieldFilter("id", "==", module_id))
+                    .where("id", "==", module_id)
                     .limit(1)
                     .stream()
                 )
@@ -1832,7 +1831,7 @@ class KnowledgeGraphProcessor:
             # 2. Fallback: Find note in nested subcollections by 'id' field
             notes = list(
                 db.collection_group("notes")
-                .where(filter=FieldFilter("id", "==", document_id))
+                .where("id", "==", document_id)
                 .limit(1)
                 .stream()
             )
@@ -1883,7 +1882,7 @@ class KnowledgeGraphProcessor:
             text_parts = []
 
             doc = fitz.open(file_path)
-            for page_num, page in enumerate(doc):
+            for page_num, page in enumerate(doc):  # type: ignore[arg-type]
                 text = page.get_text()
                 if text.strip():
                     text_parts.append(text)
@@ -2900,12 +2899,13 @@ class KnowledgeGraphProcessor:
                     category = ext_entity.category
                 else:
                     # It's a dict (shouldn't happen but handle gracefully)
-                    name = ext_entity.get("name", "")
-                    entity_type_str = ext_entity.get("type", "Concept")
-                    definition = ext_entity.get("definition", "")
-                    confidence = ext_entity.get("confidence_score", 0.7)
-                    context = ext_entity.get("source_text", "")
-                    category = ext_entity.get("category", "General")
+                    ext_dict = ext_entity if isinstance(ext_entity, dict) else {}
+                    name = ext_dict.get("name", "")
+                    entity_type_str = ext_dict.get("type", "Concept")
+                    definition = ext_dict.get("definition", "")
+                    confidence = ext_dict.get("confidence_score", 0.7)
+                    context = ext_dict.get("source_text", "")
+                    category = ext_dict.get("category", "General")
 
                 if not name:
                     continue
@@ -3603,7 +3603,7 @@ class KnowledgeGraphProcessor:
 
 
 async def process_document_simple(
-    document_id: str, module_id: str, user_id: str, file_path: str = None
+    document_id: str, module_id: str, user_id: str, file_path: str | None = None
 ) -> Dict[str, Any]:
     """
     Simple document processing function for basic usage.

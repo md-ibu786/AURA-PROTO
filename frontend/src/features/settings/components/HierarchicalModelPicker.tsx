@@ -83,9 +83,12 @@ export function HierarchicalModelPicker({
 
     // Focus search input when dropdown opens
     useEffect(() => {
-        if (isOpen && searchInputRef.current) {
-            setTimeout(() => searchInputRef.current?.focus(), 50);
-        }
+        const timeoutId = setTimeout(() => {
+            if (isOpen && searchInputRef.current) {
+                searchInputRef.current.focus();
+            }
+        }, 50);
+        return () => clearTimeout(timeoutId);
     }, [isOpen]);
 
     const handleSelect = (modelName: string) => {
@@ -154,6 +157,9 @@ export function HierarchicalModelPicker({
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
+                aria-expanded={isOpen}
+                aria-haspopup="listbox"
+                aria-controls="model-picker-dropdown"
                 className={cn(
                     "flex items-center justify-between w-full px-3 py-2.5 text-left text-sm",
                     "bg-card border rounded-lg transition-all duration-200",
@@ -172,6 +178,8 @@ export function HierarchicalModelPicker({
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
+                        id="model-picker-dropdown"
+                        role="listbox"
                         initial={{ opacity: 0, y: -8, scale: 0.98 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -8, scale: 0.98 }}

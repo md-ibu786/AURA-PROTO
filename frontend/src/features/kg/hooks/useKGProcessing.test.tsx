@@ -40,6 +40,13 @@ import type {
 // Import the hook
 import { useKGProcessing } from './useKGProcessing';
 
+// Type for mocked query
+type MockedQuery = {
+    state: {
+        data: Array<{ status: string }>;
+    };
+};
+
 // Mock explorer API - use vi.fn() directly in the factory
 vi.mock('../../../api/explorerApi', () => ({
     getKGDocumentStatus: vi.fn(),
@@ -281,10 +288,10 @@ describe('useKGProcessing', () => {
                         { status: 'pending' },
                     ] as Array<{ status: string }>,
                 },
-            } as any;
+            } as MockedQuery;
 
             // Get the refetchInterval from the hook's query options
-            const queryOptions = (useProcessingQueue as any)();
+            const queryOptions = (useProcessingQueue as unknown as () => { refetchInterval: (query: MockedQuery) => boolean | number })();
 
             // Verify refetchInterval returns false when no items are processing
             if (queryOptions && typeof queryOptions.refetchInterval === 'function') {
@@ -305,9 +312,9 @@ describe('useKGProcessing', () => {
                         { status: 'pending' },
                     ] as Array<{ status: string }>,
                 },
-            } as any;
+            } as MockedQuery;
 
-            const queryOptions = (useProcessingQueue as any)();
+            const queryOptions = (useProcessingQueue as unknown as () => { refetchInterval: (query: MockedQuery) => boolean | number })();
 
             if (queryOptions && typeof queryOptions.refetchInterval === 'function') {
                 const interval = queryOptions.refetchInterval(mockQueryWithProcessing);

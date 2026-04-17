@@ -170,11 +170,6 @@ function getStudentFirestore(): Firestore {
     return getFirestore(USERS.student, CLAIMS.student);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function getOtherStudentFirestore(): Firestore {
-    return getFirestore(USERS.studentOther, CLAIMS.student);
-}
-
 function getDisabledFirestore(): Firestore {
     return getFirestore(USERS.disabled, CLAIMS.disabled);
 }

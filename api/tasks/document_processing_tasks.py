@@ -53,12 +53,11 @@ from api.config import CELERY_RESULT_EXPIRES, REDIS_URL, db
 from api.kg_processor import KnowledgeGraphProcessor, process_document_simple
 from api.logging_config import logger
 
-from google.cloud.firestore import FieldFilter
-
 
 # ============================================================================
 # FIRESTORE STATUS UPDATE HELPER
 # ============================================================================
+
 
 def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
     """Find a note document by ID.
@@ -78,15 +77,22 @@ def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
         # 1. Scoped lookup if module_id is known (Preferred)
         if module_id:
             # Modules are nested, so we must find the module doc first
-            modules = list(db.collection_group("modules").where(filter=FieldFilter("id", "==", module_id)).limit(1).stream())
+            modules = list(
+                db.collection_group("modules")
+                .where("id", "==", module_id)
+                .limit(1)
+                .stream()
+            )
             if modules:
                 module_ref = modules[0].reference
                 # Construct path: .../modules/{module_id}/notes/{note_id}
                 doc_ref = module_ref.collection("notes").document(document_id)
-                if doc_ref.get().exists:
+                if doc_ref.get().exists:  # type: ignore[misc]
                     return doc_ref
 
-                logger.warning(f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})")
+                logger.warning(
+                    f"Note {document_id} not found in module {module_id} (path: {doc_ref.path})"
+                )
                 return None
 
             logger.warning(f"Module {module_id} not found via collection_group query")
@@ -96,7 +102,7 @@ def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
         # This works because documents store their own ID in the 'id' field
         notes = list(
             db.collection_group("notes")
-            .where(filter=FieldFilter("id", "==", document_id))
+            .where("id", "==", document_id)
             .limit(1)
             .stream()
         )
@@ -116,7 +122,7 @@ def update_document_status(
     step: Optional[str] = None,
     chunk_count: Optional[int] = None,
     entity_count: Optional[int] = None,
-    module_id: Optional[str] = None
+    module_id: Optional[str] = None,
 ):
     """
     Update document KG status in Firestore.
@@ -138,10 +144,7 @@ def update_document_status(
         logger.error(f"No document found to update: {document_id}")
         return
 
-    update_data = {
-        "kg_status": status,
-        "updated_at": datetime.utcnow()
-    }
+    update_data = {"kg_status": status, "updated_at": datetime.utcnow()}
 
     if error:
         update_data["kg_error"] = error
@@ -164,6 +167,7 @@ def update_document_status(
     except Exception as e:
         logger.error(f"Failed to update KG status for document {document_id}: {e}")
 
+
 # ============================================================================
 # CELERY APP CONFIGURATION
 # ============================================================================
@@ -176,40 +180,38 @@ REDIS_HOST = parsed_redis_url.hostname or "127.0.0.1"
 REDIS_PORT = parsed_redis_url.port or 6379
 
 # Log Redis config for debugging
-logger.info(f"Celery Redis config: URL='{REDIS_URL}', result_expires={CELERY_RESULT_EXPIRES}s")
+logger.info(
+    f"Celery Redis config: URL='{REDIS_URL}', result_expires={CELERY_RESULT_EXPIRES}s"
+)
 
 # Create Celery app using centralized config
 app = Celery(
-    'aura_notes_tasks',
+    "aura_notes_tasks",
     broker=REDIS_URL,
     backend=REDIS_URL,
-    include=['api.tasks.document_processing_tasks']
+    include=["api.tasks.document_processing_tasks"],
 )
 
 # Celery configuration
 app.conf.update(
     # Task serialization (JSON for structured data)
-    task_serializer='json',
-    accept_content=['json'],
-    result_serializer='json',
-
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
     # Timezone
-    timezone='UTC',
+    timezone="UTC",
     enable_utc=True,
-
     # Task execution settings
-    task_acks_late=True,           # Acknowledge after completion (not before)
+    task_acks_late=True,  # Acknowledge after completion (not before)
     task_reject_on_worker_lost=True,  # Re-queue if worker dies
     worker_prefetch_multiplier=1,  # One task per worker at a time
-
     # Result settings (use centralized config)
     result_expires=CELERY_RESULT_EXPIRES,
-    task_track_started=True,       # Track when task starts
-
+    task_track_started=True,  # Track when task starts
     # Task routing (optional - can be configured in worker)
     task_routes={
-        'api.tasks.*': {'queue': 'kg_processing'},
-    }
+        "api.tasks.*": {"queue": "kg_processing"},
+    },
 )
 
 
@@ -217,23 +219,26 @@ app.conf.update(
 # PROCESSING STATES
 # ============================================================================
 
+
 class ProcessingState(str, Enum):
     """Task processing states for progress tracking."""
-    PENDING = 'PENDING'
-    RECEIVED = 'RECEIVED'
-    PARSING = 'PARSING'              # 0-10%
-    CHUNKING = 'CHUNKING'            # 10-30%
-    EMBEDDING = 'EMBEDDING'          # 30-50%
-    EXTRACTING = 'EXTRACTING'        # 50-70%
-    STORING = 'STORING'              # 70-90%
-    COMPLETED = 'COMPLETED'          # 100%
-    FAILED = 'FAILED'
-    RETRYING = 'RETRYING'
+
+    PENDING = "PENDING"
+    RECEIVED = "RECEIVED"
+    PARSING = "PARSING"  # 0-10%
+    CHUNKING = "CHUNKING"  # 10-30%
+    EMBEDDING = "EMBEDDING"  # 30-50%
+    EXTRACTING = "EXTRACTING"  # 50-70%
+    STORING = "STORING"  # 70-90%
+    COMPLETED = "COMPLETED"  # 100%
+    FAILED = "FAILED"
+    RETRYING = "RETRYING"
 
 
 # ============================================================================
 # BASE TASK CLASS
 # ============================================================================
+
 
 class KGProcessingTask(Task):
     """
@@ -254,7 +259,7 @@ class KGProcessingTask(Task):
             self._processor = KnowledgeGraphProcessor()
         return self._processor
 
-    def update_progress(self, stage: str, progress: int, meta: Dict = None):
+    def update_progress(self, stage: str, progress: int, meta: Dict | None = None):
         """
         Update task progress state.
 
@@ -264,47 +269,51 @@ class KGProcessingTask(Task):
             meta: Additional metadata to include
         """
         state_meta = {
-            'stage': stage,
-            'progress': progress,
-            'started_at': getattr(self, '_start_time', None),
+            "stage": stage,
+            "progress": progress,
+            "started_at": getattr(self, "_start_time", None),
         }
         if meta:
             state_meta.update(meta)
 
-        self.update_state(state=ProcessingState.PARSING.value if progress < 10 else
-                         ProcessingState.CHUNKING.value if progress < 30 else
-                         ProcessingState.EMBEDDING.value if progress < 50 else
-                         ProcessingState.EXTRACTING.value if progress < 70 else
-                         ProcessingState.STORING.value if progress < 90 else
-                         ProcessingState.COMPLETED.value,
-                         meta=state_meta)
+        self.update_state(
+            state=ProcessingState.PARSING.value
+            if progress < 10
+            else ProcessingState.CHUNKING.value
+            if progress < 30
+            else ProcessingState.EMBEDDING.value
+            if progress < 50
+            else ProcessingState.EXTRACTING.value
+            if progress < 70
+            else ProcessingState.STORING.value
+            if progress < 90
+            else ProcessingState.COMPLETED.value,
+            meta=state_meta,
+        )
 
 
 # ============================================================================
 # SINGLE DOCUMENT PROCESSING TASK
 # ============================================================================
 
+
 @app.task(
     bind=True,
     base=KGProcessingTask,
-    name='api.tasks.process_document',
+    name="api.tasks.process_document",
     autoretry_for=(ConnectionError, TimeoutError),
     retry_backoff=True,
-    retry_backoff_max=600,          # Max 10 minutes between retries
-    retry_jitter=True,              # Add randomness to prevent thundering herd
+    retry_backoff_max=600,  # Max 10 minutes between retries
+    retry_jitter=True,  # Add randomness to prevent thundering herd
     max_retries=5,
     acks_late=True,
     reject_on_worker_lost=True,
-    time_limit=1800,                # 30 minutes hard limit
-    soft_time_limit=1500,           # 25 minutes soft limit
-    track_started=True
+    time_limit=1800,  # 30 minutes hard limit
+    soft_time_limit=1500,  # 25 minutes soft limit
+    track_started=True,
 )
 def process_document_task(
-    self,
-    document_id: str,
-    module_id: str,
-    user_id: str,
-    file_path: str = None
+    self, document_id: str, module_id: str, user_id: str, file_path: str | None = None
 ) -> Dict[str, Any]:
     """
     Process a single document into a knowledge graph asynchronously.
@@ -362,19 +371,20 @@ def process_document_task(
         - Implements tenacity retry logic for LLM calls
         - Uses services/embeddings.py for 768-dim vector generation
     """
-    task_logger = logging.getLogger(f'kg_task.{self.request.id}')
+    task_logger = logging.getLogger(f"kg_task.{self.request.id}")
 
     # Record start time
     self._start_time = datetime.utcnow().isoformat()
     start_time = datetime.utcnow()
 
-    task_logger.info(f"Starting document processing: doc={document_id}, module={module_id}")
+    task_logger.info(
+        f"Starting document processing: doc={document_id}, module={module_id}"
+    )
 
     # Initial state update
-    self.update_progress('received', 0, {
-        'document_id': document_id,
-        'module_id': module_id
-    })
+    self.update_progress(
+        "received", 0, {"document_id": document_id, "module_id": module_id}
+    )
 
     try:
         # Validate inputs
@@ -389,82 +399,87 @@ def process_document_task(
         # Find note in nested subcollections (modules/{id}/notes/{id})
         doc_ref = _find_note_by_id(document_id, module_id)
         if doc_ref is not None:
-            doc = doc_ref.get()
-            if doc.exists and doc.to_dict().get("kg_status") == "ready":
+            doc = doc_ref.get()  # type: ignore[misc]
+            doc_dict = doc.to_dict()
+            if doc.exists and doc_dict and doc_dict.get("kg_status") == "ready":
                 task_logger.info(f"Document {document_id} already processed, skipping")
                 return {
                     "document_id": document_id,
                     "status": "skipped",
-                    "reason": "already_processed"
+                    "reason": "already_processed",
                 }
 
         # Update Firestore status to PROCESSING
-        update_document_status(document_id, "processing", progress=5, step="starting", module_id=module_id)
+        update_document_status(
+            document_id, "processing", progress=5, step="starting", module_id=module_id
+        )
 
         # Update state: PARSING (0-10%)
-        self.update_progress('parsing', 5, {'status': 'Extracting text from document'})
+        self.update_progress("parsing", 5, {"status": "Extracting text from document"})
         task_logger.debug("Stage PARSING: Extracting text from document")
 
         # Process document (this handles parsing, chunking, embedding, extraction)
         # Run the async function synchronously in Celery task
-        result = asyncio.run(process_document_simple(
-            document_id=document_id,
-            module_id=module_id,
-            user_id=user_id,
-            file_path=file_path
-        ))
+        result = asyncio.run(
+            process_document_simple(
+                document_id=document_id,
+                module_id=module_id,
+                user_id=user_id,
+                file_path=file_path,
+            )
+        )
 
         # Update state: STORING (70-90%)
-        self.update_progress('storing', 75, {'status': 'Storing in Neo4j'})
+        self.update_progress("storing", 75, {"status": "Storing in Neo4j"})
         task_logger.debug("Stage STORING: Saving to Neo4j")
 
         # Calculate processing time
         processing_time = (datetime.utcnow() - start_time).total_seconds()
 
         # Determine success from result status
-        is_success = result.get('status') == 'success'
+        is_success = result.get("status") == "success"
 
         # Final result
         final_result = {
-            'success': is_success,
-            'document_id': document_id,
-            'module_id': module_id,
-            'user_id': user_id,
-            'chunk_count': result.get('chunk_count', 0),
-            'entity_count': result.get('entity_count', 0),
-            'relationship_count': result.get('relationship_count', 0),
-            'processing_time_seconds': processing_time,
-            'task_id': self.request.id,
-            'completed_at': datetime.utcnow().isoformat()
+            "success": is_success,
+            "document_id": document_id,
+            "module_id": module_id,
+            "user_id": user_id,
+            "chunk_count": result.get("chunk_count", 0),
+            "entity_count": result.get("entity_count", 0),
+            "relationship_count": result.get("relationship_count", 0),
+            "processing_time_seconds": processing_time,
+            "task_id": self.request.id,
+            "completed_at": datetime.utcnow().isoformat(),
         }
 
         if not is_success:
-            error_msg = result.get('error', 'Unknown processing error')
-            final_result['error'] = error_msg
+            error_msg = result.get("error", "Unknown processing error")
+            final_result["error"] = error_msg
 
             # Update state: FAILED
-            self.update_progress('failed', 100, final_result)
+            self.update_progress("failed", 100, final_result)
 
             # Update Firestore status to FAILED
             update_document_status(
-                document_id, "failed",
-                error=error_msg,
-                module_id=module_id
+                document_id, "failed", error=error_msg, module_id=module_id
             )
 
             task_logger.error(f"Document processing failed: {error_msg}")
             return final_result
 
         # Update state: COMPLETED (100%)
-        self.update_progress('completed', 100, final_result)
+        self.update_progress("completed", 100, final_result)
 
         # Update Firestore status to READY
         update_document_status(
-            document_id, "ready",
-            progress=100, step="complete",
-            chunk_count=final_result['chunk_count'],
-            entity_count=final_result['entity_count'],
-            module_id=module_id
+            document_id,
+            "ready",
+            progress=100,
+            step="complete",
+            chunk_count=final_result["chunk_count"],
+            entity_count=final_result["entity_count"],
+            module_id=module_id,
         )
 
         task_logger.info(
@@ -484,32 +499,38 @@ def process_document_task(
         self.update_state(
             state=ProcessingState.FAILED.value,
             meta={
-                'stage': 'timeout',
-                'progress': 0,
-                'error': error_msg,
-                'document_id': document_id
-            }
+                "stage": "timeout",
+                "progress": 0,
+                "error": error_msg,
+                "document_id": document_id,
+            },
         )
-        update_document_status(document_id, "failed", error=error_msg, module_id=module_id)
+        update_document_status(
+            document_id, "failed", error=error_msg, module_id=module_id
+        )
 
         # Don't retry on timeout - it's likely a very large document
         raise
 
     except MaxRetriesExceededError:
         """Handle max retries exceeded."""
-        error_msg = f"Max retries ({self.max_retries}) exceeded for document {document_id}"
+        error_msg = (
+            f"Max retries ({self.max_retries}) exceeded for document {document_id}"
+        )
         task_logger.error(error_msg)
 
         self.update_state(
             state=ProcessingState.FAILED.value,
             meta={
-                'stage': 'max_retries',
-                'progress': 0,
-                'error': error_msg,
-                'document_id': document_id
-            }
+                "stage": "max_retries",
+                "progress": 0,
+                "error": error_msg,
+                "document_id": document_id,
+            },
         )
-        update_document_status(document_id, "failed", error=error_msg, module_id=module_id)
+        update_document_status(
+            document_id, "failed", error=error_msg, module_id=module_id
+        )
 
         raise
 
@@ -530,11 +551,11 @@ def process_document_task(
         self.update_state(
             state=ProcessingState.FAILED.value,
             meta={
-                'stage': 'validation',
-                'progress': 0,
-                'error': str(e),
-                'document_id': document_id
-            }
+                "stage": "validation",
+                "progress": 0,
+                "error": str(e),
+                "document_id": document_id,
+            },
         )
         update_document_status(document_id, "failed", error=str(e))
 
@@ -548,12 +569,12 @@ def process_document_task(
         self.update_state(
             state=ProcessingState.FAILED.value,
             meta={
-                'stage': 'unexpected',
-                'progress': 0,
-                'error': str(e),
-                'error_type': type(e).__name__,
-                'document_id': document_id
-            }
+                "stage": "unexpected",
+                "progress": 0,
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "document_id": document_id,
+            },
         )
         update_document_status(document_id, "failed", error=str(e), module_id=module_id)
 
@@ -564,10 +585,11 @@ def process_document_task(
 # BATCH DOCUMENT PROCESSING TASK
 # ============================================================================
 
+
 @app.task(
     bind=True,
     base=KGProcessingTask,
-    name='api.tasks.process_batch',
+    name="api.tasks.process_batch",
     autoretry_for=(ConnectionError, TimeoutError),
     retry_backoff=True,
     retry_backoff_max=300,
@@ -575,14 +597,11 @@ def process_document_task(
     max_retries=3,
     acks_late=True,
     reject_on_worker_lost=True,
-    time_limit=3600,                # 1 hour hard limit
-    soft_time_limit=3000,           # 50 minutes soft limit
+    time_limit=3600,  # 1 hour hard limit
+    soft_time_limit=3000,  # 50 minutes soft limit
 )
 def process_batch_task(
-    self,
-    document_ids: List[str],
-    module_id: str,
-    user_id: str
+    self, document_ids: List[str], module_id: str, user_id: str
 ) -> Dict[str, Any]:
     """
     Process multiple documents in batch.
@@ -603,20 +622,22 @@ def process_batch_task(
         - task_map: Mapping of document_id to task_id
         - submitted_at: Timestamp
     """
-    task_logger = logging.getLogger(f'batch_task.{self.request.id}')
+    task_logger = logging.getLogger(f"batch_task.{self.request.id}")
 
     total = len(document_ids)
-    task_logger.info(f"Starting batch processing: {total} documents for module {module_id}")
+    task_logger.info(
+        f"Starting batch processing: {total} documents for module {module_id}"
+    )
 
     # Update initial state
     self.update_state(
-        state='PROCESSING',
+        state="PROCESSING",
         meta={
-            'stage': 'dispatching',
-            'progress': 0,
-            'total': total,
-            'module_id': module_id
-        }
+            "stage": "dispatching",
+            "progress": 0,
+            "total": total,
+            "module_id": module_id,
+        },
     )
 
     try:
@@ -639,36 +660,35 @@ def process_batch_task(
             result = process_document_task.delay(doc_id, module_id, user_id)
 
             task_map[doc_id] = {
-                'task_id': result.id,
-                'status': 'submitted',
-                'submitted_at': submitted_at
+                "task_id": result.id,
+                "status": "submitted",
+                "submitted_at": submitted_at,
             }
 
             # Update progress
             progress = ((i + 1) / total) * 100
             self.update_state(
-                state='PROCESSING',
+                state="PROCESSING",
                 meta={
-                    'stage': 'dispatching',
-                    'progress': progress,
-                    'current': i + 1,
-                    'total': total,
-                    'module_id': module_id
-                }
+                    "stage": "dispatching",
+                    "progress": progress,
+                    "current": i + 1,
+                    "total": total,
+                    "module_id": module_id,
+                },
             )
 
         result = {
-            'success': True,
-            'module_id': module_id,
-            'total_documents': total,
-            'task_map': task_map,
-            'submitted_at': submitted_at,
-            'batch_task_id': self.request.id
+            "success": True,
+            "module_id": module_id,
+            "total_documents": total,
+            "task_map": task_map,
+            "submitted_at": submitted_at,
+            "batch_task_id": self.request.id,
         }
 
         task_logger.info(
-            f"Batch processing submitted: {total} documents, "
-            f"module={module_id}"
+            f"Batch processing submitted: {total} documents, module={module_id}"
         )
 
         return result
@@ -679,11 +699,11 @@ def process_batch_task(
         self.update_state(
             state=ProcessingState.FAILED.value,
             meta={
-                'stage': 'dispatch',
-                'progress': 0,
-                'error': str(e),
-                'module_id': module_id
-            }
+                "stage": "dispatch",
+                "progress": 0,
+                "error": str(e),
+                "module_id": module_id,
+            },
         )
 
         raise
@@ -692,6 +712,7 @@ def process_batch_task(
 # ============================================================================
 # HELPER FUNCTIONS FOR PROGRESS POLLING
 # ============================================================================
+
 
 def get_task_progress(task_id: str) -> Dict[str, Any]:
     """
@@ -707,45 +728,45 @@ def get_task_progress(task_id: str) -> Dict[str, Any]:
 
     result = AsyncResult(task_id, app=app)
 
-    if result.state == 'PENDING':
+    if result.state == "PENDING":
         return {
-            'state': 'PENDING',
-            'progress': 0,
-            'stage': 'waiting',
-            'message': 'Task is waiting to be processed'
+            "state": "PENDING",
+            "progress": 0,
+            "stage": "waiting",
+            "message": "Task is waiting to be processed",
         }
 
-    elif result.state == 'PROCESSING':
+    elif result.state == "PROCESSING":
         meta = result.info or {}
         return {
-            'state': 'PROCESSING',
-            'progress': meta.get('progress', 0),
-            'stage': meta.get('stage', 'unknown'),
-            'message': meta.get('status', 'Processing...')
+            "state": "PROCESSING",
+            "progress": meta.get("progress", 0),
+            "stage": meta.get("stage", "unknown"),
+            "message": meta.get("status", "Processing..."),
         }
 
-    elif result.state == 'SUCCESS':
+    elif result.state == "SUCCESS":
         return {
-            'state': 'COMPLETED',
-            'progress': 100,
-            'stage': 'completed',
-            'result': result.result if hasattr(result, 'result') else None
+            "state": "COMPLETED",
+            "progress": 100,
+            "stage": "completed",
+            "result": result.result if hasattr(result, "result") else None,
         }
 
-    elif result.state == 'FAILURE':
+    elif result.state == "FAILURE":
         return {
-            'state': 'FAILED',
-            'progress': 0,
-            'stage': 'failed',
-            'error': str(result.info) if result.info else 'Unknown error'
+            "state": "FAILED",
+            "progress": 0,
+            "stage": "failed",
+            "error": str(result.info) if result.info else "Unknown error",
         }
 
     else:
         return {
-            'state': result.state,
-            'progress': 0,
-            'stage': result.state.lower(),
-            'message': str(result.info) if result.info else ''
+            "state": result.state,
+            "progress": 0,
+            "stage": result.state.lower(),
+            "message": str(result.info) if result.info else "",
         }
 
 
@@ -773,10 +794,10 @@ def cancel_task(task_id: str) -> bool:
 
 # Explicitly list tasks for better discoverability
 __all__ = [
-    'process_document_task',
-    'process_batch_task',
-    'get_task_progress',
-    'cancel_task',
-    'ProcessingState',
-    'app'
+    "process_document_task",
+    "process_batch_task",
+    "get_task_progress",
+    "cancel_task",
+    "ProcessingState",
+    "app",
 ]

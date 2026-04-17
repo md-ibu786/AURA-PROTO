@@ -169,13 +169,13 @@ def _make_credentials(token: str) -> HTTPAuthorizationCredentials:
     Returns:
         HTTPAuthorizationCredentials: Credentials object.
     """
-    return HTTPAuthorizationCredentials(scheme='Bearer', credentials=token)
+    return HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
 
 
 def _make_user(
     uid: str,
     role: models.UserRole,
-    status: models.UserStatus = 'active',
+    status: models.UserStatus = "active",
     department_id: typing.Optional[str] = None,
     subject_ids: typing.Optional[list[str]] = None,
 ) -> models.FirestoreUser:
@@ -193,12 +193,13 @@ def _make_user(
     """
     return models.FirestoreUser(
         uid=uid,
-        email=f'{uid}@example.com',
-        displayName='Test User',
+        email=f"{uid}@example.com",
+        displayName="Test User",
         role=role,
         status=status,
         departmentId=department_id,
         subjectIds=subject_ids or [],
+        _v=1,
     )
 
 
@@ -208,8 +209,8 @@ def _set_real_firebase_env(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: Pytest monkeypatch fixture.
     """
-    monkeypatch.setenv('TESTING', 'false')
-    monkeypatch.setenv('USE_REAL_FIREBASE', 'true')
+    monkeypatch.setenv("TESTING", "false")
+    monkeypatch.setenv("USE_REAL_FIREBASE", "true")
 
 
 def _set_mock_firebase_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -218,8 +219,8 @@ def _set_mock_firebase_env(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: Pytest monkeypatch fixture.
     """
-    monkeypatch.setenv('TESTING', 'true')
-    monkeypatch.setenv('USE_REAL_FIREBASE', 'false')
+    monkeypatch.setenv("TESTING", "true")
+    monkeypatch.setenv("USE_REAL_FIREBASE", "false")
 
 
 @pytest.mark.asyncio
@@ -228,10 +229,10 @@ async def test_verify_firebase_token_mock_admin(
 ) -> None:
     """Mock admin token returns decoded claims."""
     _set_mock_firebase_env(monkeypatch)
-    claims = await auth_module.verify_firebase_token('mock-token-admin-001')
-    assert claims['uid'] == '001'
-    assert claims['role'] == 'admin'
-    assert claims['email'] == 'admin@aura.edu'
+    claims = await auth_module.verify_firebase_token("mock-token-admin-001")
+    assert claims["uid"] == "001"
+    assert claims["role"] == "admin"
+    assert claims["email"] == "admin@aura.edu"
 
 
 @pytest.mark.asyncio
@@ -240,9 +241,9 @@ async def test_verify_firebase_token_mock_role_only(
 ) -> None:
     """Role-only mock token uses fallback uid format."""
     _set_mock_firebase_env(monkeypatch)
-    claims = await auth_module.verify_firebase_token('mock-token-staff')
-    assert claims['uid'] == 'mock-staff-user'
-    assert claims['role'] == 'staff'
+    claims = await auth_module.verify_firebase_token("mock-token-staff")
+    assert claims["uid"] == "mock-staff-user"
+    assert claims["role"] == "staff"
 
 
 @pytest.mark.asyncio
@@ -252,9 +253,9 @@ async def test_verify_firebase_token_mock_invalid_token(
     """Invalid mock token raises HTTP 401."""
     _set_mock_firebase_env(monkeypatch)
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.verify_firebase_token('invalid-token')
+        await auth_module.verify_firebase_token("invalid-token")
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
-    assert exc.value.detail == 'Invalid mock token'
+    assert exc.value.detail == "Invalid mock token"
     assert exc.value.headers is None
 
 
@@ -264,19 +265,19 @@ async def test_verify_firebase_token_real_success(
 ) -> None:
     """Real-branch verification returns decoded claims."""
     _set_real_firebase_env(monkeypatch)
-    client = FakeAuthClient({'uid': 'user-1'}, None)
-    monkeypatch.setattr(auth_module, 'get_auth', lambda: client)
-    claims = await auth_module.verify_firebase_token('real-token')
-    assert claims['uid'] == 'user-1'
+    client = FakeAuthClient({"uid": "user-1"}, None)
+    monkeypatch.setattr(auth_module, "get_auth", lambda: client)
+    claims = await auth_module.verify_firebase_token("real-token")
+    assert claims["uid"] == "user-1"
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ('exc_name', 'detail_prefix'),
+    ("exc_name", "detail_prefix"),
     [
-        ('InvalidIdTokenError', 'Invalid authentication token:'),
-        ('ExpiredIdTokenError', 'Authentication token has expired:'),
-        ('RevokedIdTokenError', 'Authentication token has been revoked:'),
+        ("InvalidIdTokenError", "Invalid authentication token:"),
+        ("ExpiredIdTokenError", "Authentication token has expired:"),
+        ("RevokedIdTokenError", "Authentication token has been revoked:"),
     ],
 )
 async def test_verify_firebase_token_real_error_mapping(
@@ -285,20 +286,21 @@ async def test_verify_firebase_token_real_error_mapping(
     detail_prefix: str,
 ) -> None:
     """Real-branch errors map to HTTP 401 responses."""
+
     class FakeTokenError(Exception):
         """Fake token exception for auth mapping tests."""
 
     _set_real_firebase_env(monkeypatch)
     monkeypatch.setattr(auth_module.auth, exc_name, FakeTokenError)
-    client = FakeAuthClient(None, FakeTokenError('bad-token'))
-    monkeypatch.setattr(auth_module, 'get_auth', lambda: client)
+    client = FakeAuthClient(None, FakeTokenError("bad-token"))
+    monkeypatch.setattr(auth_module, "get_auth", lambda: client)
 
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.verify_firebase_token('real-token')
+        await auth_module.verify_firebase_token("real-token")
 
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
     assert detail_prefix in exc.value.detail
-    assert exc.value.headers == {'WWW-Authenticate': 'Bearer'}
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.asyncio
@@ -307,15 +309,15 @@ async def test_verify_firebase_token_real_generic_error(
 ) -> None:
     """Unexpected errors map to generic HTTP 401 responses."""
     _set_real_firebase_env(monkeypatch)
-    client = FakeAuthClient(None, Exception('boom'))
-    monkeypatch.setattr(auth_module, 'get_auth', lambda: client)
+    client = FakeAuthClient(None, Exception("boom"))
+    monkeypatch.setattr(auth_module, "get_auth", lambda: client)
 
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.verify_firebase_token('real-token')
+        await auth_module.verify_firebase_token("real-token")
 
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
-    assert exc.value.detail.startswith('Authentication failed:')
-    assert exc.value.headers == {'WWW-Authenticate': 'Bearer'}
+    assert exc.value.detail.startswith("Authentication failed:")
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.asyncio
@@ -332,25 +334,26 @@ async def test_get_current_user_success_with_role_override(
     are set server-side and are always the latest source of truth
     for role assignments.
     """
+
     async def _verify_token(_: str) -> dict:
-        return {'uid': 'user-1', 'role': 'admin'}
+        return {"uid": "user-1", "role": "admin"}
 
     docs = {
-        'user-1': {
-            'email': 'user-1@example.com',
-            'displayName': 'User One',
-            'role': 'student',
-            'status': 'active',
+        "user-1": {
+            "email": "user-1@example.com",
+            "displayName": "User One",
+            "role": "student",
+            "status": "active",
         },
     }
-    monkeypatch.setattr(auth_module, 'verify_firebase_token', _verify_token)
-    monkeypatch.setattr(auth_module, 'get_db', lambda: FakeDb(docs))
+    monkeypatch.setattr(auth_module, "verify_firebase_token", _verify_token)
+    monkeypatch.setattr(auth_module, "get_db", lambda: FakeDb(docs))
 
     user = await auth_module.get_current_user(
-        _make_credentials('mock-token-admin-user-1'),
+        _make_credentials("mock-token-admin-user-1"),
     )
-    assert user.uid == 'user-1'
-    assert user.role == 'admin'
+    assert user.uid == "user-1"
+    assert user.role == "admin"
 
 
 @pytest.mark.asyncio
@@ -358,25 +361,26 @@ async def test_get_current_user_success_without_role_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Firestore role is used when token has no role claim."""
+
     async def _verify_token(_: str) -> dict:
-        return {'uid': 'user-2'}
+        return {"uid": "user-2"}
 
     docs = {
-        'user-2': {
-            'email': 'user-2@example.com',
-            'displayName': 'User Two',
-            'role': 'staff',
-            'status': 'active',
+        "user-2": {
+            "email": "user-2@example.com",
+            "displayName": "User Two",
+            "role": "staff",
+            "status": "active",
         },
     }
-    monkeypatch.setattr(auth_module, 'verify_firebase_token', _verify_token)
-    monkeypatch.setattr(auth_module, 'get_db', lambda: FakeDb(docs))
+    monkeypatch.setattr(auth_module, "verify_firebase_token", _verify_token)
+    monkeypatch.setattr(auth_module, "get_db", lambda: FakeDb(docs))
 
     user = await auth_module.get_current_user(
-        _make_credentials('mock-token-staff-user-2'),
+        _make_credentials("mock-token-staff-user-2"),
     )
-    assert user.uid == 'user-2'
-    assert user.role == 'staff'
+    assert user.uid == "user-2"
+    assert user.role == "staff"
 
 
 @pytest.mark.asyncio
@@ -384,17 +388,18 @@ async def test_get_current_user_missing_uid_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing uid claim raises HTTP 401."""
-    async def _verify_token(_: str) -> dict:
-        return {'email': 'missing@example.com'}
 
-    monkeypatch.setattr(auth_module, 'verify_firebase_token', _verify_token)
+    async def _verify_token(_: str) -> dict:
+        return {"email": "missing@example.com"}
+
+    monkeypatch.setattr(auth_module, "verify_firebase_token", _verify_token)
 
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.get_current_user(_make_credentials('mock-token'))
+        await auth_module.get_current_user(_make_credentials("mock-token"))
 
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
-    assert exc.value.detail == 'Token missing uid claim'
-    assert exc.value.headers == {'WWW-Authenticate': 'Bearer'}
+    assert exc.value.detail == "Token missing uid claim"
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.asyncio
@@ -402,18 +407,19 @@ async def test_get_current_user_user_not_found(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing user document raises HTTP 401."""
-    async def _verify_token(_: str) -> dict:
-        return {'uid': 'missing'}
 
-    monkeypatch.setattr(auth_module, 'verify_firebase_token', _verify_token)
-    monkeypatch.setattr(auth_module, 'get_db', lambda: FakeDb({}))
+    async def _verify_token(_: str) -> dict:
+        return {"uid": "missing"}
+
+    monkeypatch.setattr(auth_module, "verify_firebase_token", _verify_token)
+    monkeypatch.setattr(auth_module, "get_db", lambda: FakeDb({}))
 
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.get_current_user(_make_credentials('mock-token'))
+        await auth_module.get_current_user(_make_credentials("mock-token"))
 
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
-    assert exc.value.detail == 'User not found in database'
-    assert exc.value.headers == {'WWW-Authenticate': 'Bearer'}
+    assert exc.value.detail == "User not found in database"
+    assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 
 @pytest.mark.asyncio
@@ -421,25 +427,26 @@ async def test_get_current_user_disabled_user(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Disabled users are rejected with HTTP 403."""
+
     async def _verify_token(_: str) -> dict:
-        return {'uid': 'disabled-user'}
+        return {"uid": "disabled-user"}
 
     docs = {
-        'disabled-user': {
-            'email': 'disabled@example.com',
-            'displayName': 'Disabled User',
-            'role': 'student',
-            'status': 'disabled',
+        "disabled-user": {
+            "email": "disabled@example.com",
+            "displayName": "Disabled User",
+            "role": "student",
+            "status": "disabled",
         },
     }
-    monkeypatch.setattr(auth_module, 'verify_firebase_token', _verify_token)
-    monkeypatch.setattr(auth_module, 'get_db', lambda: FakeDb(docs))
+    monkeypatch.setattr(auth_module, "verify_firebase_token", _verify_token)
+    monkeypatch.setattr(auth_module, "get_db", lambda: FakeDb(docs))
 
     with pytest.raises(fastapi.HTTPException) as exc:
-        await auth_module.get_current_user(_make_credentials('mock-token'))
+        await auth_module.get_current_user(_make_credentials("mock-token"))
 
     assert exc.value.status_code == fastapi.status.HTTP_403_FORBIDDEN
-    assert exc.value.detail == 'User account is disabled'
+    assert exc.value.detail == "User account is disabled"
     assert exc.value.headers is None
 
 
@@ -461,151 +468,151 @@ async def test_get_current_user_missing_credentials() -> None:
 @pytest.mark.asyncio
 async def test_require_admin_allows_admin() -> None:
     """Admins pass require_admin."""
-    user = _make_user('admin-1', 'admin')
+    user = _make_user("admin-1", "admin")
     assert await auth_module.require_admin(user) == user
 
 
 @pytest.mark.asyncio
 async def test_require_admin_denies_non_admin() -> None:
     """Non-admin users are rejected by require_admin."""
-    user = _make_user('staff-1', 'staff')
+    user = _make_user("staff-1", "staff")
     with pytest.raises(fastapi.HTTPException) as exc:
         await auth_module.require_admin(user)
     assert exc.value.status_code == fastapi.status.HTTP_403_FORBIDDEN
-    assert exc.value.detail == 'Admin access required'
+    assert exc.value.detail == "Admin access required"
 
 
 @pytest.mark.asyncio
 async def test_require_staff_or_admin_allows_staff() -> None:
     """Staff users pass require_staff_or_admin."""
-    user = _make_user('staff-2', 'staff')
+    user = _make_user("staff-2", "staff")
     assert await auth_module.require_staff_or_admin(user) == user
 
 
 @pytest.mark.asyncio
 async def test_require_staff_or_admin_denies_student() -> None:
     """Students are rejected by require_staff_or_admin."""
-    user = _make_user('student-1', 'student')
+    user = _make_user("student-1", "student")
     with pytest.raises(fastapi.HTTPException) as exc:
         await auth_module.require_staff_or_admin(user)
     assert exc.value.status_code == fastapi.status.HTTP_403_FORBIDDEN
-    assert exc.value.detail == 'Staff access required'
+    assert exc.value.detail == "Staff access required"
 
 
 @pytest.mark.asyncio
 async def test_require_active_user_returns_user() -> None:
     """require_active_user returns the provided user."""
-    user = _make_user('student-2', 'student')
+    user = _make_user("student-2", "student")
     assert await auth_module.require_active_user(user) == user
 
 
 @pytest.mark.asyncio
 async def test_require_role_allows_listed_roles() -> None:
     """require_role allows a user with an allowed role."""
-    checker = auth_module.require_role('admin', 'staff')
-    user = _make_user('staff-3', 'staff')
+    checker = auth_module.require_role("admin", "staff")
+    user = _make_user("staff-3", "staff")
     assert await checker(user) == user
 
 
 @pytest.mark.asyncio
 async def test_require_role_denies_unlisted_roles() -> None:
     """require_role denies users without allowed roles."""
-    checker = auth_module.require_role('admin')
-    user = _make_user('student-3', 'student')
+    checker = auth_module.require_role("admin")
+    user = _make_user("student-3", "student")
     with pytest.raises(fastapi.HTTPException) as exc:
         await checker(user)
     assert exc.value.status_code == fastapi.status.HTTP_403_FORBIDDEN
-    assert exc.value.detail == 'Role access required'
+    assert exc.value.detail == "Role access required"
 
 
 def test_has_subject_access_admin() -> None:
     """Admins can access any subject."""
-    user = _make_user('admin-2', 'admin')
-    assert auth_module.has_subject_access(user, 'subject-1') is True
+    user = _make_user("admin-2", "admin")
+    assert auth_module.has_subject_access(user, "subject-1") is True
 
 
 def test_has_subject_access_staff_assignments() -> None:
     """Staff access is limited to assigned subjects."""
     user = _make_user(
-        'staff-4',
-        'staff',
-        subject_ids=['subject-1'],
+        "staff-4",
+        "staff",
+        subject_ids=["subject-1"],
     )
-    assert auth_module.has_subject_access(user, 'subject-1') is True
-    assert auth_module.has_subject_access(user, 'subject-2') is False
+    assert auth_module.has_subject_access(user, "subject-1") is True
+    assert auth_module.has_subject_access(user, "subject-2") is False
 
 
 def test_has_subject_access_student() -> None:
     """Students do not have subject access."""
-    user = _make_user('student-4', 'student')
-    assert auth_module.has_subject_access(user, 'subject-1') is False
+    user = _make_user("student-4", "student")
+    assert auth_module.has_subject_access(user, "subject-1") is False
 
 
 def test_has_department_access_admin() -> None:
     """Admins can access any department."""
-    user = _make_user('admin-3', 'admin')
-    assert auth_module.has_department_access(user, 'dept-1') is True
+    user = _make_user("admin-3", "admin")
+    assert auth_module.has_department_access(user, "dept-1") is True
 
 
 def test_has_department_access_department_match() -> None:
     """Department access is limited to matching department ids."""
     user = _make_user(
-        'staff-5',
-        'staff',
-        department_id='dept-1',
+        "staff-5",
+        "staff",
+        department_id="dept-1",
     )
-    assert auth_module.has_department_access(user, 'dept-1') is True
-    assert auth_module.has_department_access(user, 'dept-2') is False
+    assert auth_module.has_department_access(user, "dept-1") is True
+    assert auth_module.has_department_access(user, "dept-2") is False
 
 
 def test_can_modify_note_staff_subject_access() -> None:
     """Staff can modify notes in assigned subjects."""
     user = _make_user(
-        'staff-6',
-        'staff',
-        subject_ids=['subject-1'],
+        "staff-6",
+        "staff",
+        subject_ids=["subject-1"],
     )
-    note_data = {'subjectId': 'subject-1'}
+    note_data = {"subjectId": "subject-1"}
     assert auth_module.can_modify_note(user, note_data) is True
 
 
 def test_can_modify_note_staff_missing_subject() -> None:
     """Staff cannot modify notes without subject access."""
     user = _make_user(
-        'staff-7',
-        'staff',
-        subject_ids=['subject-1'],
+        "staff-7",
+        "staff",
+        subject_ids=["subject-1"],
     )
     assert auth_module.can_modify_note(user, {}) is False
-    note_data = {'subjectId': 'subject-2'}
+    note_data = {"subjectId": "subject-2"}
     assert auth_module.can_modify_note(user, note_data) is False
 
 
 def test_can_modify_note_student() -> None:
     """Students cannot modify notes."""
-    user = _make_user('student-5', 'student')
-    note_data = {'subjectId': 'subject-1'}
+    user = _make_user("student-5", "student")
+    note_data = {"subjectId": "subject-1"}
     assert auth_module.can_modify_note(user, note_data) is False
 
 
 def test_can_create_note_in_subject_admin() -> None:
     """Admins can create notes in any subject."""
-    user = _make_user('admin-4', 'admin')
-    assert auth_module.can_create_note_in_subject(user, 'subject-1') is True
+    user = _make_user("admin-4", "admin")
+    assert auth_module.can_create_note_in_subject(user, "subject-1") is True
 
 
 def test_can_create_note_in_subject_staff() -> None:
     """Staff can create notes in assigned subjects."""
     user = _make_user(
-        'staff-8',
-        'staff',
-        subject_ids=['subject-2'],
+        "staff-8",
+        "staff",
+        subject_ids=["subject-2"],
     )
-    assert auth_module.can_create_note_in_subject(user, 'subject-2') is True
-    assert auth_module.can_create_note_in_subject(user, 'subject-1') is False
+    assert auth_module.can_create_note_in_subject(user, "subject-2") is True
+    assert auth_module.can_create_note_in_subject(user, "subject-1") is False
 
 
 def test_can_create_note_in_subject_student() -> None:
     """Students cannot create notes in subjects."""
-    user = _make_user('student-6', 'student')
-    assert auth_module.can_create_note_in_subject(user, 'subject-1') is False
+    user = _make_user("student-6", "student")
+    assert auth_module.can_create_note_in_subject(user, "subject-1") is False

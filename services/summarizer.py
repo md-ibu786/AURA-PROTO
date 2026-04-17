@@ -32,7 +32,6 @@ USAGE:
 
 import logging
 
-from api.config import LLM_SUMMARIZATION_MODEL, REDIS_URL
 from model_router import get_default_router, resolve_use_case_config
 from model_router.compat import _run_sync
 

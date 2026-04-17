@@ -42,7 +42,7 @@ vi.mock('../hooks/useKGProcessing', () => ({
 
 // Type for mocked store (extends store type with mock methods)
 type MockedExplorerStore = UseExplorerStore & {
-    mockReturnValue: (value: Partial<UseExplorerStore>) => void;
+    mockReturnValue: (_value: Partial<UseExplorerStore>) => void;
 };
 
 // Type for mocked useKGProcessing hook (actual return type + mock method)
@@ -54,7 +54,7 @@ type MockedKGProcessingHook = {
 };
 
 type MockedKGProcessing = MockedKGProcessingHook & {
-    mockReturnValue: (value: MockedKGProcessingHook) => void;
+    mockReturnValue: (_value: MockedKGProcessingHook) => void;
 };
 
 describe('ProcessDialog', () => {
@@ -256,7 +256,7 @@ describe('ProcessDialog', () => {
 
     describe('Error State', () => {
         it('displays error message on failure', async () => {
-            let onErrorCallback: ((err: Error) => void) | undefined;
+            let onErrorCallback: ((_err: Error) => void) | undefined;
             mockMutate.mockImplementation((_data, callbacks) => {
                 onErrorCallback = callbacks.onError;
             });

@@ -33,6 +33,7 @@ USAGE:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -274,6 +275,50 @@ class SummaryService:
         """Return model name string for generate_content (router resolves)."""
         return self.model_name
 
+    def _get_cache(self):
+        """Return Redis cache client."""
+        if self._cache is None:
+            from api.cache import redis_client
+
+            self._cache = redis_client
+        return self._cache
+
+    async def _get_cached_summary(self, cache_key: str) -> Optional[Any]:
+        """Retrieve a cached summary from Redis."""
+        cache = self._get_cache()
+        if cache is None:
+            return None
+        try:
+            return cache.get(cache_key)
+        except Exception as e:
+            logger.debug(f"Cache retrieval failed for {cache_key}: {e}")
+            return None
+
+    def _compute_content_hash(self, content: str) -> str:
+        """Compute SHA256 hash of content for cache key generation."""
+        import hashlib
+
+        return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+    def _generate_cache_key(
+        self,
+        prefix: str,
+        entity_id: str,
+        length: SummaryLength,
+        content_hash: str,
+    ) -> str:
+        """Generate a cache key for summaries."""
+        return f"{prefix}:{entity_id}:{length.value}:{content_hash}"
+
+    def _get_word_count(self, length: SummaryLength) -> int:
+        """Get target word count for a summary length."""
+        word_counts = {
+            SummaryLength.BRIEF: BRIEF_WORD_COUNT,
+            SummaryLength.STANDARD: STANDARD_WORD_COUNT,
+            SummaryLength.DETAILED: DETAILED_WORD_COUNT,
+        }
+        return word_counts.get(length, STANDARD_WORD_COUNT)
+
     def _cache_summary(
         self,
         cache_key: str,
@@ -291,17 +336,17 @@ class SummaryService:
             logger.debug(f"Cache storage failed for {cache_key}: {e}")
             return False
 
-    def invalidate_cache(self, cache_key: str) -> bool:
-        """Invalidate a specific cached summary."""
+    def invalidate_cache(self, cache_key: str) -> int:
+        """Invalidate a specific cached summary. Returns number of keys deleted."""
         cache = self._get_cache()
         if cache is None:
-            return False
+            return 0
 
         try:
             return cache.delete(cache_key)
         except Exception as e:
             logger.debug(f"Cache invalidation failed for {cache_key}: {e}")
-            return False
+            return 0
 
     def invalidate_document_cache(self, document_id: str) -> int:
         """Invalidate all cached summaries for a document."""
@@ -310,7 +355,10 @@ class SummaryService:
             return 0
 
         pattern = f"{CACHE_PREFIX_DOCUMENT}:{document_id}:*"
-        return cache.delete_pattern(pattern)
+        keys = cache.keys(pattern)
+        if keys:
+            return cache.delete(*keys)
+        return 0
 
     def invalidate_module_cache(self, module_id: str) -> int:
         """Invalidate all cached summaries for a module."""
@@ -319,7 +367,60 @@ class SummaryService:
             return 0
 
         pattern = f"{CACHE_PREFIX_MODULE}:{module_id}:*"
-        return cache.delete_pattern(pattern)
+        keys = cache.keys(pattern)
+        if keys:
+            return cache.delete(*keys)
+        return 0
+
+    async def get_cached_document_summary(
+        self,
+        document_id: str,
+        length: SummaryLength = SummaryLength.STANDARD,
+    ) -> Optional[DocumentSummary]:
+        """Retrieve a cached document summary."""
+        content, _, _ = await self._get_document_content(document_id)
+        content_hash = self._compute_content_hash(content)
+        cache_key = self._generate_cache_key(
+            CACHE_PREFIX_DOCUMENT,
+            document_id,
+            length,
+            content_hash,
+        )
+        cached = await self._get_cached_summary(cache_key)
+        if cached is not None:
+            return DocumentSummary(**cached)
+        return None
+
+    async def get_cached_module_summary(
+        self,
+        module_id: str,
+        length: SummaryLength = SummaryLength.STANDARD,
+        include_document_summaries: bool = True,
+    ) -> Optional[ModuleSummary]:
+        """Retrieve a cached module summary."""
+        module_name, doc_ids = await self._get_module_documents(module_id)
+        if not doc_ids:
+            return None
+        doc_summaries = []
+        for doc_id in doc_ids:
+            doc_summary = await self.summarize_document(
+                document_id=doc_id,
+                length=SummaryLength.BRIEF,
+                force_regenerate=True,
+            )
+            doc_summaries.append(doc_summary)
+        combined_content = "".join([ds.summary for ds in doc_summaries])
+        content_hash = self._compute_content_hash(combined_content)
+        cache_key = self._generate_cache_key(
+            CACHE_PREFIX_MODULE,
+            module_id,
+            length,
+            content_hash,
+        )
+        cached = await self._get_cached_summary(cache_key)
+        if cached is not None:
+            return ModuleSummary(**cached)
+        return None
 
     async def _get_document_content(
         self,

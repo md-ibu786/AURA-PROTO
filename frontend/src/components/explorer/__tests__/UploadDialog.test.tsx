@@ -134,9 +134,8 @@ describe('UploadDialog polling cleanup', () => {
 
         // Track clearInterval
         const originalClearInterval = window.clearInterval;
-        let clearIntervalCalled = false;
         window.clearInterval = vi.fn(() => {
-            clearIntervalCalled = true;
+            return originalClearInterval;
         }) as typeof window.clearInterval;
 
         // Close the processing dialog

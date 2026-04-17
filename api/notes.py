@@ -49,10 +49,12 @@ USAGE:
     # Returns: {'id': '...', 'title': '...', 'pdf_url': '...', ...}
 ============================================================================
 """
+
 from google.cloud import firestore
 import datetime
 import re
-from typing import Optional
+from typing import Optional, Sequence
+
 try:
     from config import db
 except (ImportError, ModuleNotFoundError):
@@ -75,7 +77,7 @@ def get_unique_name(names: list[str], base_name: str) -> str:
         return base_name
 
     suffix_numbers = [1]
-    pattern = re.compile(rf'^{re.escape(base_name)} \((\d+)\)$')
+    pattern = re.compile(rf"^{re.escape(base_name)} \((\d+)\)$")
     for n in names:
         match = pattern.match(n)
         if match:
@@ -88,7 +90,7 @@ def get_unique_name(names: list[str], base_name: str) -> str:
 
 
 def _get_path_id(
-    path_segments: list[str],
+    path_segments: Sequence[str],
     collection_name: str,
 ) -> Optional[str]:
     """Get the document ID that follows a collection name in a path."""
@@ -102,7 +104,7 @@ def _get_path_id(
 
 
 def _extract_hierarchy_ids(
-    module_ref: firestore.DocumentReference,
+    module_ref: firestore.BaseDocumentReference,
 ) -> tuple[Optional[str], Optional[str]]:
     """Extract subject and department IDs from a module reference path."""
     path_segments = module_ref.path.split("/")
@@ -120,40 +122,39 @@ def create_note_record(
 ):
     """Create a note record in Firestore under the specified module."""
     # Find module doc ref
-    docs = list(db.collection_group('modules').where('id', '==', module_id).stream())
+    docs = list(db.collection_group("modules").where("id", "==", module_id).stream())
     if not docs:
         return None
 
     module_ref = docs[0].reference
 
     derived_subject_id, derived_department_id = _extract_hierarchy_ids(
-        module_ref,
+        docs[0].reference,
     )
     subject_id_to_store = derived_subject_id or subject_id
     department_id_to_store = derived_department_id or department_id
 
     # Get existing note titles to check for duplicates
-    existing_notes = list(module_ref.collection('notes').stream())
-    existing_titles = [note.to_dict().get('title', '') for note in existing_notes]
+    existing_notes = list(module_ref.collection("notes").stream())
+    existing_titles = [note.to_dict().get("title", "") for note in existing_notes]
 
     # Generate unique title if duplicate exists
     unique_title = get_unique_name(existing_titles, title)
 
-    new_note_ref = module_ref.collection('notes').document()
+    new_note_ref = module_ref.collection("notes").document()
 
     data = {
-        'id': new_note_ref.id,
-        'title': unique_title,
-        'pdf_url': pdf_url,
-        'created_at': datetime.datetime.now().isoformat(),
-        'module_id': module_id  # Keep reference for easier finding if needed
+        "id": new_note_ref.id,
+        "title": unique_title,
+        "pdf_url": pdf_url,
+        "created_at": datetime.datetime.now().isoformat(),
+        "module_id": module_id,  # Keep reference for easier finding if needed
     }
 
     if subject_id_to_store:
-        data['subjectId'] = subject_id_to_store
+        data["subjectId"] = subject_id_to_store
     if department_id_to_store:
-        data['departmentId'] = department_id_to_store
+        data["departmentId"] = department_id_to_store
 
     new_note_ref.set(data)
     return data
-

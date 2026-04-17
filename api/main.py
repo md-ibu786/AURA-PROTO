@@ -92,6 +92,8 @@ import importlib.util
 hierarchy_file = importlib.util.spec_from_file_location(
     "hierarchy_functions", os.path.join(os.path.dirname(__file__), "hierarchy.py")
 )
+if hierarchy_file is None or hierarchy_file.loader is None:
+    raise RuntimeError("Failed to load hierarchy module")
 hierarchy_module = importlib.util.module_from_spec(hierarchy_file)
 hierarchy_file.loader.exec_module(hierarchy_module)
 
@@ -161,10 +163,8 @@ def _get_allowed_origins() -> list:
         return origins
     # Default development origins
     return [
-        "http://localhost:5173",
         "http://localhost:5174",
         "http://localhost:3000",
-        "http://127.0.0.1:5173",
         "http://127.0.0.1:5174",
         "http://127.0.0.1:3000",
     ]
@@ -179,7 +179,9 @@ app = FastAPI(title="AURA-PROTO", version="1.0.0")
 # Auth endpoints: 5 requests per minute to prevent brute force attacks
 # General API: 100 requests per minute
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(
+    RateLimitExceeded, lambda request, exc: _rate_limit_exceeded_handler(request, exc)
+)
 
 
 # =============================================================================
@@ -280,6 +282,7 @@ async def _wire_usage_tracking() -> None:
         logger.info("Usage tracking wired into model router")
     except Exception as exc:
         logger.warning("Usage tracking setup skipped: %s", exc)
+
 
 base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 pdfs_dir = os.path.join(base_dir, "pdfs")
@@ -504,7 +507,12 @@ def redis_health_check():
     except ImportError:
         try:
             import redis
-            from api.cache.config import REDIS_HOST, REDIS_PORT, REDIS_DB, REDIS_PASSWORD
+            from api.cache.config import (
+                REDIS_HOST,
+                REDIS_PORT,
+                REDIS_DB,
+                REDIS_PASSWORD,
+            )
         except ImportError:
             return {"status": "unavailable", "redis": "package_not_found"}
 
@@ -516,7 +524,7 @@ def redis_health_check():
             db=REDIS_DB,
             password=REDIS_PASSWORD,
             socket_connect_timeout=2,
-            socket_timeout=2
+            socket_timeout=2,
         )
         connected = client.ping()
         client.close()
@@ -575,7 +583,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8001,
+        port=8000,
         reload=True,
         reload_dirs=["."],
     )

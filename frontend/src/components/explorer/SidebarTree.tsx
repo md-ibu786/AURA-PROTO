@@ -249,6 +249,8 @@ function TreeItem({
                 {hasChildren ? (
                     <button
                         className="tree-expand-btn"
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded ? "Collapse" : "Expand"}
                         onClick={(e) => {
                             e.stopPropagation();
                             toggleExpand(node.id);

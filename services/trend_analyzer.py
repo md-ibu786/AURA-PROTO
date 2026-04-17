@@ -34,6 +34,7 @@ USAGE:
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Literal, Optional
@@ -277,7 +278,7 @@ class TrendAnalyzer:
                 self._neo4j_driver = neo4j_driver
             except ImportError:
                 try:
-                    from neo4j_config import neo4j_driver
+                    from neo4j_config import neo4j_driver  # type: ignore[import-not-found]
 
                     self._neo4j_driver = neo4j_driver
                 except ImportError:
@@ -294,7 +295,7 @@ class TrendAnalyzer:
                 self._cache = redis_client
             except ImportError:
                 try:
-                    from cache import redis_client
+                    from cache import redis_client  # type: ignore[import-not-found]
 
                     self._cache = redis_client
                 except ImportError:
@@ -315,7 +316,8 @@ class TrendAnalyzer:
         if cache is None:
             return None
         try:
-            return cache.get(cache_key)
+            data = cache.get(cache_key)
+            return data if isinstance(data, dict) else None
         except Exception as e:
             logger.debug(f"Cache get failed: {e}")
             return None
@@ -491,7 +493,8 @@ class TrendAnalyzer:
         )
         cached = await self._get_cached(cache_key)
         if cached:
-            return [TrendingConcept(**c) for c in cached]
+            raw = cached.get("data", [])
+            return [TrendingConcept(**c) for c in raw]
 
         driver = self._get_driver()
         if driver is None:
@@ -562,7 +565,7 @@ class TrendAnalyzer:
                     )
 
             # Cache result
-            self._set_cached(cache_key, [t.model_dump() for t in trending])
+            self._set_cached(cache_key, {"data": [t.model_dump() for t in trending]})
 
             logger.info(f"Trending concepts: found {len(trending)} concepts")
             return trending
@@ -603,7 +606,8 @@ class TrendAnalyzer:
         )
         cached = await self._get_cached(cache_key)
         if cached:
-            return [EmergingConcept(**c) for c in cached]
+            raw = cached.get("data", [])
+            return [EmergingConcept(**c) for c in raw]
 
         driver = self._get_driver()
         if driver is None:
@@ -678,7 +682,7 @@ class TrendAnalyzer:
                     )
 
             # Cache result
-            self._set_cached(cache_key, [e.model_dump() for e in emerging])
+            self._set_cached(cache_key, {"data": [e.model_dump() for e in emerging]})
 
             logger.info(f"Emerging concepts: found {len(emerging)} concepts")
             return emerging

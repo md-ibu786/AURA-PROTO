@@ -35,6 +35,19 @@
 import { test, expect } from './fixtures';
 import { ApiHelper } from './page-objects/ApiHelper';
 
+interface TreeNode {
+    id: string;
+    name: string;
+    type?: string;
+    children?: TreeNode[];
+}
+
+interface DepartmentItem {
+    id: string;
+    name: string;
+    code?: string;
+}
+
 test.describe('API - Health Check', () => {
     test('Backend server is running and healthy', async ({ request }) => {
         const api = new ApiHelper(request);
@@ -71,7 +84,7 @@ test.describe('API - Departments CRUD', () => {
 
         // Verify it exists
         const departments = await api.getAllDepartments();
-        const found = departments.some((d: any) => d.id === id && d.name === name);
+        const found = (departments as DepartmentItem[]).some((d) => d.id === id && d.name === name);
         expect(found).toBe(true);
     });
 
@@ -102,7 +115,7 @@ test.describe('API - Departments CRUD', () => {
         createdDeptId = id;
 
         // Add a semester
-        const semId = await api.createSemester(id, 'Cascade Semester');
+        await api.createSemester(id, 'Cascade Semester');
 
         // Delete department
         await api.deleteDepartment(id);
@@ -114,7 +127,7 @@ test.describe('API - Departments CRUD', () => {
 
         // Verify semester is also gone (via tree check)
         const tree = await api.getExplorerTree();
-        const deptInTree = tree.some((d: any) => d.id === id);
+        const deptInTree = (tree as TreeNode[]).some((d) => d.id === id);
         expect(deptInTree).toBe(false);
     });
 });
@@ -143,7 +156,7 @@ test.describe('API - Full Hierarchy Operations', () => {
 
         // Verify hierarchy in tree
         const tree = await api.getExplorerTree();
-        const deptNode = tree.find((d: any) => d.id === hierarchy.departmentId);
+        const deptNode = (tree as TreeNode[]).find((d) => d.id === hierarchy.departmentId);
         expect(deptNode).toBeDefined();
         expect(deptNode.type).toBe('department');
     });
@@ -154,17 +167,17 @@ test.describe('API - Full Hierarchy Operations', () => {
         // Get semesters for department
         const semesters = await api.getSemestersByDepartment(hierarchy.departmentId);
         expect(semesters.length).toBeGreaterThan(0);
-        expect(semesters.some((s: any) => s.id === hierarchy.semesterId)).toBe(true);
+        expect((semesters as TreeNode[]).some((s) => s.id === hierarchy.semesterId)).toBe(true);
 
         // Get subjects for semester
         const subjects = await api.getSubjectsBySemester(hierarchy.semesterId);
         expect(subjects.length).toBeGreaterThan(0);
-        expect(subjects.some((s: any) => s.id === hierarchy.subjectId)).toBe(true);
+        expect((subjects as TreeNode[]).some((s) => s.id === hierarchy.subjectId)).toBe(true);
 
         // Get modules for subject
         const modules = await api.getModulesBySubject(hierarchy.subjectId);
         expect(modules.length).toBeGreaterThan(0);
-        expect(modules.some((m: any) => m.id === hierarchy.moduleId)).toBe(true);
+        expect((modules as TreeNode[]).some((m) => m.id === hierarchy.moduleId)).toBe(true);
     });
 
     test('Explorer tree returns nested structure', async () => {
@@ -174,7 +187,7 @@ test.describe('API - Full Hierarchy Operations', () => {
         expect(Array.isArray(tree)).toBe(true);
 
         // Find our department
-        const dept = tree.find((d: any) => d.id === hierarchy.departmentId);
+        const dept = (tree as TreeNode[]).find((d) => d.id === hierarchy.departmentId);
         expect(dept).toBeDefined();
 
         // Department should have children (semesters)
@@ -182,7 +195,7 @@ test.describe('API - Full Hierarchy Operations', () => {
         expect(Array.isArray(dept.children)).toBe(true);
 
         // Find semester in children
-        const sem = dept.children.find((s: any) => s.id === hierarchy.semesterId);
+        const sem = (dept.children as TreeNode[]).find((s) => s.id === hierarchy.semesterId);
         expect(sem).toBeDefined();
         expect(sem.children).toBeDefined();
     });
@@ -193,12 +206,12 @@ test.describe('API - Full Hierarchy Operations', () => {
         // Get department's children (semesters)
         const semesters = await api.getExplorerChildren('department', hierarchy.departmentId);
         expect(semesters.length).toBeGreaterThan(0);
-        expect(semesters.some((s: any) => s.id === hierarchy.semesterId)).toBe(true);
+        expect((semesters as TreeNode[]).some((s) => s.id === hierarchy.semesterId)).toBe(true);
 
         // Get semester's children (subjects)
         const subjects = await api.getExplorerChildren('semester', hierarchy.semesterId);
         expect(subjects.length).toBeGreaterThan(0);
-        expect(subjects.some((s: any) => s.id === hierarchy.subjectId)).toBe(true);
+        expect((subjects as TreeNode[]).some((s) => s.id === hierarchy.subjectId)).toBe(true);
     });
 });
 
@@ -292,11 +305,11 @@ test.describe('API - Explorer Move Operations', () => {
 
         // Verify module is now under target subject
         const modules = await api.getModulesBySubject(targetSubjectId);
-        expect(modules.some((m: any) => m.id === sourceModuleId)).toBe(true);
+        expect((modules as TreeNode[]).some((m) => m.id === sourceModuleId)).toBe(true);
 
         // Verify module is gone from original subject
         const originalModules = await api.getModulesBySubject(hierarchy1.subjectId);
-        expect(originalModules.some((m: any) => m.id === sourceModuleId)).toBe(false);
+        expect((originalModules as TreeNode[]).some((m) => m.id === sourceModuleId)).toBe(false);
     });
 
     test('Move subject to different semester', async () => {
@@ -314,7 +327,7 @@ test.describe('API - Explorer Move Operations', () => {
 
         // Verify subject is under new semester
         const subjects = await api.getSubjectsBySemester(targetSemesterId);
-        expect(subjects.some((s: any) => s.id === sourceSubjectId)).toBe(true);
+        expect((subjects as TreeNode[]).some((s) => s.id === sourceSubjectId)).toBe(true);
     });
 });
 
@@ -343,7 +356,7 @@ test.describe('API - Error Handling', () => {
         expect(response.ok()).toBe(false);
     });
 
-    test('Prevents duplicate codes where applicable', async ({ request }) => {
+    test('Prevents duplicate codes where applicable', async () => {
         // Create department with specific code
         const dept1 = await api.createDepartment('Dept1', 'DUP');
 
@@ -388,7 +401,7 @@ test.describe('API - Explorer Tree Performance', () => {
         const tree = await api.getExplorerTree();
 
         for (const h of hierarchies) {
-            const found = tree.some((d: any) => d.id === h.departmentId);
+            const found = (tree as TreeNode[]).some((d) => d.id === h.departmentId);
             expect(found).toBe(true);
         }
     });

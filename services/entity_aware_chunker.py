@@ -580,12 +580,7 @@ class EntityAwareChunker:
             background_chunks = self._create_background_chunks(text, gaps, entities)
             chunks.extend(background_chunks)
             chunks.sort(key=lambda chunk: chunk["position"]["start"])
-            chunks = [
-                chunk._replace(index=i)
-                if hasattr(chunk, "_replace")
-                else {**chunk, "index": i}
-                for i, chunk in enumerate(chunks)
-            ]
+            chunks = [{**chunk, "index": i} for i, chunk in enumerate(chunks)]
 
         return chunks
 

@@ -56,6 +56,9 @@ import { DuplicateError, AuthError } from './errors';
 
 const API_BASE = '/api';
 
+// Shared token refresh promise to prevent concurrent refresh race conditions
+let tokenRefreshPromise: Promise<string | null> | null = null;
+
 export interface BlobResponse {
     blob: Blob;
     filename: string | null;
@@ -94,7 +97,14 @@ async function executeWithRetry(
 
     if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
         try {
-            const newToken = await useAuthStore.getState().getIdToken(true);
+            // Use shared refresh promise if one is already in progress
+            if (!tokenRefreshPromise) {
+                tokenRefreshPromise = useAuthStore.getState().getIdToken(true)
+                    .finally(() => {
+                        tokenRefreshPromise = null;
+                    });
+            }
+            const newToken = await tokenRefreshPromise;
             if (newToken) {
                 const retryHeaders = {
                     ...options.headers,
@@ -172,7 +182,10 @@ async function fetchApi<T>(
     });
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        const error = await response.json().catch((e) => {
+            console.warn('Failed to parse error response:', e);
+            return { detail: 'Network error' };
+        });
 
         if (response.status === 409) {
             const detail = error.detail;
@@ -234,7 +247,10 @@ async function fetchFormData<T>(
     });
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        const error = await response.json().catch((e) => {
+            console.warn('Failed to parse error response:', e);
+            return { detail: 'Network error' };
+        });
         throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
@@ -265,7 +281,10 @@ export async function fetchAuthApi<T>(
     });
 
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: 'Network error' }));
+        const error = await response.json().catch((e) => {
+            console.warn('Failed to parse error response:', e);
+            return { detail: 'Network error' };
+        });
         throw new Error(error.detail || `HTTP ${response.status}`);
     }
 
@@ -311,17 +330,22 @@ export async function checkHealth(): Promise<HealthStatus> {
     let chatStatus: ChatHealthStatus | undefined = undefined;
 
     // Helper to fetch without /api prefix (health endpoints are at root)
-    const fetchHealth = async (endpoint: string): Promise<Response> => {
-        const authHeaders = await getAuthHeader();
-        return fetch(endpoint, {
-            headers: authHeaders,
-        });
+    const fetchHealth = async (endpoint: string): Promise<Response | null> => {
+        try {
+            const authHeaders = await getAuthHeader();
+            return fetch(endpoint, {
+                headers: authHeaders,
+            });
+        } catch (e) {
+            console.warn('Health check auth failed:', e);
+            return null;
+        }
     };
 
     // 1. Check Notes Manager health
     try {
         const response = await fetchHealth('/health');
-        if (response.ok) {
+        if (response && response.ok) {
             const healthData = await response.json() as { status: string; version: string };
             version = healthData.version;
         } else {
@@ -333,7 +357,7 @@ export async function checkHealth(): Promise<HealthStatus> {
 
     try {
         const response = await fetchHealth('/ready');
-        if (response.ok) {
+        if (response && response.ok) {
             const readyData = await response.json() as { status: string; database: string };
             servicesReady = readyData.status === 'ready';
         } else {
@@ -347,7 +371,7 @@ export async function checkHealth(): Promise<HealthStatus> {
 
     try {
         const response = await fetchHealth('/health/redis');
-        if (response.ok) {
+        if (response && response.ok) {
             const redisData = await response.json() as { status: string };
             neo4jConnected = redisData.status === 'healthy';
         } else {

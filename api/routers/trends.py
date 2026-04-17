@@ -31,11 +31,17 @@ USAGE:
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from datetime import datetime
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from services.trend_analyzer import (
     ConceptEvolution,

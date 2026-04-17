@@ -82,7 +82,7 @@ startxref
         fs.writeFileSync(testPdfPath, pdfContent);
     });
 
-    test.afterAll(async ({ request }) => {
+    test.afterAll(async () => {
         if (hierarchy?.departmentId) {
             await apiHelper.deleteDepartment(hierarchy.departmentId);
         }
@@ -108,7 +108,7 @@ startxref
         expect(result.documentUrl).toBeDefined();
     });
 
-test('Verify document appears in module', async ({ request }) => {
+    test('Verify document appears in module', async () => {
         const fileBuffer = fs.readFileSync(testPdfPath);
         await apiHelper.uploadDocument(
             hierarchy.moduleId,
@@ -119,7 +119,7 @@ test('Verify document appears in module', async ({ request }) => {
 
         // Get module's notes
         const modules = await apiHelper.getModulesBySubject(hierarchy.subjectId);
-        const module = modules.find((m: any) => m.id === hierarchy.moduleId);
+        const module = modules.find((m: { id: string }) => m.id === hierarchy.moduleId);
 
         // Note should be created
         expect(module).toBeDefined();

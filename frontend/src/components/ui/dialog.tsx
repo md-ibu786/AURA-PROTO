@@ -75,7 +75,7 @@ export function DialogContent({ children, className }: { children: React.ReactNo
         } else {
             dialog.close();
         }
-    }, [open]);
+    }, [open, onOpenChange]);
 
     // Close on backdrop click
     const handleClick = (e: React.MouseEvent) => {

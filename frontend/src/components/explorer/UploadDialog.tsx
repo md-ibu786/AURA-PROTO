@@ -109,6 +109,11 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
 
     // Poll for processing status
     useEffect(() => {
+        if (pollIntervalRef.current) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+        }
+
         if (mode === 'processing' && processing?.jobId) {
             const pollStatus = async () => {
                 try {

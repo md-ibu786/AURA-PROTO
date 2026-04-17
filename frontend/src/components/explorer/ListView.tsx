@@ -74,15 +74,17 @@ export function ListView({ items }: ListViewProps) {
     const renameInputRef = React.useRef<HTMLInputElement>(null);
     const queryClient = useQueryClient();
 
-    // Start renaming
+    const getNodeById = React.useCallback(() => {
+        if (!renamingNodeId) return null;
+        return items.find(i => i.id === renamingNodeId) ?? null;
+    }, [items, renamingNodeId]);
+
     React.useEffect(() => {
-        if (renamingNodeId) {
-            const node = items.find(i => i.id === renamingNodeId);
-            if (node) {
-                setRenameValue(node.label);
-            }
+        const node = getNodeById();
+        if (node) {
+            setRenameValue(node.label);
         }
-    }, [renamingNodeId, items]);
+    }, [getNodeById]);
 
     const handleRenameSubmit = async (node: FileSystemNode) => {
         if (!renameValue || renameValue === node.label) {

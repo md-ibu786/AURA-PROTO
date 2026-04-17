@@ -33,7 +33,7 @@
  * @see: stores/useExplorerStore.ts - For deleteDialog state management
  * @note: Uses native <dialog> element for accessibility
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { Trash2, AlertTriangle, Download, X } from 'lucide-react';
 
 interface ConfirmDialogProps {
@@ -73,15 +73,16 @@ export function ConfirmDialog({
     }, [isOpen]);
 
     // Handle escape key
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        if (e.key === 'Escape' && isOpen) {
+            onCancel();
+        }
+    }, [isOpen, onCancel]);
+
     useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onCancel();
-            }
-        };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onCancel]);
+    }, [handleKeyDown]);
 
     if (!isOpen) return null;
 

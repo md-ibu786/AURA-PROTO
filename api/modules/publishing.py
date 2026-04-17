@@ -118,7 +118,7 @@ class ModulePublisher:
         now = datetime.utcnow()
 
         # Update module status
-        update_data = ModuleUpdate(status=ModuleStatus.PUBLISHED)
+        update_data = ModuleUpdate(name=None, status=ModuleStatus.PUBLISHED)
         self.module_service.update(module_id, update_data)
 
         # Add to published modules (for AURA-CHAT discovery)
@@ -185,7 +185,7 @@ class ModulePublisher:
         now = datetime.utcnow()
 
         # Update status back to draft
-        update_data = ModuleUpdate(status=ModuleStatus.DRAFT)
+        update_data = ModuleUpdate(name=None, status=ModuleStatus.DRAFT)
         self.module_service.update(module_id, update_data)
 
         # Remove from published modules (AURA-CHAT won't see it)
@@ -216,8 +216,13 @@ class ModulePublisher:
         Returns:
             List of published module documents
         """
-        docs = self.published_collection.where("student_access", "==", True).get()
-        return [d.to_dict() for d in docs]
+        docs = self.published_collection.where("student_access", "==", True).get()  # type: ignore[union-attr]
+        result: List[Dict[str, Any]] = []
+        for d in docs:
+            d_dict = d.to_dict()
+            if d_dict is not None:
+                result.append(d_dict)
+        return result
 
     def get_audit_log(self, module_id: str, limit: int = 50) -> List[Dict[str, Any]]:
         """
@@ -236,12 +241,14 @@ class ModulePublisher:
             self.audit_collection.where("module_id", "==", module_id)
             .order_by("timestamp", direction=fs.Query.DESCENDING)
             .limit(limit)
-            .get()
+            .get()  # type: ignore[union-attr]
         )
 
         results = []
         for d in docs:
             entry = d.to_dict()
+            if entry is None:
+                continue
             # Convert Firestore Timestamp to ISO string
             if hasattr(entry.get("timestamp"), "isoformat"):
                 entry["timestamp"] = entry["timestamp"].isoformat()

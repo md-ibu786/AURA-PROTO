@@ -129,7 +129,7 @@ def check_kg_processor_config() -> bool:
 
 def check_embeddings_config() -> bool:
     try:
-        from services.embeddings import EMBEDDING_MODEL
+        from api.config import EMBEDDING_MODEL
 
         print(f"PASS: embeddings uses config Embedding={EMBEDDING_MODEL}")
         return True

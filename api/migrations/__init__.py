@@ -27,6 +27,7 @@ from neo4j import Driver
 
 # Import logging from api
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from logging_config import logger
 
@@ -88,10 +89,7 @@ class Migration(ABC):
         )
 
     def execute_cypher_query(
-        self,
-        driver: Driver,
-        query: str,
-        parameters: Dict[str, Any] = None
+        self, driver: Driver, query: str, parameters: Dict[str, Any] | None = None
     ) -> List[Dict[str, Any]]:
         """
         Execute a Cypher query with error handling and logging.
@@ -112,9 +110,11 @@ class Migration(ABC):
         try:
             with driver.session() as session:
                 logger.debug(f"Executing Cypher: {query[:100]}...")
-                result = session.run(query, params)
+                result = session.run(query, params)  # type: ignore[arg-type]
                 records = [record.data() for record in result]
-                logger.debug(f"Query executed successfully, {len(records)} records returned")
+                logger.debug(
+                    f"Query executed successfully, {len(records)} records returned"
+                )
                 return records
 
         except Exception as e:

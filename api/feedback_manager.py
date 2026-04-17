@@ -430,7 +430,7 @@ class FeedbackManager:
                 where_clause = " AND ".join(conditions)
 
                 # Get total counts and averages
-                stats_result = session.run(
+                stats_result = session.run(  # type: ignore[arg-type]
                     f"""
                     MATCH (f:Feedback)
                     WHERE {where_clause}
@@ -446,12 +446,21 @@ class FeedbackManager:
                 )
                 stats = stats_result.single()
 
+                if stats is None:
+                    return FeedbackStats(
+                        total_feedback_count=0,
+                        positive_feedback_ratio=0.0,
+                        average_relevance_score=0.0,
+                        feedback_by_type={},
+                        feedback_by_module={},
+                    )
+
                 total = stats["total"] or 0
                 positive_ratio = stats["positive_ratio"] or 0.0
                 avg_relevance = stats["avg_relevance"] or 0.0
 
                 # Get counts by feedback type
-                type_result = session.run(
+                type_result = session.run(  # type: ignore[arg-type]
                     f"""
                     MATCH (f:Feedback)
                     WHERE {where_clause}
@@ -464,7 +473,7 @@ class FeedbackManager:
                 }
 
                 # Get counts by module
-                module_result = session.run(
+                module_result = session.run(  # type: ignore[arg-type]
                     f"""
                     MATCH (f:Feedback)
                     WHERE {where_clause}
@@ -591,7 +600,8 @@ class FeedbackManager:
                     """,
                     {"days": days},
                 )
-                deleted = result.single()["deleted"]
+                record = result.single()
+                deleted = record["deleted"] if record else 0
 
             logger.info(f"Deleted {deleted} old feedback entries")
             return deleted

@@ -53,9 +53,9 @@ if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
 try:
-    from config import EMBEDDING_MODEL, REDIS_URL
+    from config import EMBEDDING_MODEL  # type: ignore[import-not-found]
 except ImportError:
-    from api.config import EMBEDDING_MODEL, REDIS_URL
+    from api.config import EMBEDDING_MODEL
 
 EMBEDDING_DIMENSIONS = 768
 EMBEDDING_BATCH_SIZE = 100
@@ -313,28 +313,7 @@ class EmbeddingService:
         return self._query_embedding_cache(query)
 
     def _cache_query_embedding(self, query: str, embedding: List[float]) -> None:
-        """Compatibility no-op wrapper for the instance cache."""
-        del query
-        del embedding
-
-    @staticmethod
-    @lru_cache(maxsize=100)
-    def _query_embedding_cache_impl(query: str) -> Optional[List[float]]:
-        """Static placeholder retained for backward compatibility."""
-        del query
-        return None
-
-    def _query_embedding_cache(self, query: str) -> Optional[List[float]]:
-        """Instance-level query cache lookup."""
-        if not hasattr(self, "_query_cache"):
-            self._query_cache: Dict[str, List[float]] = {}
-            self._query_cache_order: List[str] = []
-            self._query_cache_max = 100
-
-        return self._query_cache.get(query)
-
-    def _cache_query_embedding(self, query: str, embedding: List[float]) -> None:
-        """Instance-level query cache storage with LRU eviction."""
+        """Store query embedding in the instance cache with LRU eviction."""
         if not hasattr(self, "_query_cache"):
             self._query_cache = {}
             self._query_cache_order = []
@@ -406,7 +385,7 @@ class EmbeddingService:
         if any(result is None for result in results):
             raise RuntimeError("Missing embeddings for one or more inputs")
 
-        return results
+        return [r for r in results if r is not None]  # type: ignore[return-value]
 
     def embed_entity(self, entity: Any) -> List[float]:
         """Generate embedding for an entity using name plus definition."""

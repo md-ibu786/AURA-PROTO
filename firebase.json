@@ -1,4 +1,6 @@
 {
+    // Emulator configuration for local development.
+    // Uses default localhost ports - no frontend emulator host config needed.
     "firestore": {
         "rules": "firestore.rules",
         "indexes": "firestore.indexes.json"

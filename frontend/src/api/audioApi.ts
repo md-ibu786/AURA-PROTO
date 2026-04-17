@@ -86,7 +86,7 @@ export async function generatePdf(request: GeneratePdfRequest): Promise<Generate
 export async function startPipeline(
     file: File,
     topic: string,
-    moduleId?: number
+    moduleId?: string
 ): Promise<{ jobId: string; status: string }> {
     const formData = new FormData();
     formData.append('file', file);

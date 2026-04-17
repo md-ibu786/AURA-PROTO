@@ -28,6 +28,7 @@ USAGE:
     app.include_router(hierarchy_router, prefix="/api/v1")
 ============================================================================
 """
+
 import importlib.util
 import os
 
@@ -48,9 +49,10 @@ from .models import (
 # (not from api/hierarchy/ package which would cause circular imports)
 hierarchy_file_path = os.path.join(os.path.dirname(__file__), "..", "hierarchy.py")
 hierarchy_file = importlib.util.spec_from_file_location(
-    "hierarchy_functions",
-    hierarchy_file_path
+    "hierarchy_functions", hierarchy_file_path
 )
+if hierarchy_file is None or hierarchy_file.loader is None:
+    raise RuntimeError("Failed to load hierarchy.py module spec")
 hierarchy_module = importlib.util.module_from_spec(hierarchy_file)
 hierarchy_file.loader.exec_module(hierarchy_module)
 
@@ -75,8 +77,10 @@ def get_departments() -> DepartmentListResponse:
     items = [
         DepartmentResponse(
             id=dept.get("id", ""),
-            code=dept.get("code", dept.get("id", "")[:4].upper()),  # Fallback to ID prefix
-            name=dept.get("name", dept.get("label", "Unknown"))
+            code=dept.get(
+                "code", dept.get("id", "")[:4].upper()
+            ),  # Fallback to ID prefix
+            name=dept.get("name", dept.get("label", "Unknown")),
         )
         for dept in raw_departments
     ]
@@ -86,7 +90,7 @@ def get_departments() -> DepartmentListResponse:
 
 @router.get("/semesters", response_model=SemesterListResponse)
 def get_semesters(
-    department_id: str = Query(..., description="Department ID to filter semesters")
+    department_id: str = Query(..., description="Department ID to filter semesters"),
 ) -> SemesterListResponse:
     """
     Get semesters for a specific department.
@@ -103,9 +107,11 @@ def get_semesters(
     items = [
         SemesterResponse(
             id=sem.get("id", ""),
-            name=sem.get("name", sem.get("label", f"Semester {sem.get('semester_number', '')}")),
+            name=sem.get(
+                "name", sem.get("label", f"Semester {sem.get('semester_number', '')}")
+            ),
             year=sem.get("year"),
-            semester_number=sem.get("semester_number", 0)
+            semester_number=sem.get("semester_number", 0),
         )
         for sem in raw_semesters
     ]
@@ -116,7 +122,7 @@ def get_semesters(
 @router.get("/subjects", response_model=SubjectListResponse)
 def get_subjects(
     department_id: str = Query(..., description="Department ID (for context)"),
-    semester_id: str = Query(..., description="Semester ID to filter subjects")
+    semester_id: str = Query(..., description="Semester ID to filter subjects"),
 ) -> SubjectListResponse:
     """
     Get subjects for a specific semester.
@@ -136,7 +142,7 @@ def get_subjects(
             id=subj.get("id", ""),
             code=subj.get("code", subj.get("id", "")[:6].upper()),
             name=subj.get("name", subj.get("label", "Unknown Subject")),
-            module_count=subj.get("module_count", 0)
+            module_count=subj.get("module_count", 0),
         )
         for subj in raw_subjects
     ]
@@ -148,7 +154,7 @@ def get_subjects(
 def get_modules(
     department_id: str = Query(..., description="Department ID (for context)"),
     semester_id: str = Query(..., description="Semester ID (for context)"),
-    subject_id: str = Query(..., description="Subject ID to filter modules")
+    subject_id: str = Query(..., description="Subject ID to filter modules"),
 ) -> ModuleListResponse:
     """
     Get modules for a specific subject.
@@ -158,7 +164,9 @@ def get_modules(
     Used as the final step in hierarchy drill-down.
     """
     # Note: get_modules_by_subject now supports optional context for direct path access
-    raw_modules = get_modules_by_subject(subject_id, department_id=department_id, semester_id=semester_id)
+    raw_modules = get_modules_by_subject(
+        subject_id, department_id=department_id, semester_id=semester_id
+    )
 
     if not raw_modules:
         return ModuleListResponse(items=[], total=0)
@@ -170,7 +178,7 @@ def get_modules(
             name=mod.get("name", mod.get("label", "Unknown Module")),
             description=mod.get("description"),
             document_count=mod.get("document_count", 0),
-            module_number=mod.get("module_number")
+            module_number=mod.get("module_number"),
         )
         for mod in raw_modules
     ]

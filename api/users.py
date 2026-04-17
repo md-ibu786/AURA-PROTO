@@ -103,17 +103,20 @@ async def get_me(user: FirestoreUser = Depends(get_current_user)):
         UserResponse: Current user's details including role and department
     """
     # Fetch additional details from Firestore
-    user_doc = db.collection("users").document(user.uid).get()
+    user_doc = db.collection("users").document(user.uid).get()  # type: ignore[misc]
     user_data = user_doc.to_dict() if user_doc.exists else {}
+    if user_data is None:
+        user_data = {}
 
     # Get department name if assigned
     department_name = None
     if user.departmentId:
         dept_doc = (
-            db.collection("departments").document(user.departmentId).get()
+            db.collection("departments").document(user.departmentId).get()  # type: ignore[misc]
         )
         if dept_doc.exists:
-            department_name = dept_doc.to_dict().get("name")
+            dept_dict = dept_doc.to_dict()
+            department_name = dept_dict.get("name") if dept_dict else None
 
     # Get subject info for staff users
     subject_ids = user_data.get("subjectIds")
@@ -125,8 +128,10 @@ async def get_me(user: FirestoreUser = Depends(get_current_user)):
         for subj_id in subject_ids:
             subj_ref = find_doc_by_id("subjects", subj_id)
             if subj_ref:
-                subj_data = subj_ref.get().to_dict()
-                subject_names.append(subj_data.get("name", "Unknown"))
+                subj_snap = subj_ref.get()  # type: ignore[misc]
+                subj_data = subj_snap.to_dict()
+                if subj_data:
+                    subject_names.append(subj_data.get("name", "Unknown"))
 
     return UserResponse(
         id=user.uid,
@@ -177,6 +182,8 @@ async def list_users(
         for doc in docs:
             try:
                 data = doc.to_dict()
+                if data is None:
+                    continue
                 dept_id = data.get("departmentId")
                 dept_name = None
                 user_role = data.get("role", "student")
@@ -184,9 +191,12 @@ async def list_users(
                 if dept_id:
                     if dept_id not in dept_cache:
                         try:
-                            dept_doc = db.collection("departments").document(dept_id).get()
+                            dept_doc = (
+                                db.collection("departments").document(dept_id).get()  # type: ignore[misc]
+                            )
+                            dept_dict = dept_doc.to_dict() if dept_doc.exists else None
                             dept_cache[dept_id] = (
-                                dept_doc.to_dict().get("name") if dept_doc.exists else None
+                                dept_dict.get("name") if dept_dict else None
                             )
                         except Exception:
                             dept_cache[dept_id] = "Unknown Department"
@@ -204,8 +214,13 @@ async def list_users(
                             try:
                                 subj_ref = find_doc_by_id("subjects", subj_id)
                                 if subj_ref:
-                                    subj_data = subj_ref.get().to_dict()
-                                    subject_cache[subj_id] = subj_data.get("name", "Unknown")
+                                    subj_snap = subj_ref.get()  # type: ignore[misc]
+                                    subj_data = subj_snap.to_dict()
+                                    subject_cache[subj_id] = (
+                                        subj_data.get("name", "Unknown")
+                                        if subj_data
+                                        else "Unknown"
+                                    )
                                 else:
                                     subject_cache[subj_id] = "Unknown"
                             except Exception:
@@ -271,7 +286,7 @@ async def create_user(
 
     # Verify department exists if provided (for students)
     if user_data.departmentId:
-        dept_doc = db.collection("departments").document(user_data.departmentId).get()
+        dept_doc = db.collection("departments").document(user_data.departmentId).get()  # type: ignore[misc]
         if not dept_doc.exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -290,8 +305,10 @@ async def create_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Subject {subject_id} not found",
                 )
-            subject_data = subject_ref.get().to_dict()
-            subject_names.append(subject_data.get("name", "Unknown"))
+            subject_snap = subject_ref.get()  # type: ignore[misc]
+            subject_data = subject_snap.to_dict()
+            if subject_data:
+                subject_names.append(subject_data.get("name", "Unknown"))
 
     # Check if user with email already exists in Firestore
     existing_users = (
@@ -343,10 +360,11 @@ async def create_user(
         dept_name = None
         if user_data.departmentId:
             dept_doc = (
-                db.collection("departments").document(user_data.departmentId).get()
+                db.collection("departments").document(user_data.departmentId).get()  # type: ignore[misc]
             )
             if dept_doc.exists:
-                dept_name = dept_doc.to_dict().get("name")
+                dept_dict = dept_doc.to_dict()
+                dept_name = dept_dict.get("name") if dept_dict else None
 
         return UserResponse(
             id=firebase_user.uid,
@@ -355,7 +373,9 @@ async def create_user(
             role=user_data.role,
             department_id=user_data.departmentId,
             department_name=dept_name,
-            subject_ids=user_data.subjectIds if user_data.role == "staff" else None,
+            subject_ids=list(user_data.subjectIds)
+            if user_data.role == "staff"
+            else None,
             subject_names=subject_names if user_data.role == "staff" else None,
             status=user_data.status,
             created_at=now,
@@ -391,7 +411,7 @@ async def get_user(
             detail="Cannot view other users' profiles",
         )
 
-    user_doc = db.collection("users").document(user_id).get()
+    user_doc = db.collection("users").document(user_id).get()  # type: ignore[misc]
 
     if not user_doc.exists:
         raise HTTPException(
@@ -399,14 +419,19 @@ async def get_user(
         )
 
     data = user_doc.to_dict()
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User data not found"
+        )
     dept_id = data.get("departmentId")
     dept_name = None
     user_role = data.get("role", "student")
 
     if dept_id:
-        dept_doc = db.collection("departments").document(dept_id).get()
+        dept_doc = db.collection("departments").document(dept_id).get()  # type: ignore[misc]
         if dept_doc.exists:
-            dept_name = dept_doc.to_dict().get("name")
+            dept_dict = dept_doc.to_dict()
+            dept_name = dept_dict.get("name") if dept_dict else None
 
     # Get subject info for staff users
     subject_ids = data.get("subjectIds")
@@ -418,8 +443,10 @@ async def get_user(
         for subj_id in subject_ids:
             subj_ref = find_doc_by_id("subjects", subj_id)
             if subj_ref:
-                subj_data = subj_ref.get().to_dict()
-                subject_names.append(subj_data.get("name", "Unknown"))
+                subj_snap = subj_ref.get()  # type: ignore[misc]
+                subj_data = subj_snap.to_dict()
+                if subj_data:
+                    subject_names.append(subj_data.get("name", "Unknown"))
 
     return UserResponse(
         id=user_id,
@@ -448,7 +475,7 @@ async def update_user(
     Can update display name, role, department, or status.
     """
     user_doc_ref = db.collection("users").document(user_id)
-    user_doc = user_doc_ref.get()
+    user_doc = user_doc_ref.get()  # type: ignore[misc]
 
     if not user_doc.exists:
         raise HTTPException(
@@ -456,6 +483,10 @@ async def update_user(
         )
 
     current_data = user_doc.to_dict()
+    if current_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User data not found"
+        )
     current_role = current_data.get("role", "student")
     current_department_id = current_data.get("departmentId")
     current_subject_ids = current_data.get("subjectIds") or []
@@ -524,9 +555,7 @@ async def update_user(
 
     if update_data.departmentId is not None:
         # Verify department exists
-        dept_doc = (
-            db.collection("departments").document(update_data.departmentId).get()
-        )
+        dept_doc = db.collection("departments").document(update_data.departmentId).get()  # type: ignore[misc]
         if not dept_doc.exists:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -551,7 +580,7 @@ async def update_user(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Subject {subject_id} not found",
                 )
-        updates["subjectIds"] = update_data.subjectIds
+        updates["subjectIds"] = list(update_data.subjectIds)
     elif update_data.role is not None and update_data.role in ("admin", "student"):
         updates["subjectIds"] = []
 
@@ -580,15 +609,21 @@ async def update_user(
     user_doc_ref.update(updates)
 
     # Fetch updated data for response
-    updated_doc = user_doc_ref.get()
+    updated_doc = user_doc_ref.get()  # type: ignore[misc]
     data = updated_doc.to_dict()
+    if data is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User data lost after update",
+        )
 
     dept_id = data.get("departmentId")
     dept_name = None
     if dept_id:
-        dept_doc = db.collection("departments").document(dept_id).get()
+        dept_doc = db.collection("departments").document(dept_id).get()  # type: ignore[misc]
         if dept_doc.exists:
-            dept_name = dept_doc.to_dict().get("name")
+            dept_dict = dept_doc.to_dict()
+            dept_name = dept_dict.get("name") if dept_dict else None
 
     # Get subject info for staff users
     subject_ids = data.get("subjectIds")
@@ -600,8 +635,10 @@ async def update_user(
         for subj_id in subject_ids:
             subj_ref = find_doc_by_id("subjects", subj_id)
             if subj_ref:
-                subj_data = subj_ref.get().to_dict()
-                subject_names.append(subj_data.get("name", "Unknown"))
+                subj_snap = subj_ref.get()  # type: ignore[misc]
+                subj_data = subj_snap.to_dict()
+                if subj_data:
+                    subject_names.append(subj_data.get("name", "Unknown"))
 
     return UserResponse(
         id=user_id,
@@ -625,6 +662,8 @@ def get_all_subjects():
     # Use collection group query to get all subjects
     for doc in db.collection_group("subjects").stream():
         data = doc.to_dict()
+        if data is None:
+            continue
         subjects.append(
             {
                 "id": doc.id,

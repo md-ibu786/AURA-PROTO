@@ -32,14 +32,13 @@ import pytest
 import time
 import sys
 import os
-from unittest.mock import patch, MagicMock
 
 # Import audio_processing module directly (same pattern as test_audio_processing.py)
 _api_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
-import audio_processing as ap_module
+import audio_processing as ap_module  # noqa: E402
 
 
 class TestJobStatusStoreTTL:
@@ -67,8 +66,6 @@ class TestJobStatusStoreTTL:
             "message": "Starting",
             "updated_at": time.time(),
         }
-
-        initial_count = len(ap_module.job_status_store)
 
         # Trigger cleanup by calling the cleanup function before insert
         if hasattr(ap_module, "_cleanup_job_store"):
@@ -135,8 +132,6 @@ class TestJobStatusStoreMaxEntries:
                 "message": f"Done {i}",
                 "updated_at": time.time() - i,
             }
-
-        initial_count = len(ap_module.job_status_store)
 
         # Trigger cleanup
         if hasattr(ap_module, "_cleanup_job_store"):

@@ -84,8 +84,6 @@ except ImportError:
     from api.graph_manager import GraphManager
     from api.neo4j_config import neo4j_driver
 
-from google.cloud.firestore import FieldFilter
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/kg", tags=["KG Processing"])
@@ -112,10 +110,7 @@ async def get_document_kg_status(document_id: str):
     # Bounded lookup: query by stored 'id' field with limit(1)
     # This avoids scanning the full notes collection group
     notes = list(
-        db.collection_group("notes")
-        .where(filter=FieldFilter("id", "==", document_id))
-        .limit(1)
-        .stream()
+        db.collection_group("notes").where("id", "==", document_id).limit(1).stream()
     )
 
     if not notes:
@@ -126,8 +121,11 @@ async def get_document_kg_status(document_id: str):
 
     doc = notes[0]
     doc_data = doc.to_dict()
-
-    # Default to PENDING if kg_status not set
+    if doc_data is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Document {document_id} has no data",
+        )
     raw_status = doc_data.get("kg_status", "pending")
     try:
         kg_status = KGStatus(raw_status)
@@ -179,6 +177,9 @@ async def process_batch(request: BatchProcessingRequest):
 
         note = note_ref.get()
         doc_data = note.to_dict()
+        if doc_data is None:
+            logger.warning(f"Note {doc_id} has no data, skipping")
+            continue
         note_path = note_ref.path
 
         # Extract module_id from the note path (e.g., departments/.../modules/{module_id}/notes/{note_id})
@@ -252,14 +253,13 @@ async def get_processing_queue():
     # This avoids scanning all notes and filtering in Python
     try:
         processing_notes = (
-            db.collection_group("notes")
-            .where(filter=FieldFilter("kg_status", "==", "processing"))
-            .stream()
+            db.collection_group("notes").where("kg_status", "==", "processing").stream()
         )
 
         for doc in processing_notes:
             doc_data = doc.to_dict()
-            queue.append(_doc_to_queue_item(doc, doc_data))
+            if doc_data is not None:
+                queue.append(_doc_to_queue_item(doc, doc_data))
 
     except Exception as e:
         logger.error(f"Failed to fetch processing queue: {e}")
@@ -424,6 +424,10 @@ async def delete_batch(request: BatchDeleteRequest):
 
         note = note_ref.get()
         doc_data = note.to_dict()
+        if doc_data is None:
+            logger.warning(f"Note {doc_id} has no data, skipping")
+            failed_ids.append(doc_id)
+            continue
         note_path = note_ref.path
 
         # Extract module_id from the note path
@@ -463,7 +467,7 @@ async def delete_batch(request: BatchDeleteRequest):
             continue
 
         # Reset Firestore status with retry logic
-        firestore_success = await _update_firestore_with_retry(note.reference, doc_id)
+        firestore_success = await _update_firestore_with_retry(note_ref, doc_id)
         if firestore_success:
             deleted_count += 1
         else:

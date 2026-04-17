@@ -30,7 +30,6 @@ import pytest
 from unittest.mock import patch, MagicMock
 import sys
 import os
-import logging
 
 # Add the api directory to path to import audio_processing directly
 # without triggering api/__init__.py which imports kg_processor ->_firestore
@@ -39,7 +38,7 @@ if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
 # Import audio_processing module directly (bypasses api/__init__.py)
-import audio_processing as ap_module
+import audio_processing as ap_module  # noqa: E402
 
 
 class TestPipelineDBFailureHandling:
@@ -162,7 +161,7 @@ class TestPipelineDBFailureHandling:
 
         # Check that at least one error call has exc_info=True
         has_exc_info = any(
-            call.kwargs.get("exc_info") == True or "exc_info" in call.kwargs
+            call.kwargs.get("exc_info") or "exc_info" in call.kwargs
             for call in error_calls
         )
         assert has_exc_info, "logger.error should be called with exc_info=True"
@@ -209,7 +208,6 @@ class TestGeneratePdfDBFailureHandling:
     async def test_logger_error_called_in_generate_pdf(self):
         """Test that logger.error is called with exc_info in generate_pdf."""
         from api.audio_processing import GeneratePdfRequest
-        from unittest.mock import AsyncMock
 
         request = GeneratePdfRequest(
             title="Test Note 2", notes="Test content 2", moduleId="module-xyz"
@@ -233,5 +231,5 @@ class TestGeneratePdfDBFailureHandling:
         error_calls = [call for call in mock_logger.error.call_args_list]
         assert len(error_calls) > 0, "logger.error should be called"
 
-        has_exc_info = any(call.kwargs.get("exc_info") == True for call in error_calls)
+        has_exc_info = any(call.kwargs.get("exc_info") for call in error_calls)
         assert has_exc_info, "logger.error should have exc_info=True"

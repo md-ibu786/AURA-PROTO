@@ -38,7 +38,9 @@ try:
     FPDF_LIBRARY = "fpdf"
 except ImportError:
     try:
-        from fpdf2 import FPDF
+        from fpdf import (
+            FPDF,
+        )  # fpdf2 installs as 'fpdf' package  # type: ignore[no-redef]
 
         FPDF_LIBRARY = "fpdf2"
     except ImportError:
@@ -78,7 +80,7 @@ def preprocess_text_for_pdf(text: str) -> str:
         return text.encode("latin-1", "replace").decode("latin-1")
 
 
-class LectureNotesPDF(FPDF):
+class LectureNotesPDF(FPDF):  # type: ignore[valid-type,misc]
     def __init__(self, title_text: Optional[str] = None):
         super().__init__()
         self.title_text = title_text or ""
@@ -160,10 +162,12 @@ def create_pdf(
 
 def create_pdf_bytes(summary_text: str, title: str) -> bytes:
     pdf = _build_pdf(summary_text, title)
-    s = pdf.output(dest="S")
+    s = pdf.output()
     if isinstance(s, str):
         return s.encode("latin-1")
-    return s
+    if isinstance(s, bytearray):
+        return bytes(s)
+    return b""
 
 
 __all__ = ["preprocess_text_for_pdf", "_build_pdf", "create_pdf", "create_pdf_bytes"]

@@ -78,22 +78,24 @@ export function GridView({ items }: GridViewProps) {
     const [createValue, setCreateValue] = React.useState('');
     const queryClient = useQueryClient();
 
-    // Start renaming
+    const getNodeById = React.useCallback(() => {
+        if (!renamingNodeId) return null;
+        return items.find(i => i.id === renamingNodeId) ?? null;
+    }, [items, renamingNodeId]);
+
     React.useEffect(() => {
-        if (renamingNodeId) {
-            const node = items.find(i => i.id === renamingNodeId);
-            if (node) {
-                setRenameValue(node.label);
-            }
+        const node = getNodeById();
+        if (node) {
+            setRenameValue(node.label);
         }
-    }, [renamingNodeId, items]);
+    }, [getNodeById]);
 
     // Reset create value when starting creation - start with empty string
     React.useEffect(() => {
         if (creatingNodeType) {
             setCreateValue('');  // Start empty to show placeholder
         }
-    }, [creatingNodeType]);
+    }, [creatingNodeType, setCreateValue]);
 
     // Get default names for when user submits empty input
     const getDefaultName = (type: HierarchyType): string => {

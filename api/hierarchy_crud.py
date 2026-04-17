@@ -64,7 +64,6 @@ from pydantic import BaseModel
 from typing import Optional
 import os
 import logging
-from google.cloud import firestore
 
 try:
     from config import db
@@ -208,11 +207,7 @@ def find_doc_by_id(collection_name: str, doc_id: str):
 
     # For nested collections, query by the 'id' field stored in documents
     # This is the recommended approach for collection group queries
-    docs = list(
-        db.collection_group(collection_name)
-        .where(filter=firestore.FieldFilter("id", "==", doc_id))
-        .stream()
-    )
+    docs = list(db.collection_group(collection_name).where("id", "==", doc_id).stream())
     if docs:
         return docs[0].reference
     return None
@@ -287,10 +282,7 @@ def create_department(
             detail="Only admins can create departments",
         )
     existing = list(
-        db.collection("departments")
-        .where(filter=firestore.FieldFilter("name", "==", dept.name))
-        .limit(1)
-        .stream()
+        db.collection("departments").where("name", "==", dept.name).limit(1).stream()
     )
     if existing:
         raise HTTPException(
@@ -323,7 +315,8 @@ def update_department(
             detail="Only admins can update departments",
         )
     doc_ref = db.collection("departments").document(dept_id)
-    if not doc_ref.get().exists:
+    doc = doc_ref.get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Department not found")
 
     updates = {k: v for k, v in dept.model_dump().items() if v is not None}
@@ -340,9 +333,11 @@ def update_department(
         updates["name"] = get_unique_name(siblings_names, updates["name"])
 
     doc_ref.update(updates)
+    updated_doc = doc_ref.get()
+    updated_data = updated_doc.to_dict() or {}
     return {
         "message": "Department updated",
-        "department": {**doc_ref.get().to_dict(), "id": dept_id},
+        "department": {**updated_data, "id": dept_id},
     }
 
 
@@ -357,7 +352,8 @@ def delete_department(
             detail="Only admins can delete departments",
         )
     doc_ref = db.collection("departments").document(dept_id)
-    if not doc_ref.get().exists:
+    doc = doc_ref.get()
+    if not doc.exists:
         raise HTTPException(status_code=404, detail="Department not found")
 
     # Manual cascade TODO: Files cleanup (omitted for brevity, requires iterating notes)
@@ -434,9 +430,11 @@ def update_semester(
         updates["name"] = get_unique_name(siblings_names, updates["name"])
 
     doc_ref.update(updates)
+    updated_doc = doc_ref.get()
+    updated_data = updated_doc.to_dict() or {}
     return {
         "message": "Semester updated",
-        "semester": {**doc_ref.get().to_dict(), "id": sem_id},
+        "semester": {**updated_data, "id": sem_id},
     }
 
 
@@ -539,7 +537,9 @@ def update_subject(
         updates["name"] = get_unique_name(siblings_names, updates["name"])
 
     doc_ref.update(updates)
-    return {"message": "Updated", "subject": {**doc_ref.get().to_dict(), "id": subj_id}}
+    updated_doc = doc_ref.get()
+    updated_data = updated_doc.to_dict() or {}
+    return {"message": "Updated", "subject": {**updated_data, "id": subj_id}}
 
 
 @router.delete("/subjects/{subj_id}")
@@ -615,7 +615,9 @@ def update_module(
         updates["name"] = get_unique_name(siblings_names, updates["name"])
 
     doc_ref.update(updates)
-    return {"message": "Updated", "module": {**doc_ref.get().to_dict(), "id": mod_id}}
+    updated_doc = doc_ref.get()
+    updated_data = updated_doc.to_dict() or {}
+    return {"message": "Updated", "module": {**updated_data, "id": mod_id}}
 
 
 @router.delete("/modules/{mod_id}")
@@ -643,7 +645,10 @@ def update_note(
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
 
-    note_data = doc_ref.get().to_dict()
+    note_doc = doc_ref.get()
+    note_data = note_doc.to_dict()
+    if note_data is None:
+        raise HTTPException(status_code=404, detail="Note data not found")
     if not can_modify_note(user, note_data):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -657,9 +662,11 @@ def update_note(
     new_title = get_unique_name(siblings_titles, new_title)
 
     doc_ref.update({"title": new_title})
+    updated_doc = doc_ref.get()
+    updated_data = updated_doc.to_dict() or {}
     return {
         "message": "Note renamed",
-        "note": {**doc_ref.get().to_dict(), "id": note_id},
+        "note": {**updated_data, "id": note_id},
     }
 
 
@@ -672,7 +679,10 @@ def delete_note(
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Not found")
 
-    note_data = doc_ref.get().to_dict()
+    note_doc = doc_ref.get()
+    note_data = note_doc.to_dict()
+    if note_data is None:
+        raise HTTPException(status_code=404, detail="Note data not found")
     if not can_modify_note(user, note_data):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -723,7 +733,10 @@ def delete_note_cascade(
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    note_data = doc_ref.get().to_dict()
+    note_doc = doc_ref.get()
+    note_data = note_doc.to_dict()
+    if note_data is None:
+        raise HTTPException(status_code=404, detail="Note data not found")
     if not can_modify_note(user, note_data):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -738,8 +751,28 @@ def delete_note_cascade(
 
     if kg_status == "ready" and GRAPH_MANAGER_AVAILABLE:
         try:
-            graph_manager = GraphManager()
-            success, _ = graph_manager.delete_document(note_id)
+            from neo4j_config import neo4j_driver
+
+            graph_manager = GraphManager(neo4j_driver)
+            # delete_document is async, but this endpoint is sync.
+            # Use run_sync or type: ignore for the coroutine
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Already in async context, use run_coroutine_threadsafe
+                    future = asyncio.run_coroutine_threadsafe(
+                        graph_manager.delete_document(note_id), loop
+                    )
+                    success, _ = future.result(timeout=30)
+                else:
+                    success, _ = loop.run_until_complete(
+                        graph_manager.delete_document(note_id)
+                    )
+            except RuntimeError:
+                # No event loop, create one
+                success, _ = asyncio.run(graph_manager.delete_document(note_id))
             if success:
                 kg_deletion_status = "success"
                 logger.info(

@@ -913,7 +913,9 @@ class TemplateExtractor:
     applying section-specific prompts, and computing quality scores.
     """
 
-    def __init__(self, llm_client: Any = None, registry: TemplateRegistry = None):
+    def __init__(
+        self, llm_client: Any = None, registry: Optional[TemplateRegistry] = None
+    ):
         """
         Initialize template extractor.
 
@@ -953,6 +955,9 @@ class TemplateExtractor:
                 logger.warning(f"Template not found: {template_id}, using generic")
                 template = self.registry.get("generic")
             detection_confidence = 1.0 if template else 0.0
+
+        if not template:
+            raise ValueError("No template available for extraction")
 
         # Detect sections in content
         detected_sections = self._detect_sections(content, template)

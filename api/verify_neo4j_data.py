@@ -91,14 +91,20 @@ class Neo4jVerifier:
             "entity_types": {},
         }
         with self.driver.session() as session:
-            doc_result = session.run("MATCH (d:Document) RETURN count(d) as count")
-            stats["documents"] = doc_result.single()["count"]
+            doc_record = session.run(
+                "MATCH (d:Document) RETURN count(d) as count"
+            ).single()
+            stats["documents"] = doc_record["count"] if doc_record else 0
 
-            chunk_result = session.run("MATCH (c:Chunk) RETURN count(c) as count")
-            stats["chunks"] = chunk_result.single()["count"]
+            chunk_record = session.run(
+                "MATCH (c:Chunk) RETURN count(c) as count"
+            ).single()
+            stats["chunks"] = chunk_record["count"] if chunk_record else 0
 
-            rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as count")
-            stats["relationships"] = rel_result.single()["count"]
+            rel_record = session.run(
+                "MATCH ()-[r]->() RETURN count(r) as count"
+            ).single()
+            stats["relationships"] = rel_record["count"] if rel_record else 0
 
             label_filter = " OR ".join([f"e:{label}" for label in ENTITY_LABELS])
             entity_query = f"""
@@ -109,7 +115,7 @@ class Neo4jVerifier:
             """
             entity_counts = {}
             total_entities = 0
-            for record in session.run(entity_query):
+            for record in session.run(entity_query):  # type: ignore[arg-type]
                 entity_counts[record["type"]] = record["count"]
                 total_entities += record["count"]
             stats["entity_types"] = entity_counts
@@ -198,72 +204,86 @@ class Neo4jVerifier:
         label_filter = " OR ".join([f"e:{label}" for label in ENTITY_LABELS])
         quality: Dict[str, Any] = {}
         with self.driver.session() as session:
-            doc_no_chunks = session.run(
+            doc_no_chunks_rec = session.run(
                 """
                 MATCH (d:Document)
                 WHERE NOT (d)-[:HAS_CHUNK]->(:Chunk)
                 RETURN count(d) as count
                 """
-            ).single()["count"]
-            quality["documents_without_chunks"] = doc_no_chunks
+            ).single()
+            quality["documents_without_chunks"] = (
+                doc_no_chunks_rec["count"] if doc_no_chunks_rec else 0
+            )
 
-            doc_no_entities = session.run(
+            doc_no_entities_rec = session.run(
                 """
                 MATCH (d:Document)
                 WHERE NOT (d)-[:HAS_CHUNK]->(:Chunk)-[:CONTAINS_ENTITY]->()
                 RETURN count(d) as count
                 """
-            ).single()["count"]
-            quality["documents_without_entities"] = doc_no_entities
+            ).single()
+            quality["documents_without_entities"] = (
+                doc_no_entities_rec["count"] if doc_no_entities_rec else 0
+            )
 
-            chunk_no_embed = session.run(
+            chunk_no_embed_rec = session.run(
                 """
                 MATCH (c:Chunk)
                 WHERE c.embedding IS NULL OR size(c.embedding) = 0
                 RETURN count(c) as count
                 """
-            ).single()["count"]
-            quality["chunks_without_embeddings"] = chunk_no_embed
+            ).single()
+            quality["chunks_without_embeddings"] = (
+                chunk_no_embed_rec["count"] if chunk_no_embed_rec else 0
+            )
 
-            entity_no_def = session.run(
+            entity_no_def_rec = session.run(  # type: ignore[arg-type]
                 f"""
                 MATCH (e)
                 WHERE {label_filter}
                 AND (e.definition IS NULL OR trim(e.definition) = "")
                 RETURN count(e) as count
                 """
-            ).single()["count"]
-            quality["entities_without_definitions"] = entity_no_def
+            ).single()
+            quality["entities_without_definitions"] = (
+                entity_no_def_rec["count"] if entity_no_def_rec else 0
+            )
 
-            entity_no_embed = session.run(
+            entity_no_embed_rec = session.run(  # type: ignore[arg-type]
                 f"""
                 MATCH (e)
                 WHERE {label_filter}
                 AND (e.embedding IS NULL OR size(e.embedding) = 0)
                 RETURN count(e) as count
                 """
-            ).single()["count"]
-            quality["entities_without_embeddings"] = entity_no_embed
+            ).single()
+            quality["entities_without_embeddings"] = (
+                entity_no_embed_rec["count"] if entity_no_embed_rec else 0
+            )
 
-            entity_no_chunk = session.run(
+            entity_no_chunk_rec = session.run(  # type: ignore[arg-type]
                 f"""
                 MATCH (e)
                 WHERE {label_filter}
                 AND (e.chunk_id IS NULL OR trim(e.chunk_id) = "")
                 RETURN count(e) as count
                 """
-            ).single()["count"]
-            quality["entities_without_chunk_id"] = entity_no_chunk
+            ).single()
+            quality["entities_without_chunk_id"] = (
+                entity_no_chunk_rec["count"] if entity_no_chunk_rec else 0
+            )
 
-            orphan_entities = session.run(
+            orphan_entities_rec = session.run(  # type: ignore[arg-type]
                 f"""
                 MATCH (e)
                 WHERE {label_filter}
                 AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
                 RETURN count(e) as count
                 """
-            ).single()["count"]
-            quality["orphaned_entities"] = orphan_entities
+            ).single()
+            quality["orphaned_entities"] = (
+                orphan_entities_rec["count"] if orphan_entities_rec else 0
+            )
 
         quality["issues_found"] = any(value > 0 for value in quality.values())
         return quality

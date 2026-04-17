@@ -234,6 +234,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
                             <button
                                 type="button"
                                 onClick={() => setShowInput(!showInput)}
+                                aria-label={showInput ? "Hide API key" : "Show API key"}
                                 className="absolute right-2 top-2 p-0.5 text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 {showInput ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

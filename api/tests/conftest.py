@@ -36,6 +36,12 @@ class MockModule(types.ModuleType):
         self._attrs = {}
         self._auto_register = auto_register
 
+    def __setattr__(self, name, value):
+        if name in ("_attrs", "_auto_register", "__name__"):
+            super().__setattr__(name, value)
+        else:
+            self._attrs[name] = value
+
     def __getattr__(self, name):
         if name not in self._attrs:
             child_name = f"{self.__name__}.{name}"

@@ -41,7 +41,9 @@ USAGE:
     is_valid = validate_hierarchy(mod_id, subj_id, sem_id, dept_id)
 ============================================================================
 """
+
 from typing import List, Dict, Any, Optional
+
 try:
     from config import db
 except (ImportError, ModuleNotFoundError):
@@ -50,65 +52,127 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
         from api.config import db
 
+
+def _merge_doc(doc: Any) -> Dict[str, Any]:
+    """Merge doc.id and doc.to_dict() into a single dict safely."""
+    data = doc.to_dict() or {}
+    result = dict(data)
+    result["id"] = doc.id
+    return result
+
+
 def get_all_departments() -> List[Dict[str, Any]]:
-    docs = db.collection('departments').order_by('name').stream()
-    return [{'id': doc.id, 'label': doc.get('name'), 'type': 'department', **doc.to_dict()} for doc in docs]
+    docs = db.collection("departments").order_by("name").stream()
+    result = []
+    for doc in docs:
+        entry = _merge_doc(doc)
+        entry["label"] = doc.get("name")
+        entry["type"] = "department"
+        result.append(entry)
+    return result
+
 
 def get_semesters_by_department(department_id: str) -> List[Dict[str, Any]]:
-    # Firestore: subcollection 'semesters'
-    ref = db.collection('departments').document(department_id)
-    if not ref.get().exists:
+    ref = db.collection("departments").document(department_id)
+    doc = ref.get()
+    if not doc.exists:
         return []
 
-    docs = ref.collection('semesters').order_by('semester_number').stream()
-    return [{'id': doc.id, 'label': f"{doc.get('semester_number')} - {doc.get('name')}", 'type': 'semester', **doc.to_dict()} for doc in docs]
+    docs = ref.collection("semesters").order_by("semester_number").stream()
+    result = []
+    for d in docs:
+        entry = _merge_doc(d)
+        entry["label"] = f"{d.get('semester_number')} - {d.get('name')}"
+        entry["type"] = "semester"
+        result.append(entry)
+    return result
 
-def get_subjects_by_semester(semester_id: str, department_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    # Firestore: subcollection 'subjects'
-    # If department_id is provided, use direct path for efficiency and to avoid index requirements
+
+def get_subjects_by_semester(
+    semester_id: str, department_id: Optional[str] = None
+) -> List[Dict[str, Any]]:
     if department_id:
-        semester_ref = db.collection('departments').document(department_id).collection('semesters').document(semester_id)
-        subjects = semester_ref.collection('subjects').order_by('name').stream()
-        return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
+        semester_ref = (
+            db.collection("departments")
+            .document(department_id)
+            .collection("semesters")
+            .document(semester_id)
+        )
+        subjects = semester_ref.collection("subjects").order_by("name").stream()
+        result = []
+        for d in subjects:
+            entry = _merge_doc(d)
+            entry["label"] = f"{d.get('code')} - {d.get('name')}"
+            entry["type"] = "subject"
+            result.append(entry)
+        return result
 
-    # Need to find the semester doc to get its subjects subcollection.
-    # Since we can't easily find parent from just ID, we assume known path or use Collection Group if ID is unique.
-    # But `hierarchy.py` helpers are typically "drill down".
-    # Problem: `semester_id` alone isn't enough for direct path unless we map it.
-    # For now, we use Collection Group Query to find the semester by ID.
-
-    # Efficient way: Assume unique IDs for semesters across the board (they are auto-generated).
-    docs = list(db.collection_group('semesters').where('id', '==', semester_id).stream())
+    docs = list(
+        db.collection_group("semesters").where("id", "==", semester_id).stream()
+    )
     if not docs:
         return []
 
     semester_ref = docs[0].reference
-    subjects = semester_ref.collection('subjects').order_by('name').stream()
-    return [{'id': doc.id, 'label': f"{doc.get('code')} - {doc.get('name')}", 'type': 'subject', **doc.to_dict()} for doc in subjects]
+    subjects = semester_ref.collection("subjects").order_by("name").stream()
+    result = []
+    for d in subjects:
+        entry = _merge_doc(d)
+        entry["label"] = f"{d.get('code')} - {d.get('name')}"
+        entry["type"] = "subject"
+        result.append(entry)
+    return result
 
-def get_modules_by_subject(subject_id: str, department_id: Optional[str] = None, semester_id: Optional[str] = None) -> List[Dict[str, Any]]:
+
+def get_modules_by_subject(
+    subject_id: str,
+    department_id: Optional[str] = None,
+    semester_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
     if department_id and semester_id:
-        subject_ref = db.collection('departments').document(department_id)\
-            .collection('semesters').document(semester_id)\
-            .collection('subjects').document(subject_id)
-        modules = subject_ref.collection('modules').order_by('module_number').stream()
-        return [{'id': doc.id, 'label': f"Module {doc.get('module_number')} - {doc.get('name')}", 'type': 'module', **doc.to_dict()} for doc in modules]
+        subject_ref = (
+            db.collection("departments")
+            .document(department_id)
+            .collection("semesters")
+            .document(semester_id)
+            .collection("subjects")
+            .document(subject_id)
+        )
+        modules = subject_ref.collection("modules").order_by("module_number").stream()
+        result = []
+        for d in modules:
+            entry = _merge_doc(d)
+            entry["label"] = f"Module {d.get('module_number')} - {d.get('name')}"
+            entry["type"] = "module"
+            result.append(entry)
+        return result
 
-    docs = list(db.collection_group('subjects').where('id', '==', subject_id).stream())
+    docs = list(db.collection_group("subjects").where("id", "==", subject_id).stream())
     if not docs:
         return []
 
     subject_ref = docs[0].reference
-    modules = subject_ref.collection('modules').order_by('module_number').stream()
-    return [{'id': doc.id, 'label': f"Module {doc.get('module_number')} - {doc.get('name')}", 'type': 'module', **doc.to_dict()} for doc in modules]
+    modules = subject_ref.collection("modules").order_by("module_number").stream()
+    result = []
+    for d in modules:
+        entry = _merge_doc(d)
+        entry["label"] = f"Module {d.get('module_number')} - {d.get('name')}"
+        entry["type"] = "module"
+        result.append(entry)
+    return result
 
 
-def validate_hierarchy(module_id: str, subject_id: str, semester_id: str, department_id: str) -> bool:
+def validate_hierarchy(
+    module_id: str, subject_id: str, semester_id: str, department_id: str
+) -> bool:
     """
     Verify that the module resides under subject -> semester -> department.
     In Firestore, this is checking the path:
     departments/{dept}/semesters/{sem}/subjects/{subj}/modules/{mod}
     """
-    path = f"departments/{department_id}/semesters/{semester_id}/subjects/{subject_id}/modules/{module_id}"
+    path = (
+        f"departments/{department_id}/semesters/{semester_id}"
+        f"/subjects/{subject_id}/modules/{module_id}"
+    )
     doc = db.document(path).get()
     return doc.exists

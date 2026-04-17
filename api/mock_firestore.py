@@ -39,6 +39,7 @@ USAGE:
 
 ============================================================================
 """
+
 import json
 import os
 import time
@@ -310,6 +311,16 @@ class MockFirestoreClient:
     def collection(self, name):
         return MockCollectionReference(self, name)
 
+    def document(self, path):
+        parts = path.split("/")
+        coll_ref = MockCollectionReference(self, parts[0])
+        doc_ref = coll_ref.document(parts[1])
+        for i in range(2, len(parts), 2):
+            coll_ref = MockCollectionReference(self, "/".join(parts[: i + 1]))
+            if i + 1 < len(parts):
+                doc_ref = coll_ref.document(parts[i + 1])
+        return doc_ref
+
     def collection_group(self, collection_id):
         # Scan ALL paths for keys ending in collection_id
         # This is expensive but correct for a mock
@@ -486,3 +497,15 @@ class MockAuth:
                 "email": "test@test.com",
             }
         raise Exception("Invalid mock token")
+
+    def set_custom_user_claims(self, uid, claims):
+        """Set custom claims for a user (mock implementation)."""
+        if uid not in self._users:
+            raise self.UserNotFoundError("User not found")
+        user = self._users[uid]
+        user.custom_claims = claims
+        return user
+
+    def generate_email_verification_link(self, email):
+        """Generate email verification link (mock implementation)."""
+        return f"https://mock-verification.example.com/verify?email={email}"

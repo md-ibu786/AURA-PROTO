@@ -29,6 +29,7 @@ USAGE:
     export_data = visualizer.export_graph(graph, ExportFormat.JSON)
 ============================================================================
 """
+
 from __future__ import annotations
 
 import io
@@ -109,6 +110,7 @@ RELATIONSHIP_COLORS: Dict[str, str] = {
 
 class LayoutType(str, Enum):
     """Available graph layout algorithms."""
+
     FORCE_DIRECTED = "force_directed"
     HIERARCHICAL = "hierarchical"
     RADIAL = "radial"
@@ -117,6 +119,7 @@ class LayoutType(str, Enum):
 
 class ExportFormat(str, Enum):
     """Available graph export formats."""
+
     JSON = "json"
     GRAPHML = "graphml"
     GEXF = "gexf"
@@ -130,48 +133,39 @@ class ExportFormat(str, Enum):
 
 class GraphOptions(BaseModel):
     """Options for graph generation and filtering."""
+
     include_entity_types: Optional[List[str]] = Field(
-        None,
-        description="Entity types to include (None = all)"
+        None, description="Entity types to include (None = all)"
     )
     exclude_entity_types: Optional[List[str]] = Field(
-        None,
-        description="Entity types to exclude"
+        None, description="Entity types to exclude"
     )
     include_relationship_types: Optional[List[str]] = Field(
-        None,
-        description="Relationship types to include (None = all)"
+        None, description="Relationship types to include (None = all)"
     )
     exclude_relationship_types: Optional[List[str]] = Field(
-        None,
-        description="Relationship types to exclude"
+        None, description="Relationship types to exclude"
     )
     max_nodes: int = Field(
-        500,
-        ge=1,
-        le=2000,
-        description="Maximum number of nodes to include"
+        500, ge=1, le=2000, description="Maximum number of nodes to include"
     )
     include_chunks: bool = Field(
-        False,
-        description="Include chunk nodes in visualization"
+        False, description="Include chunk nodes in visualization"
     )
     include_documents: bool = Field(
-        True,
-        description="Include document nodes in visualization"
+        True, description="Include document nodes in visualization"
     )
     layout: LayoutType = Field(
-        LayoutType.FORCE_DIRECTED,
-        description="Layout algorithm to apply"
+        LayoutType.FORCE_DIRECTED, description="Layout algorithm to apply"
     )
     group_by: Optional[str] = Field(
-        None,
-        description="Grouping attribute: 'type', 'module', 'document'"
+        None, description="Grouping attribute: 'type', 'module', 'document'"
     )
 
 
 class VisualizationNode(BaseModel):
     """Node for graph visualization."""
+
     id: str
     label: str
     type: str
@@ -185,6 +179,7 @@ class VisualizationNode(BaseModel):
 
 class VisualizationEdge(BaseModel):
     """Edge for graph visualization."""
+
     id: str
     source: str
     target: str
@@ -196,6 +191,7 @@ class VisualizationEdge(BaseModel):
 
 class GraphMetadata(BaseModel):
     """Metadata about the generated graph."""
+
     module_ids: List[str] = Field(default_factory=list)
     document_ids: List[str] = Field(default_factory=list)
     node_count: int = 0
@@ -206,22 +202,19 @@ class GraphMetadata(BaseModel):
     options_used: Optional[GraphOptions] = None
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 class VisualizationGraph(BaseModel):
     """Complete visualization-ready graph."""
+
     nodes: List[VisualizationNode] = Field(default_factory=list)
     edges: List[VisualizationEdge] = Field(default_factory=list)
     metadata: GraphMetadata = Field(default_factory=GraphMetadata)
     layout_applied: bool = False
 
     class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat()
-        }
+        json_encoders = {datetime: lambda v: v.isoformat()}
 
 
 # ============================================================================
@@ -234,7 +227,7 @@ def force_directed_layout(
     edges: List[VisualizationEdge],
     width: float = 1000,
     height: float = 800,
-    iterations: int = 100
+    iterations: int = 100,
 ) -> List[VisualizationNode]:
     """
     Apply force-directed layout to nodes.
@@ -256,7 +249,7 @@ def force_directed_layout(
         angle = (2 * math.pi * i) / len(nodes)
         positions[node.id] = (
             center_x + radius * math.cos(angle),
-            center_y + radius * math.sin(angle)
+            center_y + radius * math.sin(angle),
         )
 
     # Build adjacency for edge lookup
@@ -276,7 +269,7 @@ def force_directed_layout(
 
         # Repulsion between all nodes
         for i, node_a in enumerate(nodes):
-            for node_b in nodes[i+1:]:
+            for node_b in nodes[i + 1 :]:
                 pos_a = positions[node_a.id]
                 pos_b = positions[node_b.id]
 
@@ -288,8 +281,14 @@ def force_directed_layout(
                 fx = (dx / dist) * force
                 fy = (dy / dist) * force
 
-                forces[node_a.id] = (forces[node_a.id][0] + fx, forces[node_a.id][1] + fy)
-                forces[node_b.id] = (forces[node_b.id][0] - fx, forces[node_b.id][1] - fy)
+                forces[node_a.id] = (
+                    forces[node_a.id][0] + fx,
+                    forces[node_a.id][1] + fy,
+                )
+                forces[node_b.id] = (
+                    forces[node_b.id][0] - fx,
+                    forces[node_b.id][1] - fy,
+                )
 
         # Attraction along edges
         for edge in edges:
@@ -307,8 +306,14 @@ def force_directed_layout(
             fx = (dx / dist) * force
             fy = (dy / dist) * force
 
-            forces[edge.source] = (forces[edge.source][0] + fx, forces[edge.source][1] + fy)
-            forces[edge.target] = (forces[edge.target][0] - fx, forces[edge.target][1] - fy)
+            forces[edge.source] = (
+                forces[edge.source][0] + fx,
+                forces[edge.source][1] + fy,
+            )
+            forces[edge.target] = (
+                forces[edge.target][0] - fx,
+                forces[edge.target][1] - fy,
+            )
 
         # Apply forces with damping
         for node in nodes:
@@ -337,7 +342,7 @@ def hierarchical_layout(
     nodes: List[VisualizationNode],
     edges: List[VisualizationEdge],
     width: float = 1000,
-    height: float = 800
+    height: float = 800,
 ) -> List[VisualizationNode]:
     """
     Apply hierarchical layout based on node types.
@@ -392,7 +397,7 @@ def radial_layout(
     edges: List[VisualizationEdge],
     center_node_id: Optional[str] = None,
     width: float = 1000,
-    height: float = 800
+    height: float = 800,
 ) -> List[VisualizationNode]:
     """
     Apply radial layout around a center node.
@@ -467,7 +472,7 @@ def circular_layout(
     nodes: List[VisualizationNode],
     edges: List[VisualizationEdge],
     width: float = 1000,
-    height: float = 800
+    height: float = 800,
 ) -> List[VisualizationNode]:
     """
     Apply simple circular layout.
@@ -535,9 +540,7 @@ class GraphVisualizer:
         return RELATIONSHIP_COLORS.get(relationship_type, "#9E9E9E")
 
     def _filter_nodes(
-        self,
-        nodes: List[VisualizationNode],
-        options: GraphOptions
+        self, nodes: List[VisualizationNode], options: GraphOptions
     ) -> List[VisualizationNode]:
         """Filter nodes based on options."""
         filtered = nodes
@@ -546,7 +549,9 @@ class GraphVisualizer:
             filtered = [n for n in filtered if n.type in options.include_entity_types]
 
         if options.exclude_entity_types:
-            filtered = [n for n in filtered if n.type not in options.exclude_entity_types]
+            filtered = [
+                n for n in filtered if n.type not in options.exclude_entity_types
+            ]
 
         if not options.include_chunks:
             filtered = [n for n in filtered if n.type not in ("Chunk", "ParentChunk")]
@@ -556,7 +561,7 @@ class GraphVisualizer:
 
         # Limit nodes
         if len(filtered) > options.max_nodes:
-            filtered = filtered[:options.max_nodes]
+            filtered = filtered[: options.max_nodes]
 
         return filtered
 
@@ -564,26 +569,29 @@ class GraphVisualizer:
         self,
         edges: List[VisualizationEdge],
         valid_node_ids: Set[str],
-        options: GraphOptions
+        options: GraphOptions,
     ) -> List[VisualizationEdge]:
         """Filter edges based on options and valid nodes."""
         filtered = [
-            e for e in edges
+            e
+            for e in edges
             if e.source in valid_node_ids and e.target in valid_node_ids
         ]
 
         if options.include_relationship_types:
-            filtered = [e for e in filtered if e.type in options.include_relationship_types]
+            filtered = [
+                e for e in filtered if e.type in options.include_relationship_types
+            ]
 
         if options.exclude_relationship_types:
-            filtered = [e for e in filtered if e.type not in options.exclude_relationship_types]
+            filtered = [
+                e for e in filtered if e.type not in options.exclude_relationship_types
+            ]
 
         return filtered
 
     async def get_module_graph(
-        self,
-        module_id: str,
-        options: Optional[GraphOptions] = None
+        self, module_id: str, options: Optional[GraphOptions] = None
     ) -> VisualizationGraph:
         """
         Get visualization graph for a module.
@@ -598,7 +606,7 @@ class GraphVisualizer:
         Returns:
             VisualizationGraph ready for rendering
         """
-        options = options or GraphOptions()
+        options = options or GraphOptions()  # type: ignore[call-arg]
 
         try:
             # Query for module graph data
@@ -633,56 +641,66 @@ class GraphVisualizer:
                 # Add module node
                 module = record.get("module")
                 if module:
-                    nodes.append(VisualizationNode(
-                        id=module.get("id", module_id),
-                        label=module.get("name", module_id),
-                        type="Module",
-                        color=self._get_node_color("Module"),
-                        size=self._get_node_size("Module"),
-                        group="module",
-                        properties=dict(module) if module else {}
-                    ))
+                    nodes.append(
+                        VisualizationNode(
+                            id=module.get("id", module_id),
+                            label=module.get("name", module_id),
+                            type="Module",
+                            color=self._get_node_color("Module"),
+                            size=self._get_node_size("Module"),
+                            group="module",
+                            properties=dict(module) if module else {},
+                        )
+                    )
 
                 # Add entity nodes
                 for entity in record.get("entities", []):
                     if entity:
-                        entity_type = entity.labels[0] if hasattr(entity, 'labels') else "Entity"
-                        nodes.append(VisualizationNode(
-                            id=entity.get("id"),
-                            label=entity.get("name", entity.get("id")),
-                            type=entity_type,
-                            color=self._get_node_color(entity_type),
-                            size=self._get_node_size(entity_type),
-                            group=entity_type.lower(),
-                            properties=dict(entity)
-                        ))
+                        entity_type = (
+                            entity.labels[0] if hasattr(entity, "labels") else "Entity"
+                        )
+                        nodes.append(
+                            VisualizationNode(
+                                id=entity.get("id"),
+                                label=entity.get("name", entity.get("id")),
+                                type=entity_type,
+                                color=self._get_node_color(entity_type),
+                                size=self._get_node_size(entity_type),
+                                group=entity_type.lower(),
+                                properties=dict(entity),
+                            )
+                        )
 
                 # Add document nodes
                 if options.include_documents:
                     for doc in record.get("documents", []):
                         if doc:
-                            nodes.append(VisualizationNode(
-                                id=doc.get("id"),
-                                label=doc.get("title", doc.get("id")),
-                                type="Document",
-                                color=self._get_node_color("Document"),
-                                size=self._get_node_size("Document"),
-                                group="document",
-                                properties=dict(doc)
-                            ))
+                            nodes.append(
+                                VisualizationNode(
+                                    id=doc.get("id"),
+                                    label=doc.get("title", doc.get("id")),
+                                    type="Document",
+                                    color=self._get_node_color("Document"),
+                                    size=self._get_node_size("Document"),
+                                    group="document",
+                                    properties=dict(doc),
+                                )
+                            )
 
                 # Add edges
                 for rel in record.get("relationships", []):
                     if rel and rel.get("source") and rel.get("target"):
                         rel_type = rel.get("type", "RELATED_TO")
-                        edges.append(VisualizationEdge(
-                            id=f"{rel['source']}_{rel['target']}_{rel_type}",
-                            source=rel["source"],
-                            target=rel["target"],
-                            type=rel_type,
-                            color=self._get_edge_color(rel_type),
-                            weight=1.0
-                        ))
+                        edges.append(
+                            VisualizationEdge(
+                                id=f"{rel['source']}_{rel['target']}_{rel_type}",
+                                source=rel["source"],
+                                target=rel["target"],
+                                type=rel_type,
+                                color=self._get_edge_color(rel_type),
+                                weight=1.0,
+                            )
+                        )
 
             # Apply filters
             nodes = self._filter_nodes(nodes, options)
@@ -699,8 +717,8 @@ class GraphVisualizer:
                     edge_count=len(edges),
                     entity_type_counts=self._count_by_type(nodes),
                     relationship_type_counts=self._count_edges_by_type(edges),
-                    options_used=options
-                )
+                    options_used=options,
+                ),
             )
 
             return self.apply_layout(graph, options.layout)
@@ -712,9 +730,7 @@ class GraphVisualizer:
             )
 
     async def get_document_graph(
-        self,
-        document_id: str,
-        options: Optional[GraphOptions] = None
+        self, document_id: str, options: Optional[GraphOptions] = None
     ) -> VisualizationGraph:
         """
         Get visualization graph for a document.
@@ -728,7 +744,7 @@ class GraphVisualizer:
         Returns:
             VisualizationGraph for the document
         """
-        options = options or GraphOptions()
+        options = options or GraphOptions()  # type: ignore[call-arg]
 
         try:
             cypher = """
@@ -755,61 +771,73 @@ class GraphVisualizer:
                 # Add document node
                 doc = record.get("document")
                 if doc:
-                    nodes.append(VisualizationNode(
-                        id=doc.get("id", document_id),
-                        label=doc.get("title", document_id),
-                        type="Document",
-                        color=self._get_node_color("Document"),
-                        size=self._get_node_size("Document"),
-                        properties=dict(doc)
-                    ))
+                    nodes.append(
+                        VisualizationNode(
+                            id=doc.get("id", document_id),
+                            label=doc.get("title", document_id),
+                            type="Document",
+                            color=self._get_node_color("Document"),
+                            size=self._get_node_size("Document"),
+                            properties=dict(doc),
+                        )
+                    )
 
                 # Add chunk nodes if requested
                 if options.include_chunks:
                     for chunk in record.get("chunks", []):
                         if chunk:
-                            nodes.append(VisualizationNode(
-                                id=chunk.get("id"),
-                                label=f"Chunk {chunk.get('position', '')}",
-                                type="Chunk",
-                                color=self._get_node_color("Chunk"),
-                                size=self._get_node_size("Chunk"),
-                                properties=dict(chunk)
-                            ))
+                            nodes.append(
+                                VisualizationNode(
+                                    id=chunk.get("id"),
+                                    label=f"Chunk {chunk.get('position', '')}",
+                                    type="Chunk",
+                                    color=self._get_node_color("Chunk"),
+                                    size=self._get_node_size("Chunk"),
+                                    properties=dict(chunk),
+                                )
+                            )
 
                             # Add edge from document to chunk
-                            edges.append(VisualizationEdge(
-                                id=f"{document_id}_HAS_CHUNK_{chunk.get('id')}",
-                                source=document_id,
-                                target=chunk.get("id"),
-                                type="HAS_CHUNK",
-                                color=self._get_edge_color("HAS_CHUNK")
-                            ))
+                            edges.append(
+                                VisualizationEdge(
+                                    id=f"{document_id}_HAS_CHUNK_{chunk.get('id')}",
+                                    source=document_id,
+                                    target=chunk.get("id"),
+                                    type="HAS_CHUNK",
+                                    color=self._get_edge_color("HAS_CHUNK"),
+                                )
+                            )
 
                 # Add entity nodes
                 for entity in record.get("entities", []):
                     if entity:
-                        entity_type = entity.labels[0] if hasattr(entity, 'labels') else "Entity"
-                        nodes.append(VisualizationNode(
-                            id=entity.get("id"),
-                            label=entity.get("name", entity.get("id")),
-                            type=entity_type,
-                            color=self._get_node_color(entity_type),
-                            size=self._get_node_size(entity_type),
-                            properties=dict(entity)
-                        ))
+                        entity_type = (
+                            entity.labels[0] if hasattr(entity, "labels") else "Entity"
+                        )
+                        nodes.append(
+                            VisualizationNode(
+                                id=entity.get("id"),
+                                label=entity.get("name", entity.get("id")),
+                                type=entity_type,
+                                color=self._get_node_color(entity_type),
+                                size=self._get_node_size(entity_type),
+                                properties=dict(entity),
+                            )
+                        )
 
                 # Add chunk-entity edges if chunks included
                 if options.include_chunks:
                     for ce in record.get("chunk_entities", []):
                         if ce and ce.get("chunk_id") and ce.get("entity_id"):
-                            edges.append(VisualizationEdge(
-                                id=f"{ce['chunk_id']}_CONTAINS_{ce['entity_id']}",
-                                source=ce["chunk_id"],
-                                target=ce["entity_id"],
-                                type="CONTAINS_ENTITY",
-                                color=self._get_edge_color("CONTAINS_ENTITY")
-                            ))
+                            edges.append(
+                                VisualizationEdge(
+                                    id=f"{ce['chunk_id']}_CONTAINS_{ce['entity_id']}",
+                                    source=ce["chunk_id"],
+                                    target=ce["entity_id"],
+                                    type="CONTAINS_ENTITY",
+                                    color=self._get_edge_color("CONTAINS_ENTITY"),
+                                )
+                            )
 
             # Apply filters
             nodes = self._filter_nodes(nodes, options)
@@ -825,8 +853,8 @@ class GraphVisualizer:
                     edge_count=len(edges),
                     entity_type_counts=self._count_by_type(nodes),
                     relationship_type_counts=self._count_edges_by_type(edges),
-                    options_used=options
-                )
+                    options_used=options,
+                ),
             )
 
             return self.apply_layout(graph, options.layout)
@@ -838,9 +866,7 @@ class GraphVisualizer:
             )
 
     async def get_cross_module_graph(
-        self,
-        module_ids: List[str],
-        options: Optional[GraphOptions] = None
+        self, module_ids: List[str], options: Optional[GraphOptions] = None
     ) -> VisualizationGraph:
         """
         Get visualization graph comparing multiple modules.
@@ -854,7 +880,7 @@ class GraphVisualizer:
         Returns:
             VisualizationGraph showing cross-module relationships
         """
-        options = options or GraphOptions()
+        options = options or GraphOptions()  # type: ignore[call-arg]
 
         try:
             # Get entities for all modules
@@ -884,42 +910,50 @@ class GraphVisualizer:
 
                 # Add module node
                 if module:
-                    nodes.append(VisualizationNode(
-                        id=module.get("id", module_id),
-                        label=module.get("name", module_id),
-                        type="Module",
-                        color=self._get_node_color("Module"),
-                        size=self._get_node_size("Module"),
-                        group=f"module_{module_id}",
-                        properties=dict(module)
-                    ))
+                    nodes.append(
+                        VisualizationNode(
+                            id=module.get("id", module_id),
+                            label=module.get("name", module_id),
+                            type="Module",
+                            color=self._get_node_color("Module"),
+                            size=self._get_node_size("Module"),
+                            group=f"module_{module_id}",
+                            properties=dict(module),
+                        )
+                    )
 
                 # Add entity nodes with module grouping
                 for entity in record.get("entities", []):
                     if entity:
                         entity_id = entity.get("id")
-                        entity_type = entity.labels[0] if hasattr(entity, 'labels') else "Entity"
+                        entity_type = (
+                            entity.labels[0] if hasattr(entity, "labels") else "Entity"
+                        )
 
                         if entity_id not in seen_entity_ids:
-                            nodes.append(VisualizationNode(
-                                id=entity_id,
-                                label=entity.get("name", entity_id),
-                                type=entity_type,
-                                color=self._get_node_color(entity_type),
-                                size=self._get_node_size(entity_type),
-                                group=f"module_{module_id}",
-                                properties=dict(entity)
-                            ))
+                            nodes.append(
+                                VisualizationNode(
+                                    id=entity_id,
+                                    label=entity.get("name", entity_id),
+                                    type=entity_type,
+                                    color=self._get_node_color(entity_type),
+                                    size=self._get_node_size(entity_type),
+                                    group=f"module_{module_id}",
+                                    properties=dict(entity),
+                                )
+                            )
                             seen_entity_ids.add(entity_id)
 
                         # Add edge from module to entity
-                        edges.append(VisualizationEdge(
-                            id=f"{module_id}_HAS_{entity_id}",
-                            source=module_id,
-                            target=entity_id,
-                            type="BELONGS_TO_MODULE",
-                            color=self._get_edge_color("BELONGS_TO_MODULE")
-                        ))
+                        edges.append(
+                            VisualizationEdge(
+                                id=f"{module_id}_HAS_{entity_id}",
+                                source=module_id,
+                                target=entity_id,
+                                type="BELONGS_TO_MODULE",
+                                color=self._get_edge_color("BELONGS_TO_MODULE"),
+                            )
+                        )
 
             # Find cross-module relationships
             cross_cypher = """
@@ -931,16 +965,20 @@ class GraphVisualizer:
             """
 
             with self.graph_manager.driver.session() as session:
-                rel_result = session.run(cross_cypher, {"entity_ids": list(seen_entity_ids)})
+                rel_result = session.run(
+                    cross_cypher, {"entity_ids": list(seen_entity_ids)}
+                )
                 for rel in rel_result:
                     rel_type = rel.get("rel_type", "RELATED_TO")
-                    edges.append(VisualizationEdge(
-                        id=f"{rel['source']}_{rel['target']}_{rel_type}",
-                        source=rel["source"],
-                        target=rel["target"],
-                        type=rel_type,
-                        color=self._get_edge_color(rel_type)
-                    ))
+                    edges.append(
+                        VisualizationEdge(
+                            id=f"{rel['source']}_{rel['target']}_{rel_type}",
+                            source=rel["source"],
+                            target=rel["target"],
+                            type=rel_type,
+                            color=self._get_edge_color(rel_type),
+                        )
+                    )
 
             # Apply filters
             nodes = self._filter_nodes(nodes, options)
@@ -956,8 +994,8 @@ class GraphVisualizer:
                     edge_count=len(edges),
                     entity_type_counts=self._count_by_type(nodes),
                     relationship_type_counts=self._count_edges_by_type(edges),
-                    options_used=options
-                )
+                    options_used=options,
+                ),
             )
 
             return self.apply_layout(graph, options.layout)
@@ -969,9 +1007,7 @@ class GraphVisualizer:
             )
 
     async def get_entity_neighborhood(
-        self,
-        entity_id: str,
-        depth: int = 2
+        self, entity_id: str, depth: int = 2
     ) -> VisualizationGraph:
         """
         Get neighborhood graph around an entity.
@@ -1015,29 +1051,40 @@ class GraphVisualizer:
                 # Add center node
                 center = record.get("center")
                 if center:
-                    center_type = center.labels[0] if hasattr(center, 'labels') else "Entity"
-                    nodes.append(VisualizationNode(
-                        id=center.get("id"),
-                        label=center.get("name", entity_id),
-                        type=center_type,
-                        color=self._get_node_color(center_type),
-                        size=self._get_node_size(center_type) * 1.5,  # Larger center
-                        group="center",
-                        properties=dict(center)
-                    ))
+                    center_type = (
+                        center.labels[0] if hasattr(center, "labels") else "Entity"
+                    )
+                    nodes.append(
+                        VisualizationNode(
+                            id=center.get("id"),
+                            label=center.get("name", entity_id),
+                            type=center_type,
+                            color=self._get_node_color(center_type),
+                            size=self._get_node_size(center_type)
+                            * 1.5,  # Larger center
+                            group="center",
+                            properties=dict(center),
+                        )
+                    )
 
                 # Add neighbor nodes
                 for neighbor in record.get("neighbors", []):
                     if neighbor:
-                        n_type = neighbor.labels[0] if hasattr(neighbor, 'labels') else "Entity"
-                        nodes.append(VisualizationNode(
-                            id=neighbor.get("id"),
-                            label=neighbor.get("name", neighbor.get("id")),
-                            type=n_type,
-                            color=self._get_node_color(n_type),
-                            size=self._get_node_size(n_type),
-                            properties=dict(neighbor)
-                        ))
+                        n_type = (
+                            neighbor.labels[0]
+                            if hasattr(neighbor, "labels")
+                            else "Entity"
+                        )
+                        nodes.append(
+                            VisualizationNode(
+                                id=neighbor.get("id"),
+                                label=neighbor.get("name", neighbor.get("id")),
+                                type=n_type,
+                                color=self._get_node_color(n_type),
+                                size=self._get_node_size(n_type),
+                                properties=dict(neighbor),
+                            )
+                        )
 
                 # Extract edges from relationships
                 seen_edges: Set[str] = set()
@@ -1048,13 +1095,15 @@ class GraphVisualizer:
                                 edge_id = f"{rel.start_node.get('id')}_{rel.end_node.get('id')}_{type(rel).__name__}"
                                 if edge_id not in seen_edges:
                                     rel_type = type(rel).__name__
-                                    edges.append(VisualizationEdge(
-                                        id=edge_id,
-                                        source=rel.start_node.get("id"),
-                                        target=rel.end_node.get("id"),
-                                        type=rel_type,
-                                        color=self._get_edge_color(rel_type)
-                                    ))
+                                    edges.append(
+                                        VisualizationEdge(
+                                            id=edge_id,
+                                            source=rel.start_node.get("id"),
+                                            target=rel.end_node.get("id"),
+                                            type=rel_type,
+                                            color=self._get_edge_color(rel_type),
+                                        )
+                                    )
                                     seen_edges.add(edge_id)
 
             graph = VisualizationGraph(
@@ -1064,8 +1113,8 @@ class GraphVisualizer:
                     node_count=len(nodes),
                     edge_count=len(edges),
                     entity_type_counts=self._count_by_type(nodes),
-                    relationship_type_counts=self._count_edges_by_type(edges)
-                )
+                    relationship_type_counts=self._count_edges_by_type(edges),
+                ),
             )
 
             # Use radial layout for neighborhood
@@ -1079,7 +1128,7 @@ class GraphVisualizer:
         self,
         graph: VisualizationGraph,
         layout: LayoutType,
-        center_node_id: Optional[str] = None
+        center_node_id: Optional[str] = None,
     ) -> VisualizationGraph:
         """
         Apply layout algorithm to graph nodes.
@@ -1107,11 +1156,7 @@ class GraphVisualizer:
         graph.layout_applied = True
         return graph
 
-    def export_graph(
-        self,
-        graph: VisualizationGraph,
-        format: ExportFormat
-    ) -> bytes:
+    def export_graph(self, graph: VisualizationGraph, format: ExportFormat) -> bytes:
         """
         Export graph in specified format.
 
@@ -1148,7 +1193,9 @@ class GraphVisualizer:
             key_elem.set("id", key)
             key_elem.set("for", "node")
             key_elem.set("attr.name", key)
-            key_elem.set("attr.type", "string" if key in ["label", "type", "color"] else "double")
+            key_elem.set(
+                "attr.type", "string" if key in ["label", "type", "color"] else "double"
+            )
 
         # Define keys for edge attributes
         for key in ["type", "weight", "color"]:
@@ -1156,7 +1203,9 @@ class GraphVisualizer:
             key_elem.set("id", f"e_{key}")
             key_elem.set("for", "edge")
             key_elem.set("attr.name", key)
-            key_elem.set("attr.type", "string" if key in ["type", "color"] else "double")
+            key_elem.set(
+                "attr.type", "string" if key in ["type", "color"] else "double"
+            )
 
         # Create graph element
         graph_elem = ET.SubElement(root, "graph")
@@ -1174,7 +1223,7 @@ class GraphVisualizer:
                 ("color", node.color or ""),
                 ("size", str(node.size)),
                 ("x", str(node.x or 0)),
-                ("y", str(node.y or 0))
+                ("y", str(node.y or 0)),
             ]:
                 data_elem = ET.SubElement(node_elem, "data")
                 data_elem.set("key", key)
@@ -1190,7 +1239,7 @@ class GraphVisualizer:
             for key, value in [
                 ("e_type", edge.type),
                 ("e_weight", str(edge.weight)),
-                ("e_color", edge.color or "")
+                ("e_color", edge.color or ""),
             ]:
                 data_elem = ET.SubElement(edge_elem, "data")
                 data_elem.set("key", key)
@@ -1261,12 +1310,16 @@ class GraphVisualizer:
         output.write("# NODES\n")
         output.write("id,label,type,color,size,x,y\n")
         for node in graph.nodes:
-            output.write(f'"{node.id}","{node.label}","{node.type}","{node.color or ""}",{node.size},{node.x or 0},{node.y or 0}\n')
+            output.write(
+                f'"{node.id}","{node.label}","{node.type}","{node.color or ""}",{node.size},{node.x or 0},{node.y or 0}\n'
+            )
 
         output.write("\n# EDGES\n")
         output.write("source,target,type,weight,color\n")
         for edge in graph.edges:
-            output.write(f'"{edge.source}","{edge.target}","{edge.type}",{edge.weight},"{edge.color or ""}"\n')
+            output.write(
+                f'"{edge.source}","{edge.target}","{edge.type}",{edge.weight},"{edge.color or ""}"\n'
+            )
 
         return output.getvalue().encode("utf-8")
 

@@ -174,7 +174,6 @@ export function ContextMenu() {
     const handleDownload = () => {
         if (node.meta?.pdfFilename) {
             const link = document.createElement('a');
-            // Use authenticated API endpoint for downloads
             link.href = `/api/pdfs/${node.meta.pdfFilename}`;
             link.download = node.meta.pdfFilename;
             document.body.appendChild(link);
@@ -193,13 +192,13 @@ export function ContextMenu() {
             }}
             onClick={(e) => e.stopPropagation()}
         >
-            <button className="context-menu-item" onClick={handleOpen}>
+            <button className="context-menu-item" onClick={handleOpen} aria-label={isNote ? 'Open PDF' : 'Open'}>
                 {isNote ? <ExternalLink size={16} /> : <FolderOpen size={16} />}
                 <span>{isNote ? 'Open PDF' : 'Open'}</span>
             </button>
 
             {isNote && node.meta?.pdfFilename && (
-                <button className="context-menu-item" onClick={handleDownload}>
+                <button className="context-menu-item" onClick={handleDownload} aria-label="Download PDF">
                     <Download size={16} />
                     <span>Download PDF</span>
                 </button>
@@ -210,14 +209,14 @@ export function ContextMenu() {
             )}
 
             {canCreateChild() && childType && (
-                <button className="context-menu-item" onClick={handleCreate}>
+                <button className="context-menu-item" onClick={handleCreate} aria-label={childType.label}>
                     <Plus size={16} />
                     <span>{childType.label}</span>
                 </button>
             )}
 
             {canRename() && (
-                <button className="context-menu-item" onClick={handleRename}>
+                <button className="context-menu-item" onClick={handleRename} aria-label="Rename">
                     <Edit size={16} />
                     <span>Rename</span>
                 </button>
@@ -226,7 +225,7 @@ export function ContextMenu() {
             {canDelete() && (
                 <>
                     <div className="context-menu-separator" />
-                    <button className="context-menu-item danger" onClick={handleDeleteClick}>
+                    <button className="context-menu-item danger" onClick={handleDeleteClick} aria-label="Delete">
                         <Trash2 size={16} />
                         <span>Delete</span>
                     </button>

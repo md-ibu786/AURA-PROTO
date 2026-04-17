@@ -253,7 +253,11 @@ def test_phase_6_neo4j_persistence(result):
                 "MATCH (d:Document {document_id: $doc_id})-[:HAS_ENTITY]->(e:Entity) RETURN count(e) as count",
                 doc_id=document_id,
             )
-            entity_count = entity_result.single()["count"]
+            entity_count_record = entity_result.single()
+            if entity_count_record is None:
+                entity_count = 0
+            else:
+                entity_count = entity_count_record["count"]
             print(f"   Entities found in Neo4j: {entity_count}")
             assert entity_count > 0 or result.get("entity_count") == 0, (
                 "No entities found in Neo4j for processed document"

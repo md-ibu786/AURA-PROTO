@@ -67,7 +67,7 @@ USAGE:
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, Optional
 import os
 import time
 import uuid
@@ -95,7 +95,7 @@ except ImportError as exc:
     _stt_import_error = exc
     logger.error(f"CRITICAL ERROR IMPORTING STT SERVICE: {_stt_import_error}")
 
-    def process_audio_file(*args, **kwargs):
+    def process_audio_file(*args, **kwargs) -> Dict[str, Any]:
         raise ImportError(
             f"Service unavailable due to import error: {_stt_import_error}"
         ) from _stt_import_error
@@ -105,7 +105,7 @@ try:
     from services.coc import transform_transcript
 except ImportError:
 
-    def transform_transcript(*args, **kwargs):
+    def transform_transcript(*args, **kwargs) -> str:
         raise ImportError("AI dependencies not installed")
 
 
@@ -113,7 +113,7 @@ try:
     from services.summarizer import generate_university_notes
 except ImportError:
 
-    def generate_university_notes(*args, **kwargs):
+    def generate_university_notes(*args, **kwargs) -> str:
         raise ImportError("AI dependencies not installed")
 
 
@@ -121,7 +121,7 @@ try:
     from services.pdf_generator import create_pdf
 except ImportError:
 
-    def create_pdf(*args, **kwargs):
+    def create_pdf(*args, **kwargs) -> str:
         raise ImportError("fpdf dependency not installed. Run: pip install fpdf2")
 
 

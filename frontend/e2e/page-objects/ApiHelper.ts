@@ -61,7 +61,7 @@ export class ApiHelper {
         return data.department.id;
     }
 
-    async getDepartment(id: string): Promise<any> {
+    async getDepartment(id: string): Promise<unknown> {
         const response = await this.request.get(`${API_BASE}/api/departments/${id}`);
         if (!response.ok()) return null;
         return await response.json();
@@ -79,7 +79,7 @@ export class ApiHelper {
         expect(response.ok()).toBeTruthy();
     }
 
-    async getAllDepartments(): Promise<any[]> {
+    async getAllDepartments(): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/departments`);
         expect(response.ok()).toBeTruthy();
         const data = await response.json();
@@ -99,7 +99,7 @@ export class ApiHelper {
         return data.semester.id;
     }
 
-    async getSemestersByDepartment(departmentId: string): Promise<any[]> {
+    async getSemestersByDepartment(departmentId: string): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/departments/${departmentId}/semesters`);
         expect(response.ok()).toBeTruthy();
         const data = await response.json();
@@ -124,7 +124,7 @@ export class ApiHelper {
         return data.subject.id;
     }
 
-    async getSubjectsBySemester(semesterId: string): Promise<any[]> {
+    async getSubjectsBySemester(semesterId: string): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/semesters/${semesterId}/subjects`);
         expect(response.ok()).toBeTruthy();
         const data = await response.json();
@@ -149,7 +149,7 @@ export class ApiHelper {
         return data.module.id;
     }
 
-    async getModulesBySubject(subjectId: string): Promise<any[]> {
+    async getModulesBySubject(subjectId: string): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/subjects/${subjectId}/modules`);
         expect(response.ok()).toBeTruthy();
         const data = await response.json();
@@ -187,19 +187,19 @@ export class ApiHelper {
 
     // ========== Explorer ==========
 
-    async getExplorerTree(): Promise<any[]> {
+    async getExplorerTree(): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/api/explorer/tree`);
         expect(response.ok()).toBeTruthy();
         return await response.json();
     }
 
-    async getExplorerChildren(nodeType: string, nodeId: string): Promise<any[]> {
+    async getExplorerChildren(nodeType: string, nodeId: string): Promise<unknown[]> {
         const response = await this.request.get(`${API_BASE}/api/explorer/children/${nodeType}/${nodeId}`);
         expect(response.ok()).toBeTruthy();
         return await response.json();
     }
 
-    async moveNode(nodeId: string, nodeType: string, targetParentId: string, targetParentType: string): Promise<any> {
+    async moveNode(nodeId: string, nodeType: string, targetParentId: string, targetParentType: string): Promise<unknown> {
         const response = await this.request.post(`${API_BASE}/api/explorer/move`, {
             data: {
                 nodeId,
@@ -212,7 +212,7 @@ export class ApiHelper {
         return await response.json();
     }
 
-    async getNoteStatus(noteId: string): Promise<any> {
+    async getNoteStatus(noteId: string): Promise<unknown> {
         const response = await this.request.get(`${API_BASE}/api/explorer/notes/${noteId}/status`);
         expect(response.ok()).toBeTruthy();
         return await response.json();
@@ -220,7 +220,7 @@ export class ApiHelper {
 
     // ========== Audio Processing ==========
 
-    async uploadDocument(moduleId: string, fileBuffer: Buffer, fileName: string, title?: string): Promise<any> {
+    async uploadDocument(moduleId: string, fileBuffer: Buffer, fileName: string, title?: string): Promise<unknown> {
         const formData = new FormData();
         // Convert Node.js Buffer to browser-compatible format
         const blob = new Blob([new Uint8Array(fileBuffer)], { type: 'application/pdf' });
@@ -252,7 +252,7 @@ export class ApiHelper {
         return data.jobId;
     }
 
-    async getPipelineStatus(jobId: string): Promise<any> {
+    async getPipelineStatus(jobId: string): Promise<unknown> {
         const response = await this.request.get(`${API_BASE}/api/audio/pipeline-status/${jobId}`);
         expect(response.ok()).toBeTruthy();
         return await response.json();
@@ -305,13 +305,14 @@ export class ApiHelper {
     /**
      * Finds a node in the explorer tree by label
      */
-    async findNodeByLabel(tree: any[], label: string, type?: string): Promise<any | null> {
+    async findNodeByLabel(tree: unknown[], label: string, type?: string): Promise<unknown | null> {
         for (const node of tree) {
-            if (node.label.includes(label) && (!type || node.type === type)) {
+            const n = node as Record<string, unknown>;
+            if ((n.label as string).includes(label) && (!type || n.type === type)) {
                 return node;
             }
-            if (node.children) {
-                const found = await this.findNodeByLabel(node.children, label, type);
+            if (n.children) {
+                const found = await this.findNodeByLabel(n.children as unknown[], label, type);
                 if (found) return found;
             }
         }
@@ -321,10 +322,10 @@ export class ApiHelper {
     /**
      * Waits for a note to be processed (polling)
      */
-    async waitForNoteProcessing(noteId: string, timeout: number = 60000): Promise<any> {
+    async waitForNoteProcessing(noteId: string, timeout: number = 60000): Promise<unknown> {
         const startTime = Date.now();
         while (Date.now() - startTime < timeout) {
-            const status = await this.getNoteStatus(noteId);
+            const status = await this.getNoteStatus(noteId) as Record<string, unknown>;
             if (status.status === 'complete' || status.pdfUrl) {
                 return status;
             }
