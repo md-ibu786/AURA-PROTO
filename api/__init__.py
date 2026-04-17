@@ -162,8 +162,8 @@ try:
 except ImportError:
     _MODULE_EXPORTS = []
 
-__all__ = [
-    *_KG_EXPORTS,
-    *_TASK_EXPORTS,
-    *_MODULE_EXPORTS,
-]
+__all__ = (
+    tuple(_KG_EXPORTS) +
+    tuple(_TASK_EXPORTS) +
+    tuple(_MODULE_EXPORTS)
+)

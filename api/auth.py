@@ -76,23 +76,17 @@ async def verify_firebase_token(token: str) -> dict:
         return decoded_token
     except auth.InvalidIdTokenError as exc:
         print(f"DEBUG: Invalid token error: {exc}")
+        error_detail = str(exc)
+        # Check if token is expired or revoked for specific error messages
+        if isinstance(exc, auth.ExpiredIdTokenError):
+            error_detail = f"Authentication token has expired: {error_detail}"
+        elif isinstance(exc, auth.RevokedIdTokenError):
+            error_detail = f"Authentication token has been revoked: {error_detail}"
+        else:
+            error_detail = f"Invalid authentication token: {error_detail}"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid authentication token: {str(exc)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except auth.ExpiredIdTokenError as exc:
-        print(f"DEBUG: Expired token error: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication token has expired: {str(exc)}",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    except auth.RevokedIdTokenError as exc:
-        print(f"DEBUG: Revoked token error: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Authentication token has been revoked: {str(exc)}",
+            detail=error_detail,
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as exc:
