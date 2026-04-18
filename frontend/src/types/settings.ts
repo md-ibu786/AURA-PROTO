@@ -60,3 +60,15 @@ export interface ApiKeyStatus {
     masked_key: string;
     valid: boolean | null;
 }
+
+export interface ChatModelEntry {
+    provider: string;
+    model: string;
+}
+
+export interface ChatModelsConfig {
+    models: ChatModelEntry[];
+    default_index: number;
+    provider: string;
+    model: string;
+}

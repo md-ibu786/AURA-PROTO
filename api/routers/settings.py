@@ -31,6 +31,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 import redis.asyncio as redis_asyncio
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -80,6 +81,20 @@ class ApiKeyCreate(BaseModel):
     """Payload for storing a provider API key."""
 
     api_key: str
+
+
+class ChatModelEntry(BaseModel):
+    """Single model entry in multi-model chat configuration."""
+
+    provider: str
+    model: str
+
+
+class ChatModelsUpdate(BaseModel):
+    """Payload for updating multi-model chat configuration."""
+
+    models: list[ChatModelEntry]
+    default_index: int = 0
 
 
 def get_redis() -> redis_asyncio.Redis:
@@ -208,6 +223,53 @@ async def set_default(
         "use_case": use_case,
         "provider": payload.provider,
         "model": payload.model,
+    }
+
+
+@router.get("/defaults/chat/models")
+async def get_chat_models(
+    store: SettingsStore = Depends(get_settings_store),
+) -> dict[str, Any]:
+    """Get the multi-model configuration for the chat use case."""
+    config = await store.get_chat_models_config()
+    if config is None:
+        return {
+            "models": [],
+            "default_index": 0,
+            "provider": "",
+            "model": "",
+        }
+    return config
+
+
+@router.put("/defaults/chat/models")
+async def set_chat_models(
+    payload: ChatModelsUpdate,
+    store: SettingsStore = Depends(get_settings_store),
+) -> dict[str, Any]:
+    """Update the multi-model configuration for chat use case."""
+    if len(payload.models) < 1 or len(payload.models) > 5:
+        raise HTTPException(
+            status_code=400,
+            detail="Chat models must contain between 1 and 5 models",
+        )
+    if payload.default_index >= len(payload.models):
+        raise HTTPException(
+            status_code=400,
+            detail="default_index exceeds models list length",
+        )
+
+    models_data = [
+        {"provider": m.provider, "model": m.model}
+        for m in payload.models
+    ]
+
+    await store.set_chat_models(models_data, payload.default_index)
+
+    return {
+        "use_case": "chat",
+        "models": models_data,
+        "default_index": payload.default_index,
     }
 
 

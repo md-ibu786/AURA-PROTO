@@ -38,6 +38,7 @@ import { useState, useEffect } from 'react';
 import { useDefaults, useAllModels, useUpdateDefault } from '../hooks/useSettingsApi';
 import { groupModelsByProvider } from '../hooks/useModelList';
 import { HierarchicalModelPicker } from './HierarchicalModelPicker';
+import { ChatModelsSection } from './ChatModelsSection';
 import { UseCase, ModelGroup, ModelInfo } from '@/types/settings';
 import { Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -114,14 +115,18 @@ export function DefaultModelSection() {
                 </button>
             </div>
             {USE_CASES.map(useCase => (
-                <UseCaseSection
-                    key={useCase.id}
-                    useCase={useCase}
-                    currentValue={defaults?.[useCase.id]?.model || ''}
-                    groupedModels={groupModelsByProvider(modelList, USE_CASE_MODEL_TYPES[useCase.id])}
-                    allModels={modelList}
-                    isRefreshing={isFetchingDefaults || isFetchingModels}
-                />
+                useCase.id === 'chat'
+                    ? <ChatModelsSection key={useCase.id} />
+                    : (
+                        <UseCaseSection
+                            key={useCase.id}
+                            useCase={useCase}
+                            currentValue={defaults?.[useCase.id]?.model || ''}
+                            groupedModels={groupModelsByProvider(modelList, USE_CASE_MODEL_TYPES[useCase.id])}
+                            allModels={modelList}
+                            isRefreshing={isFetchingDefaults || isFetchingModels}
+                        />
+                    )
             ))}
         </div>
     );

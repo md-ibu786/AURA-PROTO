@@ -36,6 +36,8 @@ import type {
     ModelInfo, 
     DefaultModelSetting, 
     ApiKeyStatus,
+    ChatModelEntry,
+    ChatModelsConfig,
     UseCase,
     ProviderType
 } from '@/types/settings';
@@ -46,6 +48,7 @@ export const settingsKeys = {
     providerModels: (provider: string) => [...settingsKeys.models(), provider] as const,
     defaults: () => [...settingsKeys.all, 'defaults'] as const,
     apiKey: (provider: string) => [...settingsKeys.all, 'apiKey', provider] as const,
+    chatModels: () => [...settingsKeys.all, 'chatModels'] as const,
 };
 
 export const useAllModels = (enabled: boolean = true) => {
@@ -187,6 +190,47 @@ export const useUpdateDefault = (useCase: UseCase | string) => {
         },
         onError: (error: Error) => {
             toast.error(error.message || 'Failed to update default model');
+        }
+    });
+};
+
+export const useChatModelsConfig = () => {
+    return useQuery({
+        queryKey: settingsKeys.chatModels(),
+        queryFn: async () => {
+            return await fetchApi<ChatModelsConfig>('/v1/settings/defaults/chat/models');
+        },
+        staleTime: 2 * 60 * 1000,
+        gcTime: 10 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        placeholderData: keepPreviousData,
+    });
+};
+
+export const useUpdateChatModels = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (payload: {
+            models: ChatModelEntry[];
+            default_index: number;
+        }) => {
+            return await fetchApi<ChatModelsConfig>(
+                '/v1/settings/defaults/chat/models',
+                {
+                    method: 'PUT',
+                    body: JSON.stringify(payload)
+                }
+            );
+        },
+        onSuccess: () => {
+            toast.success('Chat models updated');
+            queryClient.invalidateQueries({ queryKey: settingsKeys.chatModels() });
+            queryClient.invalidateQueries({ queryKey: settingsKeys.defaults() });
+        },
+        onError: (error: Error) => {
+            toast.error(error.message || 'Failed to update chat models');
         }
     });
 };
