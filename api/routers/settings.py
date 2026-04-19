@@ -60,6 +60,7 @@ ALLOWED_USE_CASES = {
     "summarization",
     "gatekeeper",
     "relationship_extraction",
+    "refinement",
 }
 DEFAULT_REDIS_URL = "redis://localhost:6379"
 MODEL_CACHE_TTL_ENV = "MODEL_CACHE_TTL_SECONDS"

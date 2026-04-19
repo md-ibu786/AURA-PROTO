@@ -23,6 +23,10 @@ Requirements carried forward from v1.1 milestone.
 
 Deferred from v1.1 for future milestones.
 
+### Audio-to-Notes Pipeline
+
+- **AUD-01**: Admin can configure the LLM models used for transcript refinement (coc.py) and note summarization (summarizer.py) via the Settings page, consistent with all other LLM service configuration.
+
 ### Diagnostics and Auditability
 
 - **OBS-01**: Team can trace audited request and background-task failures with structured correlation data.
@@ -41,4 +45,4 @@ Explicitly excluded from current planning.
 ---
 
 *Requirements defined: 2026-04-07*
-*Last updated: 2026-04-07 (preparing for v1.2)*
+*Last updated: 2026-04-19 (added AUD-01 for audio pipeline model config)*
