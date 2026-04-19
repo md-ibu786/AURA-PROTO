@@ -252,8 +252,12 @@ async def get_processing_queue():
     # Query only notes with kg_status == 'processing' at Firestore level
     # This avoids scanning all notes and filtering in Python
     try:
+        from firebase_admin.firestore import Filter
+
         processing_notes = (
-            db.collection_group("notes").where("kg_status", "==", "processing").stream()
+            db.collection_group("notes")
+            .where(filter=Filter("kg_status", "==", "processing"))
+            .stream()
         )
 
         for doc in processing_notes:

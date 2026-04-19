@@ -275,8 +275,7 @@ async def _wire_usage_tracking() -> None:
         )
         from api.routers.settings import get_redis as _get_usage_redis
 
-        _usage_redis = _get_usage_redis()
-        _tracker = UsageTracker(_usage_redis)
+        _tracker = UsageTracker(lambda: _get_usage_redis())
         _calculator = CostCalculator()
         get_default_router().set_usage_tracking(_tracker, _calculator)
         logger.info("Usage tracking wired into model router")

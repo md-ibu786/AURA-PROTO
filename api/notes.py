@@ -51,6 +51,7 @@ USAGE:
 """
 
 from google.cloud import firestore
+from firebase_admin.firestore import Filter
 import datetime
 import re
 from typing import Optional, Sequence
@@ -122,7 +123,7 @@ def create_note_record(
 ):
     """Create a note record in Firestore under the specified module."""
     # Find module doc ref
-    docs = list(db.collection_group("modules").where("id", "==", module_id).stream())
+    docs = list(db.collection_group("modules").where(filter=Filter("id", "==", module_id)).stream())
     if not docs:
         return None
 
