@@ -161,10 +161,10 @@ function UseCaseSection({
             setSelected(currentValue);
             return;
         }
-        if (!selected && currentValue && !hasServerModel && allModels.length > 0) {
+        if (!currentValue && allModels.length > 0) {
             setSelected(allModels[0].name);
         }
-    }, [allModels, currentValue, selected]);
+    }, [allModels, currentValue]);
 
     const handleChange = (modelName: string) => {
         setSelected(modelName);

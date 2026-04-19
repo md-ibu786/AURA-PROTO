@@ -200,7 +200,7 @@ def _serialize_models(models: list[ModelInfo]) -> list[dict[str, object]]:
 @router.get("/defaults")
 async def get_defaults(
     store: SettingsStore = Depends(get_settings_store),
-) -> dict[str, dict[str, str]]:
+) -> dict[str, Any]:
     """Return all configured use-case defaults."""
     return await store.get_defaults()
 
