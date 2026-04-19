@@ -34,9 +34,9 @@ import re
 from services.vertex_ai_client import (
     GenerationConfig,
     block_none_safety_settings,
-    generate_content,
-    get_model,
 )
+from model_router import get_default_router, resolve_use_case_config
+from model_router.compat import _run_sync
 
 
 def clean_and_parse_json(text: str) -> dict:
@@ -92,8 +92,8 @@ def transform_transcript(topic: str, transcript: str) -> str:
         str: The transformed transcript.
     """
 
-    # usage of models/gemini-3-flash-preview
-    model = get_model(model_name="models/gemini-2.5-pro")
+    cfg = resolve_use_case_config("refinement")
+    router = get_default_router()
 
     # define the prompt for transformation
     # include the raw transcript explicitly in the prompt so the model can process it
@@ -141,11 +141,14 @@ def transform_transcript(topic: str, transcript: str) -> str:
     """
 
     # generate the transformed transcript with deterministic generation
-    response = generate_content(
-        model,
-        prompt,
-        generation_config=GenerationConfig(temperature=0.0, max_output_tokens=32000),
-        safety_settings=block_none_safety_settings(),
+    response = _run_sync(
+        router.generate(
+            model=cfg["model"],
+            contents=prompt,
+            provider=cfg["provider"],
+            temperature=0.0,
+            max_output_tokens=32000,
+        )
     )
 
     response_text = getattr(response, "text", None)
@@ -220,11 +223,14 @@ def transform_transcript(topic: str, transcript: str) -> str:
             """
 
     # perform the audit
-    audit_response = generate_content(
-        model,
-        audit_prompt,
-        generation_config=GenerationConfig(temperature=0.0, max_output_tokens=32000),
-        safety_settings=block_none_safety_settings(),
+    audit_response = _run_sync(
+        router.generate(
+            model=cfg["model"],
+            contents=audit_prompt,
+            provider=cfg["provider"],
+            temperature=0.0,
+            max_output_tokens=32000,
+        )
     )
 
     audit_text = getattr(audit_response, "text", None)
