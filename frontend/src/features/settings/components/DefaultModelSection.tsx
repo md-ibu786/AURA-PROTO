@@ -48,7 +48,8 @@ const USE_CASES: { id: UseCase; label: string; description: string }[] = [
     { id: 'embeddings', label: 'Embeddings Model', description: 'Used for document indexing and vector search' },
     { id: 'entity_extraction', label: 'Entity Extraction Model', description: 'Used for building knowledge graphs from documents' },
     { id: 'gatekeeper', label: 'Gatekeeper Model', description: 'Used for query validation and access control' },
-    { id: 'relationship_extraction', label: 'Relationship Extraction Model', description: 'Used for extracting relationships between entities in documents' }
+    { id: 'refinement', label: 'Refinement Model', description: 'Used for transcript cleaning and academic formatting' },
+    { id: 'summarization', label: 'Summarization Model', description: 'Used for generating structured university-grade notes' }
 ];
 
 const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
@@ -57,6 +58,8 @@ const USE_CASE_MODEL_TYPES: Record<UseCase, 'generation' | 'embedding'> = {
     entity_extraction: 'generation',
     gatekeeper: 'generation',
     relationship_extraction: 'generation',
+    refinement: 'generation',
+    summarization: 'generation',
 };
 
 export function DefaultModelSection() {
