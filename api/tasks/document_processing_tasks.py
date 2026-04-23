@@ -226,7 +226,8 @@ class ProcessingState(str, Enum):
     PENDING = "PENDING"
     RECEIVED = "RECEIVED"
     PARSING = "PARSING"  # 0-10%
-    CHUNKING = "CHUNKING"  # 10-30%
+    CHUNKING = "CHUNKING"  # 10-25%
+    LABELING = "LABELING"  # 25-30%
     EMBEDDING = "EMBEDDING"  # 30-50%
     EXTRACTING = "EXTRACTING"  # 50-70%
     STORING = "STORING"  # 70-90%
@@ -280,6 +281,8 @@ class KGProcessingTask(Task):
             state=ProcessingState.PARSING.value
             if progress < 10
             else ProcessingState.CHUNKING.value
+            if progress < 25
+            else ProcessingState.LABELING.value
             if progress < 30
             else ProcessingState.EMBEDDING.value
             if progress < 50
