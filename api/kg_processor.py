@@ -1661,6 +1661,142 @@ class KnowledgeGraphProcessor:
             # For now, return zeros to maintain shape
             return [[0.0] * 768 for _ in chunk_texts]
 
+    async def _generate_chunk_labels(self, chunks: List[Chunk]) -> None:
+        """Generate AI labels for chunks in-place.
+
+        Uses batch LLM call with heuristic fallback.
+
+        Args:
+            chunks: List of Chunk objects to label.
+        """
+        if not chunks:
+            return
+
+        chunk_texts = [chunk.text for chunk in chunks]
+        labels = await self._label_chunks_with_llm(chunk_texts)
+
+        for chunk, label_list in zip(chunks, labels):
+            chunk.chunk_labels = label_list
+
+        logger.info(f"Generated labels for {len(chunks)} chunks")
+
+    async def _label_chunks_with_llm(
+        self, chunk_texts: List[str]
+    ) -> List[List[str]]:
+        """Call LLM to generate topic labels in batches.
+
+        Args:
+            chunk_texts: Raw text of each chunk.
+
+        Returns:
+            List of label lists, one per chunk.
+        """
+        if not chunk_texts:
+            return []
+
+        batch_size = 20
+        all_labels: List[List[str]] = []
+
+        for i in range(0, len(chunk_texts), batch_size):
+            batch = chunk_texts[i : i + batch_size]
+            batch_labels = await self._label_single_batch(batch)
+            all_labels.extend(batch_labels)
+
+        return all_labels
+
+    async def _label_single_batch(
+        self, chunk_texts: List[str]
+    ) -> List[List[str]]:
+        """Generate labels for a single batch (max 20).
+
+        Args:
+            chunk_texts: Batch of chunk texts.
+
+        Returns:
+            List of label lists for this batch.
+        """
+        excerpts = []
+        for idx, text in enumerate(chunk_texts, 1):
+            truncated = text[:200]
+            excerpts.append(f'Excerpt {idx}: "{truncated}"')
+
+        newline = "\n"
+        prompt = (
+            "You are labeling excerpts from an academic document.\n"
+            "For each excerpt below, generate 1-3 concise topic labels.\n"
+            "Respond ONLY as a JSON array of string arrays in the same "
+            "order as the excerpts.\n\n"
+            f"{newline.join(excerpts)}\n\n"
+            "Expected output format:\n"
+            '[["Label 1a", "Label 1b"], ["Label 2"]]'
+        )
+
+        try:
+            response_text = await self.gemini.generate_text(prompt)
+            parsed = self._extract_json_array(response_text)
+
+            if len(parsed) != len(chunk_texts):
+                logger.warning(
+                    "Label mismatch: expected "
+                    f"{len(chunk_texts)}, got {len(parsed)}. Falling "
+                    "back to heuristic labels."
+                )
+                return [self._heuristic_label(text) for text in chunk_texts]
+
+            valid_labels = []
+            for item, text in zip(parsed, chunk_texts):
+                if isinstance(item, list) and all(
+                    isinstance(value, str) and value.strip()
+                    for value in item
+                ):
+                    valid_labels.append([value.strip() for value in item])
+                else:
+                    valid_labels.append(self._heuristic_label(text))
+
+            return valid_labels
+
+        except Exception as exc:
+            logger.warning(
+                f"LLM label generation failed: {exc}. Falling back to "
+                "heuristic."
+            )
+            return [self._heuristic_label(text) for text in chunk_texts]
+
+    def _extract_json_array(self, text: str) -> List[Any]:
+        """Extract JSON array from LLM response text.
+
+        Args:
+            text: Raw LLM response string.
+
+        Returns:
+            Parsed list, or empty list.
+        """
+        start = text.find("[")
+        end = text.rfind("]")
+
+        if start == -1 or end == -1 or end <= start:
+            return []
+
+        try:
+            return json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            return []
+
+    def _heuristic_label(self, text: str) -> List[str]:
+        """Generate fallback label from first sentence.
+
+        Args:
+            text: Chunk text content.
+
+        Returns:
+            List containing truncated first sentence
+            (max 60 chars).
+        """
+        first_sentence = text.split(".")[0].strip()
+        if len(first_sentence) > 60:
+            return [first_sentence[:60] + "..."]
+        return [first_sentence]
+
     async def _extract_entities_from_chunks(
         self, chunk_texts: List[str], include_relationships: bool = False
     ) -> List[ExtractionResult]:
