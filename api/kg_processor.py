@@ -3650,10 +3650,11 @@ class KnowledgeGraphProcessor:
         )
 
     async def _create_chunk_node(self, session, chunk: Chunk, module_id: str):
-        """Create Chunk node with embedding and module_id."""
+        """Create Chunk node with embedding, chunk_labels, and module_id."""
         query = """
         MERGE (c:Chunk {id: $id})
         SET c.text = $text,
+            c.chunk_labels = $chunk_labels,
             c.token_count = $token_count,
             c.index = $index,
             c.module_id = $module_id,
@@ -3663,6 +3664,7 @@ class KnowledgeGraphProcessor:
         params = {
             "id": chunk.id,
             "text": chunk.text[:10000],  # Limit text size for Neo4j
+            "chunk_labels": chunk.chunk_labels or [],
             "token_count": chunk.token_count,
             "index": chunk.index,
             "module_id": module_id,
