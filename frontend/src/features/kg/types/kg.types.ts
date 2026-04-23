@@ -43,6 +43,7 @@ export interface KGStatusResponse {
     kg_error?: string;
     chunk_count?: number;
     entity_count?: number;
+    chunk_labels?: string[];
 }
 
 export interface ProcessingRequest {
