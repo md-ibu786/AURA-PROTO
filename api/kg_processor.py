@@ -320,7 +320,7 @@ class Relationship:
 
 @dataclass
 class Chunk:
-    """Represents a text chunk with embedding."""
+    """Represents a text chunk with embedding and topic labels."""
 
     id: str
     text: str
@@ -329,6 +329,7 @@ class Chunk:
     embedding: Optional[List[float]] = None
     entities: List[Entity] = field(default_factory=list)
     properties: Dict[str, Any] = field(default_factory=dict)
+    chunk_labels: Optional[List[str]] = None
 
 
 @dataclass
