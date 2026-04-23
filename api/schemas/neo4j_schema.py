@@ -188,6 +188,7 @@ NODE_PROPERTIES: Dict[NodeType, List[str]] = {
         "module_id",  # String - Associated module ID
         "parent_chunk_id",  # String - Parent chunk ID for hierarchical
         "text",  # String! - Chunk text content
+        "chunk_labels",  # [String] - AI-generated topic labels
         "tokens",  # Integer - Token count
         "position",  # Integer - Position in document
         "embedding",  # [Float]! - 768-dim embedding
