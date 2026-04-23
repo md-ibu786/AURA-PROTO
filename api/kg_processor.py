@@ -1044,7 +1044,17 @@ class KnowledgeGraphProcessor:
                 relationships = None
 
             result["chunk_count"] = len(chunks)
-            self._emit_progress("embeddings", 0, len(chunks), "Generating embeddings")
+            # Step 2b: Generate chunk labels (10-01-PLAN)
+            self._emit_progress(
+                "labeling",
+                0,
+                len(chunks),
+                "Generating chunk labels",
+            )
+            await self._generate_chunk_labels(chunks)
+            self._emit_progress(
+                "embeddings", 0, len(chunks), "Generating embeddings"
+            )
 
             # Step 3: Generate embeddings for chunks (02-03-PLAN integration)
             if chunks:
