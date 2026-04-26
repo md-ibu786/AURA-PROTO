@@ -26,7 +26,7 @@
 
 ### 📋 v1.2 (Planned)
 
-- [ ] Phase 10: Chunk Labeling for Document-to-KG Pipeline
+- [x] Phase 10: Chunk Labeling for Document-to-KG Pipeline (completed 2026-04-23)
 - [ ] Phase 11: [To be defined]
 
 ---
@@ -40,19 +40,19 @@
 | 7. Failure Hardening | v1.1 | 3/3 | ✓ Complete | 2026-04-06 |
 | 8. Runtime Hotspots | v1.1 | 2/2 | ✓ Complete | 2026-04-06 |
 | 9. Safe Cleanup | v1.1 | 3/3 | ✓ Complete | 2026-04-06 |
-| 10. Chunk Labeling | v1.2 | 0/3 | Planned | — |
+| 10. Chunk Labeling | v1.2 | 3/3 | Complete    | 2026-04-23 |
 
 ### Phase 10: Chunk Labeling for Document-to-KG Pipeline
 
 **Goal:** Add AI-generated topic labels to every document chunk in the Neo4j knowledge graph so chunks carry 1–3 concise semantic labels; expose labels through frontend TypeScript types; and track labeling as a distinct Celery processing stage.
 **Requirements**: CHK-01, CHK-02, CHK-03, CHK-04, CHK-05, CHK-06, CHK-07
 **Depends on:** Phase 9
-**Plans:** 3 plans
+**Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 10-01-PLAN.md — Chunk Labeling Backend Core (dataclass, LLM generation, Neo4j schema, pipeline integration)
-- [ ] 10-02-PLAN.md — Chunk Labeling Unit Tests (mocks, fallback coverage, JSON extraction)
-- [ ] 10-03-PLAN.md — Frontend Types and Processing Stage (TypeScript types, Celery LABELING state)
+- [x] 10-01-PLAN.md — Chunk Labeling Backend Core (dataclass, LLM generation, Neo4j schema, pipeline integration)
+- [x] 10-02-PLAN.md — Chunk Labeling Unit Tests (mocks, fallback coverage, JSON extraction)
+- [x] 10-03-PLAN.md — Frontend Types and Processing Stage (TypeScript types, Celery LABELING state)
 
 ---
 
