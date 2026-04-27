@@ -39,7 +39,7 @@ interface UsageSummaryCardsProps {
 
 function SkeletonCard() {
     return (
-        <div className="bg-[#1A1A1A] rounded-lg p-4 border border-gray-800 animate-pulse">
+        <div className="bg-card rounded-lg p-4 border border-border animate-pulse">
             <div className="h-3 w-20 bg-gray-700 rounded mb-3" />
             <div className="h-6 w-24 bg-gray-700 rounded" />
         </div>
@@ -54,7 +54,7 @@ interface StatCardProps {
 
 function StatCard({ label, value, subtext }: StatCardProps) {
     return (
-        <div className="bg-[#1A1A1A] rounded-lg p-3 sm:p-4 border border-gray-800">
+        <div className="bg-card rounded-lg p-3 sm:p-4 border border-border">
             <p className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 truncate" title={label}>
                 {label}
             </p>

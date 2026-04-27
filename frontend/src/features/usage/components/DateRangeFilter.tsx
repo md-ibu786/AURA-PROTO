@@ -67,7 +67,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                         type="date"
                         value={startDate}
                         onChange={(e) => onChange(e.target.value, endDate)}
-                        className="bg-[#1A1A1A] border border-gray-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
+                        className="bg-card border border-border text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                 </div>
                 <div className="flex items-center gap-2">
@@ -79,7 +79,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                         type="date"
                         value={endDate}
                         onChange={(e) => onChange(startDate, e.target.value)}
-                        className="bg-[#1A1A1A] border border-gray-700 text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#FFD400] focus:border-transparent"
+                        className="bg-card border border-border text-white text-xs sm:text-sm rounded-lg px-2 sm:px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                 </div>
             </div>
@@ -93,8 +93,8 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                             onClick={() => onChange(preset.start, preset.end)}
                             className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
                                 isActive
-                                    ? 'bg-[#FFD400]/20 border-[#FFD400] text-[#FFD400]'
-                                    : 'bg-[#1A1A1A] border-gray-700 text-gray-400 hover:border-gray-500 hover:text-white'
+                                    ? 'bg-primary/20 border-primary text-primary'
+                                    : 'bg-card border-border text-gray-400 hover:border-gray-500 hover:text-white'
                             }`}
                         >
                             {label}

@@ -76,7 +76,7 @@ export function UsagePage() {
     const hasAnyData = (summaryData?.total_requests ?? 0) > 0;
 
     return (
-        <div className="flex flex-col h-full bg-[#0A0A0A]">
+        <div className="flex flex-col h-full">
             <AdminHeader 
                 title="Usage & Cost Dashboard" 
                 subtitle="Track LLM usage and estimated costs across providers"
@@ -123,20 +123,20 @@ export function UsagePage() {
                 {hasAnyData && (
                     <>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <section className="bg-[#1A1A1A] rounded-lg p-4 border border-gray-800">
+                            <section className="bg-card rounded-lg p-4 border border-border">
                                 <h2 className="text-lg font-semibold text-white mb-4">
                                     Cost Over Time
                                 </h2>
                                 <CostOverTimeChart data={dailyData ?? []} />
                             </section>
-                            <section className="bg-[#1A1A1A] rounded-lg p-4 border border-gray-800">
+                            <section className="bg-card rounded-lg p-4 border border-border">
                                 <h2 className="text-lg font-semibold text-white mb-4">
                                     Cost by Provider
                                 </h2>
                                 <CostByProviderChart data={providerData ?? []} />
                             </section>
                         </div>
-                        <section className="bg-[#1A1A1A] rounded-lg p-4 border border-gray-800">
+                        <section className="bg-card rounded-lg p-4 border border-border">
                             <h2 className="text-lg font-semibold text-white mb-4">
                                 Cost by Model
                             </h2>

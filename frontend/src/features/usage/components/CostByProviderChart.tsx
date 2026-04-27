@@ -66,7 +66,7 @@ export function CostByProviderChart({ data }: CostByProviderChartProps) {
                 />
                 <Tooltip
                     contentStyle={{
-                        backgroundColor: '#1A1A1A',
+                        backgroundColor: '#0d0d0d',
                         border: '1px solid #333',
                         borderRadius: '8px',
                         color: '#fff',

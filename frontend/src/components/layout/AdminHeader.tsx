@@ -59,7 +59,7 @@ export function AdminHeader({ title, subtitle, showBack }: AdminHeaderProps) {
     ];
 
     return (
-        <header className="flex justify-between items-center px-4 md:px-6 py-3 md:py-4 bg-[#0A0A0A] border-b border-gray-800 shrink-0">
+        <header className="flex justify-between items-center px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border shrink-0">
             <div className="flex flex-col">
                 <div className="flex items-center gap-2">
                     {showBack && (
