@@ -43,6 +43,8 @@ try:
 except ImportError:
     from api.config import db
 
+from google.cloud.firestore import FieldFilter
+
 try:
     from modules.models import (
         DocumentKGStatus,
@@ -110,7 +112,7 @@ async def get_document_kg_status(document_id: str):
     # Bounded lookup: query by stored 'id' field with limit(1)
     # This avoids scanning the full notes collection group
     notes = list(
-        db.collection_group("notes").where("id", "==", document_id).limit(1).stream()
+        db.collection_group("notes").where(filter=FieldFilter("id", "==", document_id)).limit(1).stream()
     )
 
     if not notes:
@@ -207,6 +209,11 @@ async def process_batch(request: BatchProcessingRequest):
 
     # If all documents already processed, return early
     if not queued_ids:
+        logger.warning(
+            f"Batch request resulted in zero queued documents. "
+            f"Skipped: {len(skipped_ids)}, Not found/invalid: "
+            f"{len(request.file_ids) - len(skipped_ids) - len(queued_ids)}"
+        )
         return BatchProcessingResponse(
             task_id="",
             status_url="",
@@ -254,7 +261,7 @@ async def get_processing_queue():
     try:
         processing_notes = (
             db.collection_group("notes")
-            .where("kg_status", "==", "processing")
+            .where(filter=FieldFilter("kg_status", "==", "processing"))
             .stream()
         )
 

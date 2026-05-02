@@ -32,6 +32,7 @@ USAGE:
 from typing import Optional, Dict, Any
 from datetime import datetime
 from google.cloud import firestore
+from google.cloud.firestore import FieldFilter
 
 try:
     from .models import ModuleCreate, ModuleUpdate, ModuleStatus
@@ -149,11 +150,11 @@ class ModuleService:
 
         # Apply filters
         if user_id:
-            query = query.where("created_by", "==", user_id)
+            query = query.where(filter=FieldFilter("created_by", "==", user_id))
         if status:
-            query = query.where("status", "==", status.value)
+            query = query.where(filter=FieldFilter("status", "==", status.value))
         if year:
-            query = query.where("year", "==", year)
+            query = query.where(filter=FieldFilter("year", "==", year))
 
         # Order by created_at descending
         query = query.order_by("created_at", direction=firestore.Query.DESCENDING)

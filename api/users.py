@@ -49,6 +49,8 @@ except ImportError:
     from api.validators import normalize_user_data
     from api.validators import validate_user_role_constraints
 
+from google.cloud.firestore import FieldFilter
+
 
 router = APIRouter(prefix="/api", tags=["users"])
 
@@ -167,9 +169,9 @@ async def list_users(
     query = db.collection("users")
 
     if role:
-        query = query.where("role", "==", role)
+        query = query.where(filter=FieldFilter("role", "==", role))
     if department_id:
-        query = query.where("departmentId", "==", department_id)
+        query = query.where(filter=FieldFilter("departmentId", "==", department_id))
 
     try:
         docs = query.stream()
@@ -312,7 +314,7 @@ async def create_user(
 
     # Check if user with email already exists in Firestore
     existing_users = (
-        db.collection("users").where("email", "==", user_data.email).limit(1).stream()
+        db.collection("users").where(filter=FieldFilter("email", "==", user_data.email)).limit(1).stream()
     )
     for _ in existing_users:
         raise HTTPException(
@@ -534,7 +536,7 @@ async def update_user(
     if update_data.email is not None:
         existing_users = (
             db.collection("users")
-            .where("email", "==", update_data.email)
+            .where(filter=FieldFilter("email", "==", update_data.email))
             .limit(1)
             .stream()
         )

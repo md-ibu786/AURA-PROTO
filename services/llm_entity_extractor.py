@@ -225,17 +225,16 @@ class LLMEntityExtractor:
 
     def __init__(
         self,
-        model_name: str = LLM_ENTITY_EXTRACTION_MODEL,
+        model_name: Optional[str] = None,
         api_key: Optional[str] = None,
     ):
         """
         Initialize with Gemini model.
 
         Args:
-            model_name: Name of the Gemini model to use (Vertex AI model name)
+            model_name: Deprecated. Model is resolved from SettingsStore at call time.
             api_key: Deprecated. Vertex AI uses ADC credentials instead.
         """
-        self.model_name = model_name
         self._test_mode = os.getenv("AURA_TEST_MODE", "").lower() == "true"
         self._model = None
         self._encoding = None
@@ -253,18 +252,29 @@ class LLMEntityExtractor:
                 "LLMEntityExtractor no longer uses API keys; ignoring api_key"
             )
 
+        if model_name:
+            logger.warning(
+                "LLMEntityExtractor no longer uses model_name param; "
+                "ignoring model_name"
+            )
+
         if not self._test_mode:
             self._initialize_model()
         else:
             logger.info("LLMEntityExtractor initialized in test mode")
 
     def _initialize_model(self):
-        """Initialize the Gemini model."""
+        """Initialize the model using runtime SettingsStore config."""
         try:
-            self._model = get_model(self.model_name)
-            logger.info(f"Initialized LLMEntityExtractor with model: {self.model_name}")
+            cfg = resolve_use_case_config("entity_extraction")
+            self._model = get_model(cfg["model"])
+            logger.info(
+                "Initialized LLMEntityExtractor with model: %s, provider: %s",
+                cfg["model"],
+                cfg["provider"],
+            )
         except Exception as e:
-            logger.error(f"Failed to initialize Vertex AI model: {e}")
+            logger.error(f"Failed to initialize model: {e}")
 
     def _count_tokens(self, text: str) -> int:
         """Count tokens in text."""
@@ -389,6 +399,9 @@ class LLMEntityExtractor:
         """
         Parse LLM response to structured entities.
 
+        Uses repair_json to handle markdown-wrapped, truncated, or
+        otherwise malformed JSON from LLM responses.
+
         Args:
             response_text: Raw text response from LLM
 
@@ -400,23 +413,33 @@ class LLMEntityExtractor:
         if not response_text:
             return result
 
-        try:
-            # Try to parse as JSON directly
-            extracted = json.loads(response_text.strip())
-        except json.JSONDecodeError:
-            # Try to extract JSON from response
-            json_start = response_text.find("{")
-            json_end = response_text.rfind("}") + 1
+        cleaned = response_text.strip()
 
-            if json_start >= 0 and json_end > json_start:
-                json_str = response_text[json_start:json_end]
-                try:
-                    extracted = json.loads(json_str)
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse JSON from response")
-                    return result
-            else:
-                logger.warning("No JSON found in response")
+        # Strip markdown code blocks (```json ... ``` or ``` ... ```)
+        if cleaned.startswith("```"):
+            first_newline = cleaned.find("\n")
+            if first_newline > 0:
+                cleaned = cleaned[first_newline + 1:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
+
+        extracted = None
+
+        # Primary: repair_json handles truncated, nested, malformed JSON
+        try:
+            extracted = repair_json(cleaned, return_objects=True)
+            if not isinstance(extracted, dict):
+                extracted = None
+        except Exception:
+            extracted = None
+
+        # Fallback: standard json.loads for already-valid JSON
+        if extracted is None:
+            try:
+                extracted = json.loads(cleaned)
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse JSON from response")
                 return result
 
         # Extract entities from parsed JSON
@@ -961,7 +984,7 @@ No markdown, no explanations. Return empty array if no relationships found.
         """
         try:
             # Resolve provider/model from SettingsStore at call time
-            cfg = resolve_use_case_config("entity_extraction")
+            cfg = resolve_use_case_config("relationship_extraction")
             router = get_default_router()
 
             logger.debug(
@@ -1052,6 +1075,94 @@ No markdown, no explanations. Return empty array if no relationships found.
                 )
             return []
 
+    def _fuzzy_match_entity(
+        self, name: str, name_map: Dict[str, Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Resolve entity name with fuzzy matching.
+
+        Tries in order:
+        1. Exact lowercase match
+        2. Containment (one name is substring of the other)
+        3. Acronym match (e.g., "IIoT" matches "Industrial Internet of Things")
+        4. Mixed abbreviation (e.g., "Industrial IoT" matches
+           "Industrial Internet of Things")
+
+        Args:
+            name: Entity name from LLM relationship
+            name_map: Case-insensitive map of entity names to entity data
+
+        Returns:
+            Matched entity dict or None
+        """
+        key = name.lower().strip()
+
+        # 1. Exact match
+        if key in name_map:
+            return name_map[key]
+
+        # 2. Containment match (longer name contains shorter)
+        for map_key, entity in name_map.items():
+            if key in map_key or map_key in key:
+                return entity
+
+        # 3. Acronym match — handle single-word acronyms like "IIoT", "NLP"
+        #    and multi-word inputs like "Industrial Internet Of Things"
+        for map_key, entity in name_map.items():
+            map_words = map_key.split()
+            if len(map_words) >= 2:
+                # Build acronym from entity name words
+                map_acronym = "".join(w[0] for w in map_words if w)
+                # Check if input matches the acronym
+                if key == map_acronym:
+                    return entity
+                # Check if input's acronym matches entity's acronym
+                input_words = key.split()
+                if len(input_words) >= 2:
+                    input_acronym = "".join(w[0] for w in input_words if w)
+                    if input_acronym == map_acronym:
+                        return entity
+
+        # 4. Mixed abbreviation — e.g., "Industrial IoT" where "IoT" is
+        #    abbreviation for "Internet of Things"
+        #    Expand common abbreviation patterns by checking if input words
+        #    match the start of entity name words
+        for map_key, entity in name_map.items():
+            map_words = map_key.split()
+            input_words = key.split()
+            if len(map_words) >= 2 and len(input_words) >= 2:
+                # Check if input matches entity by prefix-matching words,
+                # allowing trailing input words to be acronyms of remaining
+                # entity words (e.g., "Industrial IoT" matches
+                # "Industrial Internet of Things")
+                match_count = 0
+                map_idx = 0
+                for i, input_word in enumerate(input_words):
+                    if map_idx >= len(map_words):
+                        break
+                    # Exact word match
+                    if input_word == map_words[map_idx]:
+                        match_count += 1
+                        map_idx += 1
+                    # Prefix match (e.g., "lang" matches "language")
+                    elif map_words[map_idx].startswith(input_word):
+                        match_count += 1
+                        map_idx += 1
+                    else:
+                        # Check if this input word is an acronym of
+                        # remaining entity words from map_idx onward
+                        remaining = map_words[map_idx:]
+                        acronym = "".join(w[0] for w in remaining if w)
+                        if input_word == acronym:
+                            match_count += 1
+                            map_idx = len(map_words)
+                        else:
+                            break
+                if match_count == len(input_words):
+                    return entity
+
+        return None
+
     def _validate_relationships(
         self,
         raw_relationships: List[Dict[str, Any]],
@@ -1063,6 +1174,7 @@ No markdown, no explanations. Return empty array if no relationships found.
         Filters out:
         - Self-relationships (A -> A)
         - Relationships with entities not in the extracted set
+          (uses fuzzy matching: containment + acronym)
         - Relationships with invalid types
 
         Args:
@@ -1098,15 +1210,15 @@ No markdown, no explanations. Return empty array if no relationships found.
                     logger.debug(f"Skipping invalid relationship type: {rel_type}")
                     continue
 
-                # Validate source entity exists
-                source_key = source_name.lower().strip()
-                if source_key not in name_map:
+                # Validate source entity exists (fuzzy match)
+                source_entity = self._fuzzy_match_entity(source_name, name_map)
+                if not source_entity:
                     logger.debug(f"Source entity not found: {source_name}")
                     continue
 
-                # Validate target entity exists
-                target_key = target_name.lower().strip()
-                if target_key not in name_map:
+                # Validate target entity exists (fuzzy match)
+                target_entity = self._fuzzy_match_entity(target_name, name_map)
+                if not target_entity:
                     logger.debug(f"Target entity not found: {target_name}")
                     continue
 
@@ -1115,8 +1227,8 @@ No markdown, no explanations. Return empty array if no relationships found.
 
                 # Create validated Relationship
                 relationship = Relationship(
-                    source_entity=name_map[source_key].get("name", source_name),
-                    target_entity=name_map[target_key].get("name", target_name),
+                    source_entity=source_entity.get("name", source_name),
+                    target_entity=target_entity.get("name", target_name),
                     relationship_type=rel_type,
                     confidence=confidence,
                     evidence=evidence,

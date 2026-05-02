@@ -52,6 +52,8 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
         from api.config import db
 
+from google.cloud.firestore import FieldFilter
+
 
 def _merge_doc(doc: Any) -> Dict[str, Any]:
     """Merge doc.id and doc.to_dict() into a single dict safely."""
@@ -108,7 +110,7 @@ def get_subjects_by_semester(
         return result
 
     docs = list(
-        db.collection_group("semesters").where("id", "==", semester_id).stream()
+        db.collection_group("semesters").where(filter=FieldFilter("id", "==", semester_id)).stream()
     )
     if not docs:
         return []
@@ -147,7 +149,7 @@ def get_modules_by_subject(
             result.append(entry)
         return result
 
-    docs = list(db.collection_group("subjects").where("id", "==", subject_id).stream())
+    docs = list(db.collection_group("subjects").where(filter=FieldFilter("id", "==", subject_id)).stream())
     if not docs:
         return []
 

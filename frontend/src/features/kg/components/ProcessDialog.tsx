@@ -62,7 +62,7 @@ export function ProcessDialog() {
             file_ids: processDialog.fileIds,
             module_id: processDialog.moduleId
         }, {
-            onSuccess: () => {
+            onSuccess: (_data) => {
                 setIsProcessing(false);
                 setIsComplete(true);
             },
@@ -109,17 +109,32 @@ export function ProcessDialog() {
                     {isComplete ? (
                         <div className="processing-status">
                             <div className="processing-icon">
-                                <CheckCircle size={48} className="text-success" />
+                                {processFiles.data?.task_id ? (
+                                    <CheckCircle size={48} className="text-success" />
+                                ) : (
+                                    <Info size={48} className="text-warning" />
+                                )}
                             </div>
                             <div className="processing-label">
-                                Documents Queued!
+                                {processFiles.data?.task_id
+                                    ? 'Documents Queued!'
+                                    : 'Nothing to Process'}
                             </div>
                             <div className="processing-message">
-                                {processDialog.fileIds.length} document(s) have been queued for Knowledge Graph processing.
-                                {processDialog.skippedCount > 0 && (
-                                    <><br />{processDialog.skippedCount} already-processed document(s) were skipped.</>
+                                {processFiles.data?.task_id ? (
+                                    <>
+                                        {processFiles.data.documents_queued} document(s) have been queued for Knowledge Graph processing.
+                                        {processFiles.data.documents_skipped > 0 && (
+                                            <><br />{processFiles.data.documents_skipped} already-processed document(s) were skipped.</>
+                                        )}
+                                        <br />Processing will continue in the background.
+                                    </>
+                                ) : (
+                                    <>
+                                        All selected documents are already processed or could not be found.
+                                        <br />No new tasks were dispatched.
+                                    </>
                                 )}
-                                <br />Processing will continue in the background.
                             </div>
                             <div className="processing-actions">
                                 <button className="btn btn-primary" onClick={handleClose}>

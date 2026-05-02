@@ -55,6 +55,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from enum import Enum
 from google.cloud import firestore
+from google.cloud.firestore import FieldFilter
 
 try:
     from config import db, async_db
@@ -312,7 +313,7 @@ def find_doc_ref_sync(collection_name: str, doc_id: str):
         doc = db.collection("departments").document(doc_id).get()
         return doc.reference if doc.exists else None
 
-    docs = list(db.collection_group(collection_name).where("id", "==", doc_id).stream())
+    docs = list(db.collection_group(collection_name).where(filter=FieldFilter("id", "==", doc_id)).stream())
     return docs[0].reference if docs else None
 
 

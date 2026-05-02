@@ -48,6 +48,8 @@ except ImportError:
     except ImportError:
         from api.config import db
 
+from google.cloud.firestore import FieldFilter
+
 
 class ModulePublisher:
     """
@@ -216,7 +218,7 @@ class ModulePublisher:
         Returns:
             List of published module documents
         """
-        docs = self.published_collection.where("student_access", "==", True).get()  # type: ignore[union-attr]
+        docs = self.published_collection.where(filter=FieldFilter("student_access", "==", True)).get()  # type: ignore[union-attr]
         result: List[Dict[str, Any]] = []
         for d in docs:
             d_dict = d.to_dict()
@@ -238,7 +240,7 @@ class ModulePublisher:
         from google.cloud import firestore as fs
 
         docs = (
-            self.audit_collection.where("module_id", "==", module_id)
+            self.audit_collection.where(filter=FieldFilter("module_id", "==", module_id))
             .order_by("timestamp", direction=fs.Query.DESCENDING)
             .limit(limit)
             .get()  # type: ignore[union-attr]

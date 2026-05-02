@@ -83,6 +83,8 @@ except ImportError:
         AURA_TEST_MODE,
     )
 
+from google.cloud.firestore import FieldFilter
+
 from model_router import get_default_router, resolve_use_case_config
 
 from services.vertex_ai_client import (
@@ -1956,7 +1958,7 @@ class KnowledgeGraphProcessor:
                 # Modules are nested, find module doc first
                 modules = list(
                     db.collection_group("modules")
-                    .where("id", "==", module_id)
+                    .where(filter=FieldFilter("id", "==", module_id))
                     .limit(1)
                     .stream()
                 )
@@ -1978,7 +1980,7 @@ class KnowledgeGraphProcessor:
             # 2. Fallback: Find note in nested subcollections by 'id' field
             notes = list(
                 db.collection_group("notes")
-                .where("id", "==", document_id)
+                .where(filter=FieldFilter("id", "==", document_id))
                 .limit(1)
                 .stream()
             )

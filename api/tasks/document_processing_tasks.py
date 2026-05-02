@@ -49,9 +49,12 @@ from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded, MaxRetriesExceededError
 
 # Import processor
-from api.config import CELERY_RESULT_EXPIRES, REDIS_URL, db
-from api.kg_processor import KnowledgeGraphProcessor, process_document_simple
-from api.logging_config import logger
+from ..config import CELERY_RESULT_EXPIRES, REDIS_URL, db
+from ..kg_processor import KnowledgeGraphProcessor, process_document_simple
+from ..logging_config import logger
+
+# Firestore filter for positional-arg-free queries
+from google.cloud.firestore import FieldFilter
 
 
 # ============================================================================
@@ -79,7 +82,7 @@ def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
             # Modules are nested, so we must find the module doc first
             modules = list(
                 db.collection_group("modules")
-                .where("id", "==", module_id)
+                .where(filter=FieldFilter("id", "==", module_id))
                 .limit(1)
                 .stream()
             )
@@ -102,7 +105,7 @@ def _find_note_by_id(document_id: str, module_id: Optional[str] = None):
         # This works because documents store their own ID in the 'id' field
         notes = list(
             db.collection_group("notes")
-            .where("id", "==", document_id)
+            .where(filter=FieldFilter("id", "==", document_id))
             .limit(1)
             .stream()
         )
