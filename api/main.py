@@ -277,8 +277,19 @@ async def _wire_usage_tracking() -> None:
 
         _tracker = UsageTracker(lambda: _get_usage_redis())
         _calculator = CostCalculator()
-        get_default_router().set_usage_tracking(_tracker, _calculator)
+        _router = get_default_router()
+        _router.set_usage_tracking(_tracker, _calculator)
         logger.info("Usage tracking wired into model router")
+
+        try:
+            openrouter_config = _router._config.openrouter
+            if openrouter_config.api_key:
+                await _calculator.populate_openrouter_pricing(
+                    openrouter_config,
+                )
+                logger.info("OpenRouter pricing cache populated")
+        except Exception as exc:
+            logger.warning("OpenRouter pricing fetch failed: %s", exc)
     except Exception as exc:
         logger.warning("Usage tracking setup skipped: %s", exc)
 
@@ -581,7 +592,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host=os.getenv("HOST", "127.0.0.1"),
         port=8000,
         reload=True,
         reload_dirs=["."],
