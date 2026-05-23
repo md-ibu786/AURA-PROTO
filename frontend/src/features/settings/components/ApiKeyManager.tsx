@@ -48,12 +48,13 @@ import { ProviderType } from '@/types/settings';
 
 const PROVIDERS: { id: ProviderType; label: string }[] = [
     { id: 'vertex_ai', label: 'Vertex AI' },
-    { id: 'openrouter', label: 'OpenRouter' }
+    { id: 'openrouter', label: 'OpenRouter' },
+    { id: 'general_compute', label: 'General Compute' }
 ];
 
 export function ApiKeyManager() {
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {PROVIDERS.map(provider => (
                 <ProviderKeyCard key={provider.id} provider={provider} />
             ))}
