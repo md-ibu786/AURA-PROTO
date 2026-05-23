@@ -32,7 +32,7 @@
  * ============================================================================
  */
 
-import { Cpu, Globe, Server, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Cpu, Globe, Cloud, Server, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { useAllModels, useApiKeyStatus } from '../hooks/useSettingsApi';
 import { cn } from '@/lib/cn';
 import { ProviderType } from '@/types/settings';
@@ -40,6 +40,7 @@ import { ProviderType } from '@/types/settings';
 const PROVIDERS: { id: ProviderType; label: string; icon: React.ElementType; needsKey: boolean }[] = [
     { id: 'vertex_ai', label: 'Vertex AI', icon: Cpu, needsKey: true },
     { id: 'openrouter', label: 'OpenRouter', icon: Globe, needsKey: true },
+    { id: 'general_compute', label: 'General Compute', icon: Cloud, needsKey: true },
     { id: 'ollama', label: 'Ollama', icon: Server, needsKey: false }
 ];
 
@@ -47,7 +48,7 @@ export function ProviderSettingsSection() {
     const { data: models = [], isLoading } = useAllModels(true);
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {PROVIDERS.map(provider => {
                 const providerModels = models.filter(m => m.provider === provider.id);
                 return (
