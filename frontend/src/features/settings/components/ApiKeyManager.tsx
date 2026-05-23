@@ -113,7 +113,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
             onError: () => {
                 setValidationResult({
                     valid: false,
-                    message: 'Network error or server unavailable'
+                    message: 'Validation failed. Please check your API key.'
                 });
             }
         });
@@ -139,11 +139,11 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
                 </div>
                 
                 {hasKey ? (
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/10 text-green-500 rounded-full text-xs font-medium">
+                    <div className="flex items-center gap-2 px-2 py-1 bg-green-500/10 text-green-500 rounded-full text-xs font-medium">
                         <CheckCircle className="w-3 h-3" /> Configured
                     </div>
                 ) : (
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 bg-yellow-500/10 text-yellow-500 rounded-full text-xs font-medium">
+                    <div className="flex items-center gap-2 px-2 py-1 bg-yellow-500/10 text-yellow-500 rounded-full text-xs font-medium">
                         <AlertCircle className="w-3 h-3" /> Not Configured
                     </div>
                 )}
@@ -153,7 +153,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
             <div className="flex-1 space-y-4">
                 {hasKey ? (
                     <>
-                        <div className="bg-card/50 border border-border rounded-lg p-3 flex items-center justify-between">
+                        <div className="bg-card/50 border border-border rounded-lg p-4 flex items-center justify-between">
                             <div className="flex flex-col">
                                 <span className="text-xs text-muted-foreground mb-1">Masked Key</span>
                                 <code className="text-sm font-mono">{status.masked_key}</code>
@@ -171,11 +171,11 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
 
                         {validationResult && (
                             <div className={cn(
-                                "p-2 rounded text-xs flex items-start gap-1.5",
+                                "p-2 rounded text-xs flex items-start gap-2",
                                 validationResult.valid ? "bg-green-500/10 text-green-500" : "bg-destructive/10 text-destructive"
                             )}>
                                 {validationResult.valid ? <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /> : <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />}
-                                <span>{validationResult.valid ? "Key validated successfully" : validationResult.message || "Invalid key"}</span>
+                                <span>{validationResult.valid ? "Key validated successfully" : validationResult.message || "Validation failed. Please check your API key."}</span>
                             </div>
                         )}
 
@@ -183,7 +183,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
                             <button
                                 onClick={handleValidate}
                                 disabled={validateMutation.isPending}
-                                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium rounded transition-colors flex items-center gap-1.5 disabled:opacity-50"
+                                className="px-3 py-2 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-medium rounded transition-colors flex items-center gap-2 disabled:opacity-50"
                             >
                                 {validateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shield className="w-3.5 h-3.5" />}
                                 Validate
@@ -193,7 +193,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
                                 onClick={handleDelete}
                                 disabled={deleteMutation.isPending}
                                 className={cn(
-                                    "px-3 py-1.5 text-xs font-medium rounded transition-colors flex items-center gap-1.5 disabled:opacity-50",
+                                    "px-3 py-2 text-xs font-medium rounded transition-colors flex items-center gap-2 disabled:opacity-50",
                                     isConfirmingDelete 
                                         ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" 
                                         : "bg-destructive/10 text-destructive hover:bg-destructive/20"
@@ -210,7 +210,7 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
                             {isConfirmingDelete && (
                                 <button
                                     onClick={() => setIsConfirmingDelete(false)}
-                                    className="px-3 py-1.5 bg-muted text-muted-foreground hover:text-foreground text-xs font-medium rounded transition-colors"
+                                    className="px-3 py-2 bg-muted text-muted-foreground hover:text-foreground text-xs font-medium rounded transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -270,3 +270,6 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
         </div>
     );
 }
+ );
+}
+

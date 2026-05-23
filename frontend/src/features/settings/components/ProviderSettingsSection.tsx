@@ -99,8 +99,8 @@ function ProviderCard({
     }
 
     return (
-        <div className="bg-card rounded-xl border border-border p-4 flex flex-col h-full">
-            <div className="flex items-center gap-2 mb-3">
+        <div className="bg-card rounded-xl border border-border shadow-md p-4 flex flex-col h-full">
+            <div className="flex items-center gap-2 mb-4">
                 <div className="p-2 bg-primary/10 rounded-lg">
                     <Icon className="w-5 h-5 text-primary" />
                 </div>
@@ -113,8 +113,8 @@ function ProviderCard({
                 </div>
                 
                 <div className={cn(
-                    "inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium w-fit",
-                    status === 'active' && "text-green-500 bg-green-500/10",
+                    "inline-flex items-center gap-2 px-2 py-1 rounded-full text-xs font-medium w-fit",
+                    status === 'active' && "text-primary bg-primary/10",
                     status === 'no-key' && "text-yellow-500 bg-yellow-500/10",
                     status === 'unavailable' && "text-muted-foreground bg-muted/20"
                 )}>
@@ -130,5 +130,8 @@ function ProviderCard({
                 </div>
             </div>
         </div>
+    );
+}
+iv>
     );
 }
