@@ -28,7 +28,7 @@
  *    import type { ProviderType, ModelInfo, DefaultModelSetting } from '@/types/settings';
  * ============================================================================
  */
-export type ProviderType = 'vertex_ai' | 'openrouter' | 'ollama';
+export type ProviderType = 'vertex_ai' | 'openrouter' | 'general_compute' | 'ollama';
 export type UseCase = 'chat' | 'embeddings' | 'entity_extraction' | 'gatekeeper' | 'relationship_extraction' | 'refinement' | 'summarization';
 
 export interface ModelInfo {
