@@ -33,6 +33,7 @@ import type { ModelInfo, ModelGroup, VendorGroup, ProviderType } from '@/types/s
 const PROVIDER_LABELS: Record<ProviderType, string> = {
     vertex_ai: 'Vertex AI',
     openrouter: 'OpenRouter',
+    general_compute: 'General Compute',
     ollama: 'Ollama'
 };
 
