@@ -39,13 +39,14 @@ from pydantic import BaseModel
 
 from model_router import KeyManager, ModelCache, ProviderType, SettingsStore
 from model_router import get_default_router
-from model_router.config import OpenRouterConfig
+from model_router.config import GeneralComputeConfig, OpenRouterConfig
 from model_router.errors import (
     AuthenticationError,
     ModelRouterError,
     ModelUnavailableError,
     RateLimitError,
 )
+from model_router.providers.general_compute import GeneralComputeProvider
 from model_router.providers.openrouter import OpenRouterProvider
 from model_router.types import ModelInfo
 
@@ -67,6 +68,7 @@ MODEL_CACHE_TTL_ENV = "MODEL_CACHE_TTL_SECONDS"
 OPENROUTER_VALIDATION_METHOD = "health_check"
 VERTEX_AI_VALIDATION_METHOD = "provider_health_check"
 OLLAMA_VALIDATION_METHOD = "not_applicable"
+GENERAL_COMPUTE_VALIDATION_METHOD = "health_check"
 
 _redis_client: redis_asyncio.Redis | None = None
 
@@ -153,6 +155,13 @@ async def _validate_openrouter_key(api_key: str) -> bool:
     return await provider.health_check()
 
 
+async def _validate_generalcompute_key(api_key: str) -> bool:
+    """Validate a General Compute key using a temporary provider instance."""
+    config = GeneralComputeConfig(api_key=api_key)
+    provider = GeneralComputeProvider(config)
+    return await provider.health_check()
+
+
 async def _validate_provider_key(
     provider: str,
     key_manager: KeyManager,
@@ -166,6 +175,8 @@ async def _validate_provider_key(
     validator: Callable[[str], Awaitable[bool]] | None = None
     if provider == ProviderType.OPENROUTER.value:
         validator = _validate_openrouter_key
+    elif provider == ProviderType.GENERAL_COMPUTE.value:
+        validator = _validate_generalcompute_key
     elif provider == ProviderType.VERTEX_AI.value:
         try:
             router_instance = get_default_router()
@@ -186,6 +197,8 @@ def _get_validation_method(provider: str) -> str | None:
     """Return the validation method label for API responses."""
     if provider == ProviderType.OPENROUTER.value:
         return OPENROUTER_VALIDATION_METHOD
+    if provider == ProviderType.GENERAL_COMPUTE.value:
+        return GENERAL_COMPUTE_VALIDATION_METHOD
     if provider == ProviderType.VERTEX_AI.value:
         return VERTEX_AI_VALIDATION_METHOD
     if provider == ProviderType.OLLAMA.value:
