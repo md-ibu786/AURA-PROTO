@@ -60,7 +60,7 @@ USAGE:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 import os
 import logging
@@ -72,6 +72,11 @@ except (ImportError, ModuleNotFoundError):
         from .config import db
     except (ImportError, ModuleNotFoundError):
         from api.config import db
+
+try:
+    from utils import get_next_available_number, get_unique_name
+except (ImportError, ModuleNotFoundError):
+    from api.utils import get_next_available_number, get_unique_name
 
 from google.cloud.firestore import FieldFilter
 
@@ -106,13 +111,6 @@ router = APIRouter(prefix="/api", tags=["hierarchy-crud"])
 # ========== UTILITY FUNCTIONS ==========
 
 
-def get_next_available_number(numbers: list[int]) -> int:
-    """Find the next available sequential number (max + 1)."""
-    if not numbers:
-        return 1
-    return max(numbers) + 1
-
-
 def get_next_available_code(codes: list[str], prefix: str = "SUBJ") -> str:
     """Generate the next available code like SUBJ001."""
     if not codes:
@@ -129,26 +127,6 @@ def get_next_available_code(codes: list[str], prefix: str = "SUBJ") -> str:
 
     next_num = get_next_available_number(nums)
     return f"{prefix}{next_num:03d}"
-
-
-def get_unique_name(names: list[str], base_name: str) -> str:
-    """Generate unique name with (N) suffix."""
-    if base_name not in names:
-        return base_name
-
-    import re
-
-    suffix_numbers = [1]
-    pattern = re.compile(rf"^{re.escape(base_name)} \((\d+)\)$")
-    for n in names:
-        match = pattern.match(n)
-        if match:
-            suffix_numbers.append(int(match.group(1)))
-
-    next_suffix = get_next_available_number(suffix_numbers)
-    if next_suffix == 1:
-        next_suffix = 2
-    return f"{base_name} ({next_suffix})"
 
 
 # Helper to delete collection recursively
@@ -180,8 +158,8 @@ def delete_document_recursive(doc_ref):
                         file_path = os.path.join(base_dir, clean_path)
                         if os.path.exists(file_path):
                             os.remove(file_path)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to delete PDF {pdf_url}: {e}")
         delete_collection(coll)
     doc_ref.delete()
 
@@ -219,8 +197,8 @@ def find_doc_by_id(collection_name: str, doc_id: str):
 
 
 class DepartmentCreate(BaseModel):
-    name: str
-    code: str
+    name: str = Field(..., min_length=1, max_length=200)
+    code: str = Field(..., min_length=1, max_length=50)
 
 
 class DepartmentUpdate(BaseModel):
@@ -230,8 +208,8 @@ class DepartmentUpdate(BaseModel):
 
 class SemesterCreate(BaseModel):
     department_id: str
-    semester_number: int  # Logic might calculate this, but model keeps int
-    name: str
+    semester_number: int = Field(..., ge=1, le=12)
+    name: str = Field(..., min_length=1, max_length=200)
 
 
 class SemesterUpdate(BaseModel):
@@ -241,8 +219,8 @@ class SemesterUpdate(BaseModel):
 
 class SubjectCreate(BaseModel):
     semester_id: str
-    name: str
-    code: str
+    name: str = Field(..., min_length=1, max_length=200)
+    code: str = Field(..., min_length=1, max_length=50)
 
 
 class SubjectUpdate(BaseModel):
@@ -252,8 +230,8 @@ class SubjectUpdate(BaseModel):
 
 class ModuleCreate(BaseModel):
     subject_id: str
-    module_number: int
-    name: str
+    module_number: int = Field(..., ge=1, le=100)
+    name: str = Field(..., min_length=1, max_length=200)
 
 
 class ModuleUpdate(BaseModel):
@@ -276,13 +254,8 @@ class NoteUpdate(BaseModel):
 )
 def create_department(
     dept: DepartmentCreate,
-    user: FirestoreUser = Depends(require_staff_or_admin),
+    user: FirestoreUser = Depends(require_admin),
 ):
-    if user.role not in ("admin",):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can create departments",
-        )
     existing = list(
         db.collection("departments").where(filter=FieldFilter("name", "==", dept.name)).limit(1).stream()
     )
@@ -309,13 +282,8 @@ def create_department(
 def update_department(
     dept_id: str,
     dept: DepartmentUpdate,
-    user: FirestoreUser = Depends(require_staff_or_admin),
+    user: FirestoreUser = Depends(require_admin),
 ):
-    if user.role not in ("admin",):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can update departments",
-        )
     doc_ref = db.collection("departments").document(dept_id)
     doc = doc_ref.get()
     if not doc.exists:
@@ -346,13 +314,8 @@ def update_department(
 @router.delete("/departments/{dept_id}")
 def delete_department(
     dept_id: str,
-    user: FirestoreUser = Depends(require_staff_or_admin),
+    user: FirestoreUser = Depends(require_admin),
 ):
-    if user.role not in ("admin",):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can delete departments",
-        )
     doc_ref = db.collection("departments").document(dept_id)
     doc = doc_ref.get()
     if not doc.exists:
@@ -385,7 +348,10 @@ def create_semester(
         if not parent_doc.exists:
             raise HTTPException(status_code=404, detail="Department not found")
 
-        # Read existing semesters (outside transaction scope but acceptable for prototype)
+        # NOTE: Sibling reads are outside the transaction scope.
+        # Firestore transactions only track reads via transaction.get().
+        # This means duplicate detection is best-effort under concurrent creates.
+        # For production, consider a mutex or unique index on (parent_id, name).
         coll = parent_ref.collection("semesters")
         docs = [d.to_dict() for d in coll.stream()]
 
@@ -457,7 +423,10 @@ def delete_semester(
 
 
 @router.get("/subjects")
-def list_subjects(semester_id: str):
+def list_subjects(
+    semester_id: str,
+    user: FirestoreUser = Depends(require_staff_or_admin),
+):
     """List all subjects for a specific semester."""
     semester_ref = find_doc_by_id("semesters", semester_id)
     if not semester_ref:
@@ -492,6 +461,10 @@ def create_subject(
 
     @fs.transactional
     def create_in_transaction(transaction):
+        # NOTE: Sibling reads are outside the transaction scope.
+        # Firestore transactions only track reads via transaction.get().
+        # This means duplicate detection is best-effort under concurrent creates.
+        # For production, consider a mutex or unique index on (parent_id, name).
         coll = parent_ref.collection("subjects")
         docs = [d.to_dict() for d in coll.stream()]
 
@@ -573,6 +546,10 @@ def create_module(
 
     @fs.transactional
     def create_in_transaction(transaction):
+        # NOTE: Sibling reads are outside the transaction scope.
+        # Firestore transactions only track reads via transaction.get().
+        # This means duplicate detection is best-effort under concurrent creates.
+        # For production, consider a mutex or unique index on (parent_id, name).
         coll = parent_ref.collection("modules")
         docs = [d.to_dict() for d in coll.stream()]
 
@@ -707,7 +684,7 @@ def delete_note(
 
 
 @router.delete("/notes/{note_id}/cascade")
-def delete_note_cascade(
+async def delete_note_cascade(
     note_id: str,
     user: FirestoreUser = Depends(require_staff),
 ):
@@ -756,25 +733,7 @@ def delete_note_cascade(
             from neo4j_config import neo4j_driver
 
             graph_manager = GraphManager(neo4j_driver)
-            # delete_document is async, but this endpoint is sync.
-            # Use run_sync or type: ignore for the coroutine
-            import asyncio
-
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Already in async context, use run_coroutine_threadsafe
-                    future = asyncio.run_coroutine_threadsafe(
-                        graph_manager.delete_document(note_id), loop
-                    )
-                    success, _ = future.result(timeout=30)
-                else:
-                    success, _ = loop.run_until_complete(
-                        graph_manager.delete_document(note_id)
-                    )
-            except RuntimeError:
-                # No event loop, create one
-                success, _ = asyncio.run(graph_manager.delete_document(note_id))
+            success, _ = await graph_manager.delete_document(note_id)
             if success:
                 kg_deletion_status = "success"
                 logger.info(

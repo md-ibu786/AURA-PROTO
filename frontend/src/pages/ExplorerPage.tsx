@@ -39,7 +39,7 @@
  * ============================================================================
  */
 import { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useExplorerStore } from '../stores';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -59,9 +59,9 @@ import { DeleteFromKGDialog } from '../features/kg/components/DeleteFromKGDialog
 import { ProcessingQueue } from '../features/kg/components/ProcessingQueue';
 import type { FileSystemNode } from '../types';
 import { Folder } from 'lucide-react';
+import { toast } from 'sonner';
 
-export default function ExplorerPage() {
-    const navigate = useNavigate();
+export function ExplorerPage() {
     const {
         viewMode,
         currentPath,
@@ -72,20 +72,29 @@ export default function ExplorerPage() {
         nodeToDelete,
         closeDeleteDialog,
         navigateTo
-    } = useExplorerStore();
+    } = useExplorerStore(useShallow(s => ({
+        viewMode: s.viewMode,
+        currentPath: s.currentPath,
+        contextMenuPosition: s.contextMenuPosition,
+        closeContextMenu: s.closeContextMenu,
+        creatingNodeType: s.creatingNodeType,
+        deleteDialogOpen: s.deleteDialogOpen,
+        nodeToDelete: s.nodeToDelete,
+        closeDeleteDialog: s.closeDeleteDialog,
+        navigateTo: s.navigateTo,
+    })));
 
-    // Get user role and department
-    const { user, isAdmin } = useAuthStore();
+    const user = useAuthStore(s => s.user);
+    const isAdmin = useAuthStore(s => s.isAdmin);
     const hasRedirected = useRef(false);
 
     const queryClient = useQueryClient();
 
-    // Redirect admins to admin dashboard - they don't use explorer
     useEffect(() => {
-        if (isAdmin()) {
-            navigate('/admin', { replace: true });
-        }
-    }, [isAdmin, navigate]);
+        return () => {
+            useExplorerStore.getState().closeWarningDialog();
+        };
+    }, []);
 
     // Fetch hierarchy tree
     const { data: tree = [], isLoading, error } = useQuery({
@@ -118,6 +127,21 @@ export default function ExplorerPage() {
         }
     }, [isLoading, tree, user, isAdmin, currentPath.length, navigateTo]);
 
+    const getCascadeWarning = (type: string): string => {
+        switch (type) {
+            case 'department':
+                return 'This will permanently delete all semesters, subjects, modules, notes, and PDFs under this department.';
+            case 'semester':
+                return 'This will permanently delete all subjects, modules, notes, and PDFs under this semester.';
+            case 'subject':
+                return 'This will permanently delete all modules, notes, and PDFs under this subject.';
+            case 'module':
+                return 'This will permanently delete all notes and PDFs under this module.';
+            default:
+                return 'This action cannot be undone.';
+        }
+    };
+
     const handleDeleteConfirm = async () => {
         if (!nodeToDelete) return;
 
@@ -145,7 +169,7 @@ export default function ExplorerPage() {
 
             await queryClient.refetchQueries({ queryKey: ['explorer', 'tree'] });
         } catch (error) {
-            alert(`Failed to delete: ${(error as Error).message}`);
+            toast.error(`Failed to delete: ${(error as Error).message}`);
         }
     };
 
@@ -301,7 +325,7 @@ export default function ExplorerPage() {
             <ConfirmDialog
                 isOpen={deleteDialogOpen}
                 title="Confirm Delete"
-                message={nodeToDelete ? `Are you sure you want to delete "${nodeToDelete.label}"? This action cannot be undone.` : ''}
+                message={nodeToDelete ? `Are you sure you want to delete "${nodeToDelete.label}"? ${getCascadeWarning(nodeToDelete.type)}` : ''}
                 onConfirm={handleDeleteConfirm}
                 onCancel={closeDeleteDialog}
             />

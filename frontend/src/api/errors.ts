@@ -73,3 +73,14 @@ export class NetworkError extends Error {
         this.name = 'NetworkError';
     }
 }
+
+/**
+ * Error thrown when a 403 response indicates insufficient permissions.
+ * Used for role-based access control violations.
+ */
+export class PermissionError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'PermissionError';
+    }
+}

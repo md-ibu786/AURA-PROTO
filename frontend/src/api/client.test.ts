@@ -53,15 +53,20 @@ describe('fetchApi', () => {
     });
 
     it('should throw DuplicateError on 409 with code', async () => {
+        const duplicateDetail = {
+            detail: {
+                code: 'DUPLICATE_NAME',
+                message: 'Already exists'
+            }
+        };
         const mockResponse = {
             ok: false,
             status: 409,
-            json: vi.fn().mockResolvedValue({
-                detail: {
-                    code: 'DUPLICATE_NAME',
-                    message: 'Already exists'
-                }
-            })
+            json: vi.fn().mockResolvedValue(duplicateDetail),
+            text: vi.fn().mockResolvedValue(JSON.stringify(duplicateDetail)),
+            clone: vi.fn().mockReturnValue({
+                json: vi.fn().mockResolvedValue(duplicateDetail),
+            }),
         };
 
         vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as unknown as Response);
@@ -73,12 +78,15 @@ describe('fetchApi', () => {
     });
 
     it('should throw generic Error on 409 without code', async () => {
+        const conflictDetail = { detail: 'Conflict' };
         const mockResponse = {
             ok: false,
             status: 409,
-            json: vi.fn().mockResolvedValue({
-                detail: 'Conflict'
-            })
+            json: vi.fn().mockResolvedValue(conflictDetail),
+            text: vi.fn().mockResolvedValue('Conflict'),
+            clone: vi.fn().mockReturnValue({
+                json: vi.fn().mockResolvedValue(conflictDetail),
+            }),
         };
 
         vi.spyOn(global, 'fetch').mockResolvedValue(mockResponse as unknown as Response);
@@ -93,6 +101,8 @@ describe('fetchApi', () => {
         const mockData = { id: 1, name: 'test' };
         const mockResponse = {
             ok: true,
+            status: 200,
+            headers: { get: vi.fn().mockReturnValue(null) },
             json: vi.fn().mockResolvedValue(mockData),
         };
 
@@ -154,6 +164,10 @@ describe('getAuthHeader auth failure handling', () => {
             ok: false,
             status: 401,
             json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+            text: vi.fn().mockResolvedValue('Unauthorized'),
+            clone: vi.fn().mockReturnValue({
+                json: vi.fn().mockResolvedValue({ detail: 'Unauthorized' }),
+            }),
         };
 
         vi.spyOn(global, 'fetch').mockResolvedValueOnce(mockResponse401 as unknown as Response);

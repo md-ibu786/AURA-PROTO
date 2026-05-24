@@ -32,7 +32,7 @@ USAGE:
 import importlib.util
 import os
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 
 from .models import (
     DepartmentResponse,
@@ -44,6 +44,11 @@ from .models import (
     SubjectListResponse,
     ModuleListResponse,
 )
+
+try:
+    from auth import require_staff_or_admin, FirestoreUser
+except (ImportError, ModuleNotFoundError):
+    from api.auth import require_staff_or_admin, FirestoreUser
 
 # Import hierarchy data access functions from api/hierarchy.py file
 # (not from api/hierarchy/ package which would cause circular imports)
@@ -65,7 +70,9 @@ router = APIRouter(prefix="/hierarchy", tags=["Hierarchy Navigation"])
 
 
 @router.get("/departments", response_model=DepartmentListResponse)
-def get_departments() -> DepartmentListResponse:
+def get_departments(
+    user: FirestoreUser = Depends(require_staff_or_admin),
+) -> DepartmentListResponse:
     """
     Get all departments.
 
@@ -91,6 +98,7 @@ def get_departments() -> DepartmentListResponse:
 @router.get("/semesters", response_model=SemesterListResponse)
 def get_semesters(
     department_id: str = Query(..., description="Department ID to filter semesters"),
+    user: FirestoreUser = Depends(require_staff_or_admin),
 ) -> SemesterListResponse:
     """
     Get semesters for a specific department.
@@ -123,6 +131,7 @@ def get_semesters(
 def get_subjects(
     department_id: str = Query(..., description="Department ID (for context)"),
     semester_id: str = Query(..., description="Semester ID to filter subjects"),
+    user: FirestoreUser = Depends(require_staff_or_admin),
 ) -> SubjectListResponse:
     """
     Get subjects for a specific semester.
@@ -155,6 +164,7 @@ def get_modules(
     department_id: str = Query(..., description="Department ID (for context)"),
     semester_id: str = Query(..., description="Semester ID (for context)"),
     subject_id: str = Query(..., description="Subject ID to filter modules"),
+    user: FirestoreUser = Depends(require_staff_or_admin),
 ) -> ModuleListResponse:
     """
     Get modules for a specific subject.

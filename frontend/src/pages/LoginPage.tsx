@@ -24,17 +24,21 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
+import '../styles/login.css';
 
 export function LoginPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { login, isLoading, error, user } = useAuthStore();
+    const login = useAuthStore(s => s.login);
+    const isLoading = useAuthStore(s => s.isLoading);
+    const error = useAuthStore(s => s.error);
+    const user = useAuthStore(s => s.user);
 
     // Redirect if already authenticated
     useEffect(() => {
         if (user) {
             const from = (location.state as { from?: string })?.from;
-            if (from) {
+            if (from && from !== '/login') {
                 navigate(from, { replace: true });
             } else if (user.role === 'admin') {
                 navigate('/admin', { replace: true });
@@ -59,16 +63,7 @@ export function LoginPage() {
 
         try {
             await login(email, password);
-
-            // Get user role to determine redirect
-            const user = useAuthStore.getState().user;
-            // Force navigation to root for non-admins
-            // ExplorerPage will handle the redirection to department
-            if (user?.role === 'admin') {
-                navigate('/admin', { replace: true });
-            } else {
-                navigate('/', { replace: true });
-            }
+            // Navigation is handled by the useEffect watching `user`
         } catch (err) {
             // Error is handled by the store
             console.error('Login failed:', err);
@@ -103,6 +98,7 @@ export function LoginPage() {
                             placeholder="Enter your email"
                             disabled={isLoading}
                             autoComplete="email"
+                            required
                         />
                     </div>
 
@@ -116,11 +112,16 @@ export function LoginPage() {
                             placeholder="Enter your password"
                             disabled={isLoading}
                             autoComplete="current-password"
+                            required
                         />
                     </div>
 
                     {displayError && (
-                        <div className="error-message">
+                        <div
+                            className="error-message"
+                            role="alert"
+                            aria-live="assertive"
+                        >
                             {displayError}
                         </div>
                     )}
@@ -139,186 +140,8 @@ export function LoginPage() {
                 </div>
             </div>
 
-            <style>{`
-                .login-page {
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    background: #0a0a0a;
-                    padding: 20px;
-                    position: relative;
-                    overflow: hidden;
-                }
 
-                .login-page::before {
-                    content: '';
-                    position: absolute;
-                    top: 5%;
-                    left: 10%;
-                    width: 600px;
-                    height: 600px;
-                    background: radial-gradient(circle, rgba(255, 212, 0, 0.2) 0%, transparent 70%);
-                    border-radius: 50%;
-                    pointer-events: none;
-                    z-index: 0;
-                }
-
-                .login-page::after {
-                    content: '';
-                    position: absolute;
-                    bottom: 0%;
-                    right: 5%;
-                    width: 500px;
-                    height: 500px;
-                    background: radial-gradient(circle, rgba(255, 212, 0, 0.15) 0%, transparent 70%);
-                    border-radius: 50%;
-                    pointer-events: none;
-                    z-index: 0;
-                }
-
-                .login-container {
-                    position: relative;
-                    z-index: 1;
-                    background: rgba(10, 10, 10, 0.95);
-                    backdrop-filter: blur(10px);
-                    border-radius: 16px;
-                    padding: 32px;
-                    width: 100%;
-                    max-width: 448px;
-                    border: 1px solid #222;
-                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-                }
-
-                .login-header {
-                    text-align: center;
-                    margin-bottom: 32px;
-                }
-
-                .logo-container {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 80px;
-                    height: 80px;
-                    border-radius: 16px;
-                    background: rgba(255, 212, 0, 0.1);
-                    border: 1px solid rgba(255, 212, 0, 0.2);
-                    margin-bottom: 16px;
-                    padding: 8px;
-                }
-
-                .login-logo {
-                    width: 100%;
-                    height: 100%;
-                    object-fit: contain;
-                }
-
-                .login-header h1 {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    color: #FFD400;
-                    margin: 0 0 4px 0;
-                    letter-spacing: 0;
-                }
-
-                .login-header p {
-                    color: rgba(255, 255, 255, 0.6);
-                    font-size: 0.875rem;
-                    margin: 0;
-                }
-
-                .login-form {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 20px;
-                }
-
-                .form-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                }
-
-                .form-group label {
-                    color: rgba(255, 255, 255, 0.8);
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                }
-
-                .form-group input {
-                    padding: 12px 16px;
-                    border-radius: 8px;
-                    border: 1px solid #333;
-                    background: #111;
-                    color: #fff;
-                    font-size: 1rem;
-                    transition: all 0.2s ease;
-                }
-
-                .form-group input::placeholder {
-                    color: rgba(255, 255, 255, 0.4);
-                }
-
-                .form-group input:focus {
-                    outline: none;
-                    border-color: #FFD400;
-                    background: #1a1a1a;
-                    box-shadow: 0 0 0 2px rgba(255, 212, 0, 0.2);
-                }
-
-                .form-group input:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
-
-                .error-message {
-                    background: rgba(239, 68, 68, 0.1);
-                    border: 1px solid rgba(239, 68, 68, 0.3);
-                    color: #f87171;
-                    padding: 12px;
-                    border-radius: 8px;
-                    font-size: 0.875rem;
-                    text-align: center;
-                }
-
-                .login-button {
-                    padding: 12px 16px;
-                    border-radius: 8px;
-                    border: none;
-                    background: #FFD400;
-                    color: #000;
-                    font-size: 1rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    margin-top: 4px;
-                }
-
-                .login-button:hover:not(:disabled) {
-                    transform: translateY(-1px);
-                    box-shadow: 0 4px 12px rgba(255, 212, 0, 0.4);
-                    background: #ffe033;
-                }
-
-                .login-button:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
-
-                .login-footer {
-                    margin-top: 24px;
-                    text-align: center;
-                }
-
-                .login-footer p {
-                    color: rgba(82, 82, 82, 1);
-                    font-size: 0.75rem;
-                    margin: 0;
-                }
-            `}</style>
         </div>
     );
 }
 
-export default LoginPage;

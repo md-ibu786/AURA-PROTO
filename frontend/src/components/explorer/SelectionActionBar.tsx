@@ -29,6 +29,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useExplorerStore } from '../../stores/useExplorerStore';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     Download,
@@ -39,6 +40,7 @@ import {
     Loader2,
     Database
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 import type { FileSystemNode } from '../../types';
 import { deleteNoteCascade, downloadNotesZip } from '../../api/explorerApi';
@@ -52,13 +54,23 @@ export const SelectionActionBar: React.FC = () => {
         currentPath
     } = useExplorerStore();
 
-    const { user } = useAuthStore();
+    const user = useAuthStore(s => s.user);
     const isStaff = user?.role === 'staff';
 
     const queryClient = useQueryClient();
     const isMobile = useMobileBreakpoint();
     const [isDeleting, setIsDeleting] = useState(false);
     const [deleteProgress, setDeleteProgress] = useState<{ current: number; total: number } | null>(null);
+    const [confirmOpenDialog, setConfirmOpenDialog] = useState<{
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    } | null>(null);
+    const [confirmDeleteDialog, setConfirmDeleteDialog] = useState<{
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    } | null>(null);
 
     const isInsideModule = currentPath.length > 0 && currentPath[currentPath.length - 1].type === 'module';
 
@@ -101,7 +113,7 @@ export const SelectionActionBar: React.FC = () => {
         const notes = nodes.filter(n => n.type === 'note' && n.meta?.pdfFilename);
 
         if (notes.length === 0) {
-            alert('No downloadable PDF notes selected.');
+            toast.error('No downloadable PDF notes selected.');
             return;
         }
 
@@ -167,7 +179,7 @@ export const SelectionActionBar: React.FC = () => {
                 const message = error instanceof Error
                     ? error.message
                     : 'Bulk download failed. Please try again.';
-                alert(message);
+                toast.error(message);
             }
         }
 
@@ -182,16 +194,37 @@ export const SelectionActionBar: React.FC = () => {
         const notes = nodes.filter(n => n.type === 'note' && n.meta?.pdfFilename);
 
         if (notes.length === 0) {
-            alert('No openable PDF notes selected.');
+            toast.error('No openable PDF notes selected.');
             return;
         }
 
         if (notes.length > 3) {
-            // Warn user about opening many tabs
-            const confirmed = confirm(`You are about to open ${notes.length} PDF files in new tabs. Continue?`);
-            if (!confirmed) {
-                return;
-            }
+            setConfirmOpenDialog({
+                title: 'Open Multiple Files',
+                message: `You are about to open ${notes.length} PDF files in new tabs. Continue?`,
+                onConfirm: () => {
+                    setConfirmOpenDialog(null);
+                    let openedCount = 0;
+                    notes.forEach((note, index) => {
+                        const pdfFilename = note.meta?.pdfFilename;
+                        if (!pdfFilename) return;
+                        const newWindow = window.open(
+                            `/api/pdfs/${pdfFilename}?inline=1`,
+                            `_blank_${index}`
+                        );
+                        if (newWindow) {
+                            openedCount++;
+                        }
+                    });
+
+                    if (openedCount < notes.length) {
+                        toast.error(`Opened ${openedCount} of ${notes.length} PDFs. Some may have been blocked by your browser's popup blocker.`);
+                    }
+
+                    clearSelection();
+                },
+            });
+            return;
         }
 
         // Open all PDFs (inline view)
@@ -213,7 +246,7 @@ export const SelectionActionBar: React.FC = () => {
 
         // Notify user if some windows were blocked
         if (openedCount < notes.length) {
-            alert(`Opened ${openedCount} of ${notes.length} PDFs.\n\nSome files may have been blocked by your browser's popup blocker. Please allow popups for this site to open multiple files.`);
+            toast.error(`Opened ${openedCount} of ${notes.length} PDFs. Some may have been blocked by your browser's popup blocker.`);
         }
 
         clearSelection();
@@ -226,11 +259,17 @@ export const SelectionActionBar: React.FC = () => {
 
         if (noteIds.length === 0) return;
 
-        setIsDeleting(true);
-        setDeleteProgress({ current: 0, total: noteIds.length });
+        setConfirmDeleteDialog({
+            title: 'Delete Notes',
+            message: `Are you sure you want to delete ${noteIds.length} note(s)? This will also remove their PDF files and knowledge graph data. This action cannot be undone.`,
+            onConfirm: async () => {
+                setConfirmDeleteDialog(null);
 
-        let successCount = 0;
-        let failedCount = 0;
+                setIsDeleting(true);
+                setDeleteProgress({ current: 0, total: noteIds.length });
+
+                let successCount = 0;
+                let failedCount = 0;
 
         for (let i = 0; i < noteIds.length; i++) {
             setDeleteProgress({ current: i + 1, total: noteIds.length });
@@ -258,10 +297,12 @@ export const SelectionActionBar: React.FC = () => {
 
         // Show result notification
         if (failedCount === 0) {
-            alert(`Successfully deleted ${successCount} note(s) with complete cleanup.`);
+            toast.success(`Successfully deleted ${successCount} note(s) with complete cleanup.`);
         } else {
-            alert(`Deleted ${successCount} note(s), ${failedCount} failed.`);
+            toast.error(`Deleted ${successCount} note(s), ${failedCount} failed.`);
         }
+            },
+        });
     };
 
     const handleVectorize = () => {
@@ -274,7 +315,7 @@ export const SelectionActionBar: React.FC = () => {
         const skippedCount = selectedNotes.length - unprocessedNotes.length;
 
         if (unprocessedNotes.length === 0) {
-            alert('All selected documents are already vectorized.');
+            toast.warning('All selected documents are already vectorized.');
             return;
         }
 
@@ -290,102 +331,124 @@ export const SelectionActionBar: React.FC = () => {
     };
 
     return (
-        <AnimatePresence>
-            <motion.div
-                className="selection-action-bar-container"
-                initial={{ y: 100, x: '-50%', opacity: 0 }}
-                animate={{ y: 0, x: '-50%', opacity: 1 }}
-                exit={{ y: 100, x: '-50%', opacity: 0 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            >
-                <div className="selection-action-bar">
-                    <div className="selection-info">
-                        <span className="selection-count">
-                            {deleteProgress
-                                ? `${deleteProgress.current}/${deleteProgress.total}...`
-                                : isMobile ? `${count}` : `${count} selected`
-                            }
-                        </span>
-                        {!isDeleting && (
+        <>
+            <AnimatePresence>
+                <motion.div
+                    className="selection-action-bar-container"
+                    initial={{ y: 100, x: '-50%', opacity: 0 }}
+                    animate={{ y: 0, x: '-50%', opacity: 1 }}
+                    exit={{ y: 100, x: '-50%', opacity: 0 }}
+                    transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                >
+                    <div className="selection-action-bar">
+                        <div className="selection-info">
+                            <span className="selection-count">
+                                {deleteProgress
+                                    ? `${deleteProgress.current}/${deleteProgress.total}...`
+                                    : isMobile ? `${count}` : `${count} selected`
+                                }
+                            </span>
+                            {!isDeleting && (
+                                <button
+                                    onClick={clearSelection}
+                                    className="selection-clear-btn"
+                                    title="Clear selection"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="selection-actions">
                             <button
-                                onClick={clearSelection}
-                                className="selection-clear-btn"
-                                title="Clear selection"
+                                onClick={handleOpen}
+                                className="selection-action-btn"
+                                disabled={isDeleting}
+                                aria-label="Open"
                             >
-                                <X size={14} />
+                                <ExternalLink size={isMobile ? 18 : undefined} />
+                                {!isMobile && <span>Open</span>}
                             </button>
-                        )}
+
+                            <button
+                                onClick={handleDownload}
+                                className="selection-action-btn"
+                                disabled={isDeleting}
+                                aria-label="Download"
+                            >
+                                <Download size={isMobile ? 18 : undefined} />
+                                {!isMobile && <span>Download</span>}
+                            </button>
+
+                            {isStaff && (
+                                <>
+                                    <button
+                                        onClick={handleVectorize}
+                                        className="selection-action-btn accent"
+                                        disabled={isDeleting || !hasUnprocessedNotes}
+                                        title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
+                                        aria-label="Vectorize"
+                                    >
+                                        <Sparkles size={isMobile ? 18 : undefined} />
+                                        {!isMobile && <span>Vectorize</span>}
+                                    </button>
+
+                                    <button
+                                        onClick={handleDeleteKG}
+                                        className="selection-action-btn"
+                                        disabled={isDeleting}
+                                        aria-label="Delete Knowledge Graph"
+                                    >
+                                        <Database size={isMobile ? 18 : undefined} />
+                                        {!isMobile && <span>Delete KG</span>}
+                                    </button>
+
+                                    <div className="selection-separator" />
+
+                                    <button
+                                        onClick={handleDelete}
+                                        className="selection-action-btn danger"
+                                        disabled={isDeleting}
+                                        aria-label="Delete"
+                                    >
+                                        {isDeleting ? (
+                                            <>
+                                                <Loader2 size={isMobile ? 18 : 16} className="spinning" />
+                                                <span>Cleaning up...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Trash2 size={isMobile ? 18 : undefined} />
+                                                {!isMobile && <span>Delete</span>}
+                                            </>
+                                        )}
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
+                </motion.div>
+            </AnimatePresence>
 
-                    <div className="selection-actions">
-                        <button
-                            onClick={handleOpen}
-                            className="selection-action-btn"
-                            disabled={isDeleting}
-                            aria-label="Open"
-                        >
-                            <ExternalLink size={isMobile ? 18 : undefined} />
-                            {!isMobile && <span>Open</span>}
-                        </button>
+            <ConfirmDialog
+                isOpen={!!confirmOpenDialog}
+                title={confirmOpenDialog?.title ?? ''}
+                message={confirmOpenDialog?.message ?? ''}
+                confirmLabel="Open"
+                onConfirm={() => confirmOpenDialog?.onConfirm()}
+                onCancel={() => setConfirmOpenDialog(null)}
+            />
 
-                        <button
-                            onClick={handleDownload}
-                            className="selection-action-btn"
-                            disabled={isDeleting}
-                            aria-label="Download"
-                        >
-                            <Download size={isMobile ? 18 : undefined} />
-                            {!isMobile && <span>Download</span>}
-                        </button>
-
-                        {isStaff && (
-                            <>
-                                <button
-                                    onClick={handleVectorize}
-                                    className="selection-action-btn accent"
-                                    disabled={isDeleting || !hasUnprocessedNotes}
-                                    title={!hasUnprocessedNotes ? 'All selected documents are already vectorized' : ''}
-                                    aria-label="Vectorize"
-                                >
-                                    <Sparkles size={isMobile ? 18 : undefined} />
-                                    {!isMobile && <span>Vectorize</span>}
-                                </button>
-
-                                <button
-                                    onClick={handleDeleteKG}
-                                    className="selection-action-btn"
-                                    disabled={isDeleting}
-                                    aria-label="Delete Knowledge Graph"
-                                >
-                                    <Database size={isMobile ? 18 : undefined} />
-                                    {!isMobile && <span>Delete KG</span>}
-                                </button>
-
-                                <div className="selection-separator" />
-
-                                <button
-                                    onClick={handleDelete}
-                                    className="selection-action-btn danger"
-                                    disabled={isDeleting}
-                                    aria-label="Delete"
-                                >
-                                    {isDeleting ? (
-                                        <>
-                                            <Loader2 size={isMobile ? 18 : 16} className="spinning" />
-                                            <span>Cleaning up...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Trash2 size={isMobile ? 18 : undefined} />
-                                            {!isMobile && <span>Delete</span>}
-                                        </>
-                                    )}
-                                </button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            </motion.div>
-        </AnimatePresence>
+            <ConfirmDialog
+                isOpen={!!confirmDeleteDialog}
+                title={confirmDeleteDialog?.title ?? ''}
+                message={confirmDeleteDialog?.message ?? ''}
+                confirmLabel="Delete"
+                variant="danger"
+                destructive
+                onConfirm={() => confirmDeleteDialog?.onConfirm()}
+                onCancel={() => setConfirmDeleteDialog(null)}
+            />
+        </>
     );
 };

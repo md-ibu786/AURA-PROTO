@@ -108,8 +108,8 @@ def process_audio_file(
     Args:
         audio_input: A file-like object (from Streamlit's file uploader)
             or raw bytes containing audio data.
-        timeout_seconds: Optional timeout in seconds. Defaults to 10800 (3 hours)
-            for long audio files like 2-hour recordings.
+        timeout_seconds: Optional timeout in seconds. Defaults to 600 (10 minutes)
+            for typical audio files.
 
     Returns:
         dict: A dictionary containing:

@@ -37,6 +37,7 @@ from typing import List, Dict, Any, Optional, Set
 from datetime import datetime
 from pydantic import BaseModel, Field
 from neo4j import Driver
+import threading
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -202,56 +203,61 @@ class SchemaValidator:
         self._cached_constraints: Optional[Dict[str, Any]] = None
         self._cached_labels: Optional[Set[str]] = None
         self._cached_rel_types: Optional[Set[str]] = None
+        self._cache_lock = threading.Lock()
 
     def _get_database_indices(self) -> Dict[str, Dict[str, Any]]:
         """Get all indices from the database."""
-        if self._cached_indices is not None:
-            return self._cached_indices
+        with self._cache_lock:
+            if self._cached_indices is not None:
+                return self._cached_indices
 
-        with self.driver.session() as session:
-            result = session.run("SHOW INDEXES")
-            self._cached_indices = {
-                record["name"]: dict(record)
-                for record in result
-            }
-        return self._cached_indices
+            with self.driver.session() as session:
+                result = session.run("SHOW INDEXES")
+                self._cached_indices = {
+                    record["name"]: dict(record)
+                    for record in result
+                }
+            return self._cached_indices
 
     def _get_database_constraints(self) -> Dict[str, Dict[str, Any]]:
         """Get all constraints from the database."""
-        if self._cached_constraints is not None:
-            return self._cached_constraints
+        with self._cache_lock:
+            if self._cached_constraints is not None:
+                return self._cached_constraints
 
-        with self.driver.session() as session:
-            result = session.run("SHOW CONSTRAINTS")
-            self._cached_constraints = {
-                record["name"]: dict(record)
-                for record in result
-            }
-        return self._cached_constraints
+            with self.driver.session() as session:
+                result = session.run("SHOW CONSTRAINTS")
+                self._cached_constraints = {
+                    record["name"]: dict(record)
+                    for record in result
+                }
+            return self._cached_constraints
 
     def _get_database_labels(self) -> Set[str]:
         """Get all node labels in use."""
-        if self._cached_labels is not None:
-            return self._cached_labels
+        with self._cache_lock:
+            if self._cached_labels is not None:
+                return self._cached_labels
 
-        with self.driver.session() as session:
-            result = session.run("CALL db.labels() YIELD label RETURN label")
-            self._cached_labels = {record["label"] for record in result}
-        return self._cached_labels
+            with self.driver.session() as session:
+                result = session.run("CALL db.labels() YIELD label RETURN label")
+                self._cached_labels = {record["label"] for record in result}
+            return self._cached_labels
 
     def _get_database_relationship_types(self) -> Set[str]:
         """Get all relationship types in use."""
-        if self._cached_rel_types is not None:
-            return self._cached_rel_types
+        with self._cache_lock:
+            if self._cached_rel_types is not None:
+                return self._cached_rel_types
 
-        with self.driver.session() as session:
-            result = session.run(
-                "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
-            )
-            self._cached_rel_types = {
-                record["relationshipType"] for record in result
-            }
-        return self._cached_rel_types
+            with self.driver.session() as session:
+                result = session.run(
+                    "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
+                )
+                self._cached_rel_types = {
+                    record["relationshipType"] for record in result
+                }
+            return self._cached_rel_types
 
     def _clear_cache(self):
         """Clear cached database state."""

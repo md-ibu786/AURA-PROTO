@@ -64,7 +64,9 @@ export function useKGProcessing() {
             refetchInterval: (query) => {
                 // Only poll if queue has items (active processing)
                 const queue = query.state.data as Array<{ status: string }> | undefined;
-                const hasActiveItems = queue?.some(item => item.status === 'processing');
+                const hasActiveItems = queue?.some(
+                    item => item.status === 'processing' || item.status === 'pending'
+                );
                 return hasActiveItems ? 2000 : false;
             },
         });

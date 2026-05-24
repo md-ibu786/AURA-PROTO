@@ -239,6 +239,14 @@ def force_directed_layout(
     if not nodes:
         return nodes
 
+    MAX_FORCE_DIRECTED_NODES = 500
+    if len(nodes) > MAX_FORCE_DIRECTED_NODES:
+        logger.warning(
+            f"Force-directed layout requested for {len(nodes)} nodes "
+            f"(max recommended: {MAX_FORCE_DIRECTED_NODES}). "
+            f"Consider using circular layout for better performance."
+        )
+
     # Initialize positions in a circle
     center_x = width / 2
     center_y = height / 2
@@ -618,14 +626,14 @@ class GraphVisualizer:
 
             OPTIONAL MATCH (d:Document)-[:BELONGS_TO_MODULE]->(m)
             WITH m, entities, collect(DISTINCT d) as documents
-
-            UNWIND entities as e1
+            WITH m, entities[0..200] as limited_entities, documents
+            UNWIND limited_entities as e1
             OPTIONAL MATCH (e1)-[r]->(e2)
-            WHERE e2 IN entities
+            WHERE e2 IN limited_entities
 
             RETURN
                 m as module,
-                entities,
+                limited_entities as entities,
                 documents,
                 collect(DISTINCT {source: e1.id, target: e2.id, type: type(r)}) as relationships
             """
@@ -1021,6 +1029,11 @@ class GraphVisualizer:
         """
         depth = max(1, min(4, depth))
 
+        # SAFETY: depth is clamped to [1, 4] above. The f-string interpolation
+        # below is safe ONLY because of this clamping. If this clamping is
+        # removed, switch to parameterized query or APOC variable-length paths.
+        assert 1 <= depth <= 4, f"Depth must be 1-4, got {depth}"
+
         try:
             # Get entity and neighbors
             cypher = f"""
@@ -1302,23 +1315,31 @@ class GraphVisualizer:
 
         return ET.tostring(root, encoding="unicode").encode("utf-8")
 
+    @staticmethod
+    def _csv_escape(val: str) -> str:
+        """Escape double quotes in CSV values."""
+        return val.replace('"', '""')
+
     def _export_csv(self, graph: VisualizationGraph) -> bytes:
         """Export graph as CSV (nodes and edges in separate sections)."""
         output = io.StringIO()
+        esc = self._csv_escape
 
         # Nodes section
         output.write("# NODES\n")
         output.write("id,label,type,color,size,x,y\n")
         for node in graph.nodes:
             output.write(
-                f'"{node.id}","{node.label}","{node.type}","{node.color or ""}",{node.size},{node.x or 0},{node.y or 0}\n'
+                f'"{esc(node.id)}","{esc(node.label)}","{esc(node.type)}",'
+                f'"{esc(node.color or "")}",{node.size},{node.x or 0},{node.y or 0}\n'
             )
 
         output.write("\n# EDGES\n")
         output.write("source,target,type,weight,color\n")
         for edge in graph.edges:
             output.write(
-                f'"{edge.source}","{edge.target}","{edge.type}",{edge.weight},"{edge.color or ""}"\n'
+                f'"{esc(edge.source)}","{esc(edge.target)}","{esc(edge.type)}",'
+                f'{edge.weight},"{esc(edge.color or "")}"\n'
             )
 
         return output.getvalue().encode("utf-8")

@@ -49,6 +49,8 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { X, Upload, FileText, Mic, FileUp, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { startPipeline, getPipelineStatus } from '../../api/audioApi';
+import { fetchFormData } from '../../api/client';
 
 interface UploadDialogProps {
     isOpen: boolean;
@@ -66,7 +68,7 @@ interface ProcessingState {
     message: string;
     result?: {
         pdfUrl?: string;
-        noteId?: number;
+        noteId?: string;
     };
 }
 
@@ -117,8 +119,7 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
         if (mode === 'processing' && processing?.jobId) {
             const pollStatus = async () => {
                 try {
-                    const response = await fetch(`/api/audio/pipeline-status/${processing.jobId}`);
-                    const data = await response.json();
+                    const data = await getPipelineStatus(processing.jobId);
 
                     setProcessing(prev => ({
                         ...prev!,
@@ -148,8 +149,15 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                         toast.error(msg);
                         setError(msg);
                     }
-                } catch (err) {
+                } catch (err: unknown) {
                     console.error('Status poll error:', err);
+                    if (pollIntervalRef.current) {
+                        clearInterval(pollIntervalRef.current);
+                        pollIntervalRef.current = null;
+                    }
+                    const message = err instanceof Error ? err.message : 'Job expired or not found';
+                    toast.error(message);
+                    setError(message);
                 }
             };
 
@@ -228,18 +236,9 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                 const formData = new FormData();
                 formData.append('file', selectedFile);
                 formData.append('title', title);
-                formData.append('moduleId', moduleId.toString());
+                formData.append('moduleId', moduleId);
 
-                const response = await fetch('/api/audio/upload-document', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Upload failed');
-                }
+                const data = await fetchFormData<{ success: boolean; detail?: string; documentUrl?: string; message?: string }>('/audio/upload-document', formData);
 
                 if (data.success) {
                     // Refresh the explorer tree to show the new note
@@ -264,21 +263,7 @@ export function UploadDialog({ isOpen, onClose, moduleId, moduleName }: UploadDi
                 }
 
                 // Start AI processing pipeline
-                const formData = new FormData();
-                formData.append('file', selectedFile);
-                formData.append('topic', topic);
-                formData.append('moduleId', moduleId.toString());
-
-                const response = await fetch('/api/audio/process-pipeline', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Failed to start processing');
-                }
+                const data = await startPipeline(selectedFile!, topic, moduleId);
 
                 if (data.jobId) {
                     // Switch to processing mode with status polling

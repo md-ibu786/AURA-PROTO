@@ -29,16 +29,20 @@ import { LoadingSpinner } from './LoadingSpinner';
 interface ProtectedRouteProps {
     children: ReactNode;
     requiredRole?: UserRole | UserRole[];
+    excludedRoles?: UserRole | UserRole[];
     requiredDepartment?: string;
 }
 
 export function ProtectedRoute({
     children,
     requiredRole,
+    excludedRoles,
     requiredDepartment
 }: ProtectedRouteProps) {
     const location = useLocation();
-    const { user, isLoading, isInitialized } = useAuthStore();
+    const user = useAuthStore(s => s.user);
+    const isLoading = useAuthStore(s => s.isLoading);
+    const isInitialized = useAuthStore(s => s.isInitialized);
     
     // Show loading spinner while auth is initializing
     if (!isInitialized || isLoading) {
@@ -62,6 +66,14 @@ export function ProtectedRoute({
         if (!roles.includes(user.role)) {
             // Redirect to home if role not allowed
             return <Navigate to="/" replace />;
+        }
+    }
+
+    // Check excluded roles (e.g., prevent admin from accessing explorer)
+    if (excludedRoles) {
+        const excluded = Array.isArray(excludedRoles) ? excludedRoles : [excludedRoles];
+        if (excluded.includes(user.role)) {
+            return <Navigate to="/admin" replace />;
         }
     }
     

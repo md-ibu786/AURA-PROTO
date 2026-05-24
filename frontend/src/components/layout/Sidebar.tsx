@@ -38,6 +38,7 @@
  */
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useShallow } from 'zustand/react/shallow';
 import { useExplorerStore } from '../../stores';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { SidebarTree } from '../explorer/SidebarTree';
@@ -52,8 +53,16 @@ interface SidebarProps {
 }
 
 export function Sidebar({ tree, isLoading }: SidebarProps) {
-    const { currentPath, startCreating, mobileMenuOpen, setMobileMenuOpen } = useExplorerStore();
-    const { user, logout } = useAuthStore();
+    const { currentPath, startCreating, mobileMenuOpen, setMobileMenuOpen } = useExplorerStore(
+        useShallow(s => ({
+            currentPath: s.currentPath,
+            startCreating: s.startCreating,
+            mobileMenuOpen: s.mobileMenuOpen,
+            setMobileMenuOpen: s.setMobileMenuOpen,
+        }))
+    );
+    const user = useAuthStore(s => s.user);
+    const logout = useAuthStore(s => s.logout);
     const location = useLocation();
     const [isUploadOpen, setIsUploadOpen] = useState(false);
     const isMobile = useMobileBreakpoint();
@@ -118,7 +127,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
             )}
             <aside className={`explorer-sidebar ${isMobile && mobileMenuOpen ? 'mobile-open' : ''}`}>
                 <div className="sidebar-header">
-                    <div className="flex items-center gap-sm" style={{ justifyContent: 'space-between', width: '100%' }}>
+                    <div className="flex items-center justify-between w-full">
                         <div className="flex items-center gap-4">
                             <img
                                 src="/logo.png"
@@ -144,7 +153,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
 
             <div className="sidebar-content">
                 {isAdmin && (
-                    <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div className="px-3 py-2 flex flex-col gap-1">
                         <Link 
                             to="/" 
                             className={`flex items-center gap-sm p-sm rounded-md transition-colors ${!isAdminPath ? 'bg-accent text-black font-bold' : 'hover:bg-white/5 text-secondary'}`}
@@ -159,12 +168,12 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
                             <Shield size={18} />
                             <span>Admin Dashboard</span>
                         </Link>
-                        <div style={{ margin: '8px 0', borderBottom: '1px solid var(--color-border)', opacity: 0.5 }} />
+                        <div className="my-2 border-b border-border opacity-50" />
                     </div>
                 )}
 
                 {isLoading ? (
-                    <div className="flex items-center justify-center" style={{ padding: '24px' }}>
+                    <div className="flex items-center justify-center p-6">
                         <div className="spinner" />
                     </div>
                 ) : (
@@ -173,11 +182,10 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
             </div>
 
             {/* Contextual create button at bottom */}
-            <div style={{ padding: '12px', borderTop: '1px solid var(--color-border)', marginTop: 'auto' }}>
+            <div className="p-3 border-t border-border mt-auto">
                 {createConfig ? (
                     <button
-                        className="btn btn-primary"
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        className="btn btn-primary w-full flex items-center justify-center gap-2"
                         onClick={handleCreate}
                     >
                         <Plus size={16} />
@@ -185,8 +193,7 @@ export function Sidebar({ tree, isLoading }: SidebarProps) {
                     </button>
                 ) : isAtModuleLevel && currentModule && !isAdmin && user?.role === 'staff' ? (
                     <button
-                        className="btn btn-primary"
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                        className="btn btn-primary w-full flex items-center justify-center gap-2"
                         onClick={() => setIsUploadOpen(true)}
                     >
                         <Upload size={16} />

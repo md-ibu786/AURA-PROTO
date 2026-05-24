@@ -275,9 +275,9 @@ async def test_verify_firebase_token_real_success(
 @pytest.mark.parametrize(
     ("exc_name", "detail_prefix"),
     [
-        ("InvalidIdTokenError", "Invalid authentication token:"),
-        ("ExpiredIdTokenError", "Authentication token has expired:"),
-        ("RevokedIdTokenError", "Authentication token has been revoked:"),
+        ("InvalidIdTokenError", "Invalid or expired authentication token"),
+        ("ExpiredIdTokenError", "Authentication token has expired"),
+        ("RevokedIdTokenError", "Authentication token has been revoked"),
     ],
 )
 async def test_verify_firebase_token_real_error_mapping(
@@ -316,7 +316,7 @@ async def test_verify_firebase_token_real_generic_error(
         await auth_module.verify_firebase_token("real-token")
 
     assert exc.value.status_code == fastapi.status.HTTP_401_UNAUTHORIZED
-    assert exc.value.detail.startswith("Authentication failed:")
+    assert exc.value.detail == "Authentication failed"
     assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
 

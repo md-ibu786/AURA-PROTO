@@ -132,6 +132,3 @@ function ProviderCard({
         </div>
     );
 }
-iv>
-    );
-}

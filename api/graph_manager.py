@@ -34,6 +34,7 @@ USAGE:
 """
 from __future__ import annotations
 
+import asyncio
 import time
 import logging
 from typing import List, Dict, Any, Optional, Literal
@@ -213,30 +214,42 @@ class GraphManager:
         """
         try:
             cypher = """
-            MATCH (e)
-            WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-            AND e.id = $entity_id
+            CALL {
+                MATCH (e:Topic {id: $entity_id}) RETURN e
+                UNION
+                MATCH (e:Concept {id: $entity_id}) RETURN e
+                UNION
+                MATCH (e:Methodology {id: $entity_id}) RETURN e
+                UNION
+                MATCH (e:Finding {id: $entity_id}) RETURN e
+            }
+            WITH e
             RETURN e.id as id, e.name as name, labels(e)[0] as entity_type,
                    e.definition as definition, e.module_id as module_id,
                    e.confidence as confidence, e.mention_count as mention_count
             LIMIT 1
             """
 
-            with self.driver.session() as session:
-                result = session.run(cypher, {"entity_id": entity_id})
-                record = result.single()
+            def _sync():
+                with self.driver.session() as session:
+                    result = session.run(cypher, {"entity_id": entity_id})
+                    record = result.single()
+                    if record:
+                        return Entity(
+                            id=record["id"],
+                            name=record["name"],
+                            entity_type=record["entity_type"],
+                            definition=record.get("definition"),
+                            module_id=record.get("module_id"),
+                            confidence=record.get("confidence"),
+                            mention_count=record.get("mention_count"),
+                        )
+                return None
 
-                if record:
-                    return Entity(
-                        id=record["id"],
-                        name=record["name"],
-                        entity_type=record["entity_type"],
-                        definition=record.get("definition"),
-                        module_id=record.get("module_id"),
-                        confidence=record.get("confidence"),
-                        mention_count=record.get("mention_count"),
-                    )
+            return await asyncio.to_thread(_sync)
 
+        except Exception as e:
+            logger.warning(f"Failed to get entity by ID {entity_id}: {e}")
             return None
 
         except Exception as e:
@@ -261,10 +274,28 @@ class GraphManager:
         try:
             if module_id:
                 cypher = """
-                MATCH (e)
-                WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-                AND toLower(e.name) CONTAINS toLower($name)
-                AND e.module_id = $module_id
+                CALL {
+                    MATCH (e:Topic)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    AND e.module_id = $module_id
+                    RETURN e
+                    UNION
+                    MATCH (e:Concept)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    AND e.module_id = $module_id
+                    RETURN e
+                    UNION
+                    MATCH (e:Methodology)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    AND e.module_id = $module_id
+                    RETURN e
+                    UNION
+                    MATCH (e:Finding)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    AND e.module_id = $module_id
+                    RETURN e
+                }
+                WITH e
                 RETURN e.id as id, e.name as name, labels(e)[0] as entity_type,
                        e.definition as definition, e.module_id as module_id,
                        e.confidence as confidence, e.mention_count as mention_count
@@ -274,9 +305,24 @@ class GraphManager:
                 params = {"name": name, "module_id": module_id}
             else:
                 cypher = """
-                MATCH (e)
-                WHERE (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-                AND toLower(e.name) CONTAINS toLower($name)
+                CALL {
+                    MATCH (e:Topic)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    RETURN e
+                    UNION
+                    MATCH (e:Concept)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    RETURN e
+                    UNION
+                    MATCH (e:Methodology)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    RETURN e
+                    UNION
+                    MATCH (e:Finding)
+                    WHERE toLower(e.name) CONTAINS toLower($name)
+                    RETURN e
+                }
+                WITH e
                 RETURN e.id as id, e.name as name, labels(e)[0] as entity_type,
                        e.definition as definition, e.module_id as module_id,
                        e.confidence as confidence, e.mention_count as mention_count
@@ -285,22 +331,25 @@ class GraphManager:
                 """
                 params = {"name": name}
 
-            entities = []
-            with self.driver.session() as session:
-                result = session.run(cypher, params)
-                for record in result:
-                    entities.append(
-                        Entity(
-                            id=record["id"],
-                            name=record["name"],
-                            entity_type=record["entity_type"],
-                            definition=record.get("definition"),
-                            module_id=record.get("module_id"),
-                            confidence=record.get("confidence"),
-                            mention_count=record.get("mention_count"),
+            def _sync():
+                entities = []
+                with self.driver.session() as session:
+                    result = session.run(cypher, params)
+                    for record in result:
+                        entities.append(
+                            Entity(
+                                id=record["id"],
+                                name=record["name"],
+                                entity_type=record["entity_type"],
+                                definition=record.get("definition"),
+                                module_id=record.get("module_id"),
+                                confidence=record.get("confidence"),
+                                mention_count=record.get("mention_count"),
+                            )
                         )
-                    )
+                return entities
 
+            entities = await asyncio.to_thread(_sync)
             logger.debug(f"Found {len(entities)} entities matching '{name}'")
             return entities
 
@@ -328,7 +377,6 @@ class GraphManager:
             List of neighbor dictionaries with entity info and relationship details
         """
         try:
-            # Build relationship pattern based on direction
             rel_types = relationship_types or ALL_RELATIONSHIP_TYPES
             rel_pattern = "|".join(rel_types)
 
@@ -353,29 +401,32 @@ class GraphManager:
             LIMIT $limit
             """
 
-            neighbors = []
-            with self.driver.session() as session:
-                result = session.run(cypher, {"entity_id": entity_id, "limit": limit})
-                for record in result:
-                    rel_type = record["relationship_type"]
-                    neighbors.append(
-                        {
-                            "id": record["id"],
-                            "name": record["name"],
-                            "entity_type": record["entity_type"],
-                            "definition": record.get("definition"),
-                            "module_id": record.get("module_id"),
-                            "relationship_type": rel_type,
-                            "relationship_confidence": record.get(
-                                "rel_confidence", 1.0
-                            ),
-                            "relationship_weight": RELATIONSHIP_WEIGHTS.get(
-                                rel_type, 0.4
-                            ),
-                            "is_outgoing": record.get("is_outgoing", True),
-                        }
-                    )
+            def _sync():
+                neighbors = []
+                with self.driver.session() as session:
+                    result = session.run(cypher, {"entity_id": entity_id, "limit": limit})
+                    for record in result:
+                        rel_type = record["relationship_type"]
+                        neighbors.append(
+                            {
+                                "id": record["id"],
+                                "name": record["name"],
+                                "entity_type": record["entity_type"],
+                                "definition": record.get("definition"),
+                                "module_id": record.get("module_id"),
+                                "relationship_type": rel_type,
+                                "relationship_confidence": record.get(
+                                    "rel_confidence", 1.0
+                                ),
+                                "relationship_weight": RELATIONSHIP_WEIGHTS.get(
+                                    rel_type, 0.4
+                                ),
+                                "is_outgoing": record.get("is_outgoing", True),
+                            }
+                        )
+                return neighbors
 
+            neighbors = await asyncio.to_thread(_sync)
             logger.debug(f"Found {len(neighbors)} neighbors for entity {entity_id}")
             return neighbors
 
@@ -401,7 +452,6 @@ class GraphManager:
             List of EntityPath objects representing paths between entities
         """
         try:
-            # Clamp max_hops to reasonable limits
             max_hops = min(max_hops, MAX_HOP_DEPTH)
 
             cypher = """
@@ -416,27 +466,30 @@ class GraphManager:
                    length(path) as hops
             """
 
-            paths = []
-            with self.driver.session() as session:
-                result = session.run(
-                    cypher,
-                    {
-                        "source_id": source_id,
-                        "target_id": target_id,
-                        "max_hops": max_hops,
-                    },
-                )
-                for record in result:
-                    paths.append(
-                        EntityPath(
-                            source_entity=record["source_name"],
-                            target_entity=record["target_name"],
-                            relationship_type=record["relationship_type"],
-                            confidence=record.get("confidence", 1.0) or 1.0,
-                            hops=record["hops"],
-                        )
+            def _sync():
+                paths = []
+                with self.driver.session() as session:
+                    result = session.run(
+                        cypher,
+                        {
+                            "source_id": source_id,
+                            "target_id": target_id,
+                            "max_hops": max_hops,
+                        },
                     )
+                    for record in result:
+                        paths.append(
+                            EntityPath(
+                                source_entity=record["source_name"],
+                                target_entity=record["target_name"],
+                                relationship_type=record["relationship_type"],
+                                confidence=record.get("confidence", 1.0) or 1.0,
+                                hops=record["hops"],
+                            )
+                        )
+                return paths
 
+            paths = await asyncio.to_thread(_sync)
             logger.debug(
                 f"Found {len(paths)} paths between {source_id} and {target_id}"
             )
@@ -474,7 +527,6 @@ class GraphManager:
         try:
             depth = min(depth, MAX_HOP_DEPTH)
 
-            # Build module filter clause
             module_filter = ""
             params: Dict[str, Any] = {"entity_ids": entity_ids, "depth": depth}
 
@@ -514,21 +566,22 @@ class GraphManager:
                 }}] as edges
             """
 
-            with self.driver.session() as session:
-                result = session.run(cypher, params)
-                record = result.single()
+            def _sync():
+                with self.driver.session() as session:
+                    result = session.run(cypher, params)
+                    record = result.single()
+                    if record:
+                        nodes = record["nodes"] or []
+                        edges = record["edges"] or []
+                        return Subgraph(
+                            nodes=nodes,
+                            edges=edges,
+                            node_count=len(nodes),
+                            edge_count=len(edges),
+                        )
+                return Subgraph(nodes=[], edges=[], node_count=0, edge_count=0)
 
-                if record:
-                    nodes = record["nodes"] or []
-                    edges = record["edges"] or []
-                    return Subgraph(
-                        nodes=nodes,
-                        edges=edges,
-                        node_count=len(nodes),
-                        edge_count=len(edges),
-                    )
-
-            return Subgraph(nodes=[], edges=[], node_count=0, edge_count=0)
+            return await asyncio.to_thread(_sync)
 
         except Exception as e:
             logger.warning(f"Failed to extract subgraph: {e}")
@@ -555,81 +608,83 @@ class GraphManager:
             - success: True if deletion was successful, False otherwise
             - connected_entity_ids: List of entity IDs that were connected to this doc
         """
-        connected_entity_ids: List[str] = []
+        def _sync():
+            connected_entity_ids: List[str] = []
 
-        try:
-            # Step 1: Check document exists
-            check_query = """
-            MATCH (d:Document {id: $doc_id})
-            RETURN d.id as id
-            """
-            with self.driver.session() as session:
-                result = session.run(check_query, {"doc_id": doc_id})
-                record = result.single()
+            try:
+                # Step 1: Check document exists
+                check_query = """
+                MATCH (d:Document {id: $doc_id})
+                RETURN d.id as id
+                """
+                with self.driver.session() as session:
+                    result = session.run(check_query, {"doc_id": doc_id})
+                    record = result.single()
 
-                if not record:
-                    logger.warning(f"Document {doc_id} not found in Neo4j")
-                    return True, []  # Consider it a success if already not present
+                    if not record:
+                        logger.warning(f"Document {doc_id} not found in Neo4j")
+                        return True, []
 
-            logger.info(f"Starting deletion of document {doc_id}")
+                logger.info(f"Starting deletion of document {doc_id}")
 
-            # Step 2: Collect entity IDs connected to this document's chunks
-            # This scopes orphan cleanup to only entities from this document
-            collect_entities_query = """
-            MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK|HAS_PARENT_CHUNK]->(c)
-            MATCH (c)-[:CONTAINS_ENTITY]->(e)
-            WHERE e:Topic OR e:Concept OR e:Methodology OR e:Finding
-            RETURN DISTINCT e.id as entity_id
-            """
-            with self.driver.session() as session:
-                result = session.run(collect_entities_query, {"doc_id": doc_id})
-                for record in result:
-                    if record["entity_id"]:
-                        connected_entity_ids.append(record["entity_id"])
-            logger.debug(
-                f"Collected {len(connected_entity_ids)} entity IDs for document {doc_id}"
-            )
+                # Step 2: Collect entity IDs connected to this document's chunks
+                collect_entities_query = """
+                MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK|HAS_PARENT_CHUNK]->(c)
+                MATCH (c)-[:CONTAINS_ENTITY]->(e)
+                WHERE e:Topic OR e:Concept OR e:Methodology OR e:Finding
+                RETURN DISTINCT e.id as entity_id
+                """
+                with self.driver.session() as session:
+                    result = session.run(collect_entities_query, {"doc_id": doc_id})
+                    for record in result:
+                        if record["entity_id"]:
+                            connected_entity_ids.append(record["entity_id"])
+                logger.debug(
+                    f"Collected {len(connected_entity_ids)} entity IDs for document {doc_id}"
+                )
 
-            # Step 3: Delete all parent chunks linked to this document
-            delete_parent_chunks_query = """
-            MATCH (d:Document {id: $doc_id})-[:HAS_PARENT_CHUNK]->(p:ParentChunk)
-            DETACH DELETE p
-            """
-            with self.driver.session() as session:
-                session.run(delete_parent_chunks_query, {"doc_id": doc_id})
-            logger.debug(f"Deleted parent chunks for document {doc_id}")
+                # Step 3: Delete all parent chunks linked to this document
+                delete_parent_chunks_query = """
+                MATCH (d:Document {id: $doc_id})-[:HAS_PARENT_CHUNK]->(p:ParentChunk)
+                DETACH DELETE p
+                """
+                with self.driver.session() as session:
+                    session.run(delete_parent_chunks_query, {"doc_id": doc_id})
+                logger.debug(f"Deleted parent chunks for document {doc_id}")
 
-            # Step 4: Delete all child/regular chunks linked to this document
-            delete_chunks_query = """
-            MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK]->(c:Chunk)
-            DETACH DELETE c
-            """
-            with self.driver.session() as session:
-                result = session.run(delete_chunks_query, {"doc_id": doc_id})
-                try:
-                    for row in result.data():
-                        entity_ids = row.get("connected_entity_ids", [])
-                        if entity_ids:
-                            connected_entity_ids.extend(entity_ids)
-                except Exception:
-                    pass
-            logger.debug(f"Deleted chunks for document {doc_id}")
+                # Step 4: Delete all child/regular chunks linked to this document
+                delete_chunks_query = """
+                MATCH (d:Document {id: $doc_id})-[:HAS_CHUNK]->(c:Chunk)
+                DETACH DELETE c
+                """
+                with self.driver.session() as session:
+                    result = session.run(delete_chunks_query, {"doc_id": doc_id})
+                    try:
+                        for row in result.data():
+                            entity_ids = row.get("connected_entity_ids", [])
+                            if entity_ids:
+                                connected_entity_ids.extend(entity_ids)
+                    except Exception:
+                        pass
+                logger.debug(f"Deleted chunks for document {doc_id}")
 
-            # Step 5: Delete the document node itself (MUST be separate query!)
-            delete_doc_query = """
-            MATCH (d:Document {id: $doc_id})
-            DETACH DELETE d
-            """
-            with self.driver.session() as session:
-                session.run(delete_doc_query, {"doc_id": doc_id})
-            logger.debug(f"Deleted Document node {doc_id}")
+                # Step 5: Delete the document node itself
+                delete_doc_query = """
+                MATCH (d:Document {id: $doc_id})
+                DETACH DELETE d
+                """
+                with self.driver.session() as session:
+                    session.run(delete_doc_query, {"doc_id": doc_id})
+                logger.debug(f"Deleted Document node {doc_id}")
 
-            logger.info(f"Successfully completed deletion of document {doc_id}")
-            return True, connected_entity_ids
+                logger.info(f"Successfully completed deletion of document {doc_id}")
+                return True, connected_entity_ids
 
-        except Exception as e:
-            logger.error(f"Failed to delete document {doc_id}: {e}")
-            return False, connected_entity_ids
+            except Exception as e:
+                logger.error(f"Failed to delete document {doc_id}: {e}")
+                return False, connected_entity_ids
+
+        return await asyncio.to_thread(_sync)
 
     async def cleanup_orphaned_entities(self, entity_ids: List[str]) -> int:
         """
@@ -648,33 +703,32 @@ class GraphManager:
         if not entity_ids:
             return 0
 
-        try:
-            # Delete entities that are in the provided list AND are orphaned
-            # (not connected to any Document or Chunk)
-            cleanup_query = """
-            MATCH (e)
-            WHERE e.id IN $entity_ids
-            AND (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
-            AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
-            AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
-            WITH e, e.id as deleted_id
-            DETACH DELETE e
-            RETURN count(deleted_id) as deleted_count
-            """
-            with self.driver.session() as session:
-                result = session.run(cleanup_query, {"entity_ids": entity_ids})
-                record = result.single()
-                deleted_count = record["deleted_count"] if record else 0
+        def _sync():
+            try:
+                cleanup_query = """
+                MATCH (e)
+                WHERE e.id IN $entity_ids
+                AND (e:Topic OR e:Concept OR e:Methodology OR e:Finding)
+                AND NOT (e)<-[:ADDRESSES_TOPIC|MENTIONS_CONCEPT|SUPPORTS|USES_METHODOLOGY]-(:Document)
+                AND NOT (e)<-[:CONTAINS_ENTITY]-(:Chunk)
+                WITH e, e.id as deleted_id
+                DETACH DELETE e
+                RETURN count(deleted_id) as deleted_count
+                """
+                with self.driver.session() as session:
+                    result = session.run(cleanup_query, {"entity_ids": entity_ids})
+                    record = result.single()
+                    return record["deleted_count"] if record else 0
+            except Exception as e:
+                logger.error(f"Failed to cleanup orphaned entities: {e}")
+                return 0
 
-            logger.info(
-                f"Orphan cleanup: checked {len(entity_ids)} entities, "
-                f"deleted {deleted_count} orphans"
-            )
-            return deleted_count
-
-        except Exception as e:
-            logger.error(f"Failed to cleanup orphaned entities: {e}")
-            return 0
+        deleted_count = await asyncio.to_thread(_sync)
+        logger.info(
+            f"Orphan cleanup: checked {len(entity_ids)} entities, "
+            f"deleted {deleted_count} orphans"
+        )
+        return deleted_count
 
     async def expand_graph_context(
         self,
@@ -714,7 +768,6 @@ class GraphManager:
         try:
             hop_depth = min(hop_depth, MAX_HOP_DEPTH)
 
-            # Build module filter
             module_filter = ""
             params: Dict[str, Any] = {
                 "entity_ids": entity_ids,
@@ -725,8 +778,6 @@ class GraphManager:
                 module_filter = "AND (related.module_id IN $module_ids OR related.module_id IS NULL)"
                 params["module_ids"] = module_ids
 
-            # Multi-hop traversal query
-            # Handles 1-hop and 2-hop in one query for efficiency
             if hop_depth == 1:
                 cypher = f"""
                 MATCH (start)-[r]->(related)
@@ -743,7 +794,6 @@ class GraphManager:
                 LIMIT $limit
                 """
             else:
-                # 2-hop traversal with intermediate entities
                 cypher = f"""
                 // 1-hop results
                 MATCH (start)-[r1]->(hop1)
@@ -778,58 +828,58 @@ class GraphManager:
                 LIMIT $limit
                 """
 
-            expanded_entities: List[Dict[str, Any]] = []
-            paths: List[EntityPath] = []
-            seen_ids: set = set()
-            max_depth = 0
+            def _sync():
+                expanded_entities: List[Dict[str, Any]] = []
+                paths: List[EntityPath] = []
+                seen_ids: set = set()
+                max_depth = 0
 
-            with self.driver.session() as session:
-                result = session.run(cypher, params)
-                for record in result:
-                    target_id = record["target_id"]
+                with self.driver.session() as session:
+                    result = session.run(cypher, params)
+                    for record in result:
+                        target_id = record["target_id"]
 
-                    # Track max depth
-                    hops = record["hops"]
-                    if hops > max_depth:
-                        max_depth = hops
+                        hops = record["hops"]
+                        if hops > max_depth:
+                            max_depth = hops
 
-                    # Add path
-                    rel_type = record["relationship_type"]
-                    paths.append(
-                        EntityPath(
-                            source_entity=record["source"],
-                            target_entity=record["target"],
-                            relationship_type=rel_type,
-                            confidence=record.get("confidence", 1.0) or 1.0,
-                            hops=hops,
-                        )
-                    )
-
-                    # Add entity if not seen
-                    if target_id not in seen_ids:
-                        seen_ids.add(target_id)
-                        # Calculate weighted relevance score
-                        rel_weight = RELATIONSHIP_WEIGHTS.get(rel_type, 0.4)
-                        hop_decay = 1.0 / hops  # Closer entities score higher
-                        confidence = record.get("confidence", 1.0) or 1.0
-                        relevance = rel_weight * hop_decay * confidence
-
-                        expanded_entities.append(
-                            {
-                                "id": target_id,
-                                "name": record["target"],
-                                "entity_type": record["entity_type"],
-                                "definition": record.get("definition"),
-                                "module_id": record.get("module_id"),
-                                "relationship_type": rel_type,
-                                "hops": hops,
-                                "relevance_score": round(relevance, 4),
-                            }
+                        rel_type = record["relationship_type"]
+                        paths.append(
+                            EntityPath(
+                                source_entity=record["source"],
+                                target_entity=record["target"],
+                                relationship_type=rel_type,
+                                confidence=record.get("confidence", 1.0) or 1.0,
+                                hops=hops,
+                            )
                         )
 
-            # Sort by relevance score
-            expanded_entities.sort(key=lambda x: x["relevance_score"], reverse=True)
-            expanded_entities = expanded_entities[:max_entities]
+                        if target_id not in seen_ids:
+                            seen_ids.add(target_id)
+                            rel_weight = RELATIONSHIP_WEIGHTS.get(rel_type, 0.4)
+                            hop_decay = 1.0 / hops
+                            confidence = record.get("confidence", 1.0) or 1.0
+                            relevance = rel_weight * hop_decay * confidence
+
+                            expanded_entities.append(
+                                {
+                                    "id": target_id,
+                                    "name": record["target"],
+                                    "entity_type": record["entity_type"],
+                                    "definition": record.get("definition"),
+                                    "module_id": record.get("module_id"),
+                                    "relationship_type": rel_type,
+                                    "hops": hops,
+                                    "relevance_score": round(relevance, 4),
+                                }
+                            )
+
+                expanded_entities.sort(key=lambda x: x["relevance_score"], reverse=True)
+                expanded_entities = expanded_entities[:max_entities]
+
+                return expanded_entities, paths, max_depth
+
+            expanded_entities, paths, max_depth = await asyncio.to_thread(_sync)
 
             elapsed_ms = (time.time() - start_time) * 1000
 

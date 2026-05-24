@@ -43,7 +43,8 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ title, subtitle, showBack }: AdminHeaderProps) {
-    const { user, logout } = useAuthStore();
+    const user = useAuthStore(s => s.user);
+    const logout = useAuthStore(s => s.logout);
     const location = useLocation();
     const navigate = useNavigate();
 

@@ -57,7 +57,7 @@ export function ContextMenu() {
         openDeleteDialog
     } = useExplorerStore();
 
-    const { user } = useAuthStore();
+    const user = useAuthStore(s => s.user);
     const isAdmin = user?.role === 'admin';
     const isStaff = user?.role === 'staff';
 

@@ -47,21 +47,14 @@ import {
 
 import { AdminHeader } from '../components/layout/AdminHeader';
 
-function getDefaultDateRange(): { start: string; end: string } {
-    const end = new Date();
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
-    return {
-        start: start.toISOString().split('T')[0],
-        end: end.toISOString().split('T')[0],
-    };
-}
-
 export function UsagePage() {
 
-    const defaults = getDefaultDateRange();
-    const [startDate, setStartDate] = useState(defaults.start);
-    const [endDate, setEndDate] = useState(defaults.end);
+    const [startDate, setStartDate] = useState(() => {
+        const d = new Date();
+        d.setDate(d.getDate() - 30);
+        return d.toISOString().split('T')[0];
+    });
+    const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
 
     const { data: summaryData, isLoading: summaryLoading } = useUsageSummary(startDate, endDate);
     const { data: dailyData } = useDailyCosts(startDate, endDate);

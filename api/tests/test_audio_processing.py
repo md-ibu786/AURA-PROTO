@@ -38,7 +38,7 @@ if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
 # Import audio_processing module directly (bypasses api/__init__.py)
-import audio_processing as ap_module  # noqa: E402
+import api.audio_processing as ap_module  # noqa: E402
 
 
 class TestPipelineDBFailureHandling:
@@ -56,12 +56,22 @@ class TestPipelineDBFailureHandling:
 
         # Mock services to succeed
         with (
+            patch("api.audio_processing._get_redis", return_value=None),
             patch("api.audio_processing.process_audio_file") as mock_transcribe,
             patch("api.audio_processing.transform_transcript") as mock_refine,
             patch("api.audio_processing.generate_university_notes") as mock_summarize,
             patch("api.audio_processing.create_pdf") as mock_pdf,
             patch("api.audio_processing.create_note_record") as mock_create_note,
+            patch("api.audio_processing._get_audio_duration",
+                  return_value=0) as mock_duration,
+            patch("api.audio_processing._make_pdf_filename",
+                  return_value="test_output.pdf") as mock_filename,
+            patch("builtins.open") as mock_open,
+            patch("os.unlink") as mock_unlink,
         ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake audio"
+            )
             # All services succeed except DB
             mock_transcribe.return_value = {"text": "Test transcript"}
             mock_refine.return_value = "Refined transcript"
@@ -73,7 +83,7 @@ class TestPipelineDBFailureHandling:
             # Run pipeline
             ap_module._run_pipeline(
                 job_id=job_id,
-                audio_bytes=b"fake audio",
+                temp_path="fake_temp_path",
                 topic="Test Topic",
                 module_id="module-123",
             )
@@ -96,12 +106,22 @@ class TestPipelineDBFailureHandling:
         }
 
         with (
+            patch("api.audio_processing._get_redis", return_value=None),
             patch("api.audio_processing.process_audio_file") as mock_transcribe,
             patch("api.audio_processing.transform_transcript") as mock_refine,
             patch("api.audio_processing.generate_university_notes") as mock_summarize,
             patch("api.audio_processing.create_pdf") as mock_pdf,
             patch("api.audio_processing.create_note_record") as mock_create_note,
+            patch("api.audio_processing._get_audio_duration",
+                  return_value=0) as mock_duration,
+            patch("api.audio_processing._make_pdf_filename",
+                  return_value="test_output.pdf") as mock_filename,
+            patch("builtins.open") as mock_open,
+            patch("os.unlink") as mock_unlink,
         ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake audio"
+            )
             mock_transcribe.return_value = {"text": "Test transcript"}
             mock_refine.return_value = "Refined transcript"
             mock_summarize.return_value = "Generated notes"
@@ -110,7 +130,7 @@ class TestPipelineDBFailureHandling:
 
             ap_module._run_pipeline(
                 job_id=job_id,
-                audio_bytes=b"fake audio",
+                temp_path="fake_temp_path",
                 topic="Test Topic",
                 module_id="module-456",
             )
@@ -135,13 +155,23 @@ class TestPipelineDBFailureHandling:
         mock_logger = MagicMock()
 
         with (
+            patch("api.audio_processing._get_redis", return_value=None),
             patch("api.audio_processing.process_audio_file") as mock_transcribe,
             patch("api.audio_processing.transform_transcript") as mock_refine,
             patch("api.audio_processing.generate_university_notes") as mock_summarize,
             patch("api.audio_processing.create_pdf") as mock_pdf,
             patch("api.audio_processing.create_note_record") as mock_create_note,
             patch("api.audio_processing.logger", mock_logger),
+            patch("api.audio_processing._get_audio_duration",
+                  return_value=0) as mock_duration,
+            patch("api.audio_processing._make_pdf_filename",
+                  return_value="test_output.pdf") as mock_filename,
+            patch("builtins.open") as mock_open,
+            patch("os.unlink") as mock_unlink,
         ):
+            mock_open.return_value.__enter__.return_value.read.return_value = (
+                b"fake audio"
+            )
             mock_transcribe.return_value = {"text": "Test transcript"}
             mock_refine.return_value = "Refined transcript"
             mock_summarize.return_value = "Generated notes"
@@ -150,7 +180,7 @@ class TestPipelineDBFailureHandling:
 
             ap_module._run_pipeline(
                 job_id=job_id,
-                audio_bytes=b"fake audio",
+                temp_path="fake_temp_path",
                 topic="Test Topic",
                 module_id="module-789",
             )

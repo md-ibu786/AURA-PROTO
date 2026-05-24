@@ -50,7 +50,7 @@ USAGE:
 """
 
 import asyncio
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional, List
 from enum import Enum
@@ -64,6 +64,11 @@ except (ImportError, ModuleNotFoundError):
         from .config import db, async_db
     except (ImportError, ModuleNotFoundError):
         from api.config import db, async_db
+
+try:
+    from auth import require_admin, FirestoreUser
+except (ImportError, ModuleNotFoundError):
+    from api.auth import require_admin, FirestoreUser
 
 router = APIRouter(prefix="/api/explorer", tags=["explorer"])
 
@@ -368,7 +373,10 @@ async def get_node_children(node_type: HierarchyType, node_id: str):
 
 
 @router.post("/move", response_model=MoveResponse)
-def move_node(request: MoveRequest):
+def move_node(
+    request: MoveRequest,
+    user: FirestoreUser = Depends(require_admin),
+):
     """
     Move a node to a new parent.
     NOTE: Firestore requires copy-delete for moving between subcollections.
@@ -421,6 +429,7 @@ def move_node(request: MoveRequest):
         if request.nodeType in fk_map:
             data[fk_map[request.nodeType]] = request.targetParentId
 
+        data["id"] = new_ref.id  # Update stored ID to match new document ID
         new_ref.set(data)
 
         def copy_children(src, dest):
@@ -434,6 +443,7 @@ def move_node(request: MoveRequest):
                         child_data["subject_id"] = dest.id
                     elif coll.id == "notes":
                         child_data["module_id"] = dest.id
+                    child_data["id"] = new_child_ref.id  # Update stored ID
                     new_child_ref.set(child_data)
                     copy_children(doc.reference, new_child_ref)
 

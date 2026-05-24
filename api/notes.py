@@ -53,7 +53,6 @@ USAGE:
 from google.cloud import firestore
 from google.cloud.firestore import FieldFilter
 import datetime
-import re
 from typing import Optional, Sequence
 
 try:
@@ -64,30 +63,10 @@ except (ImportError, ModuleNotFoundError):
     except (ImportError, ModuleNotFoundError):
         from api.config import db
 
-
-def get_next_available_number(numbers: list[int]) -> int:
-    """Find the next available sequential number (max + 1)."""
-    if not numbers:
-        return 1
-    return max(numbers) + 1
-
-
-def get_unique_name(names: list[str], base_name: str) -> str:
-    """Generate unique name with (N) suffix for duplicates."""
-    if base_name not in names:
-        return base_name
-
-    suffix_numbers = [1]
-    pattern = re.compile(rf"^{re.escape(base_name)} \((\d+)\)$")
-    for n in names:
-        match = pattern.match(n)
-        if match:
-            suffix_numbers.append(int(match.group(1)))
-
-    next_suffix = get_next_available_number(suffix_numbers)
-    if next_suffix == 1:
-        next_suffix = 2
-    return f"{base_name} ({next_suffix})"
+try:
+    from utils import get_next_available_number, get_unique_name
+except (ImportError, ModuleNotFoundError):
+    from api.utils import get_next_available_number, get_unique_name
 
 
 def _get_path_id(

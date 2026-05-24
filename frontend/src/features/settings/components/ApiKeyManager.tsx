@@ -270,6 +270,4 @@ function ProviderKeyCard({ provider }: { provider: typeof PROVIDERS[0] }) {
         </div>
     );
 }
- );
-}
 

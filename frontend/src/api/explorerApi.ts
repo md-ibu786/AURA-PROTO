@@ -85,87 +85,87 @@ export async function getNoteStatus(noteId: string): Promise<{
 }
 
 // CRUD operations (using existing endpoints)
-export async function createDepartment(name: string, code: string) {
-    return fetchApi('/departments', {
+export async function createDepartment(name: string, code: string): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>('/departments', {
         method: 'POST',
         body: JSON.stringify({ name, code }),
     });
 }
 
-export async function createSemester(departmentId: string, semesterNumber: number, name: string) {
-    return fetchApi('/semesters', {
+export async function createSemester(departmentId: string, semesterNumber: number, name: string): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>('/semesters', {
         method: 'POST',
         body: JSON.stringify({ department_id: departmentId, semester_number: semesterNumber, name }),
     });
 }
 
-export async function createSubject(semesterId: string, name: string, code: string) {
-    return fetchApi('/subjects', {
+export async function createSubject(semesterId: string, name: string, code: string): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>('/subjects', {
         method: 'POST',
         body: JSON.stringify({ semester_id: semesterId, name, code }),
     });
 }
 
-export async function createModule(subjectId: string, moduleNumber: number, name: string) {
-    return fetchApi('/modules', {
+export async function createModule(subjectId: string, moduleNumber: number, name: string): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>('/modules', {
         method: 'POST',
         body: JSON.stringify({ subject_id: subjectId, module_number: moduleNumber, name }),
     });
 }
 
-export async function updateDepartment(id: string, data: { name?: string; code?: string }) {
-    return fetchApi(`/departments/${id}`, {
+export async function updateDepartment(id: string, data: { name?: string; code?: string }): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>(`/departments/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 }
 
-export async function updateSemester(id: string, data: { name?: string; semester_number?: number }) {
-    return fetchApi(`/semesters/${id}`, {
+export async function updateSemester(id: string, data: { name?: string; semester_number?: number }): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>(`/semesters/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 }
 
-export async function updateSubject(id: string, data: { name?: string; code?: string }) {
-    return fetchApi(`/subjects/${id}`, {
+export async function updateSubject(id: string, data: { name?: string; code?: string }): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>(`/subjects/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 }
 
-export async function updateModule(id: string, data: { name?: string; module_number?: number }) {
-    return fetchApi(`/modules/${id}`, {
+export async function updateModule(id: string, data: { name?: string; module_number?: number }): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>(`/modules/${id}`, {
         method: 'PUT',
         body: JSON.stringify(data),
     });
 }
 
-export async function updateNote(id: string, title: string) {
-    return fetchApi(`/notes/${id}`, {
+export async function updateNote(id: string, title: string): Promise<FileSystemNode> {
+    return fetchApi<FileSystemNode>(`/notes/${id}`, {
         method: 'PUT',
         body: JSON.stringify({ title }),
     });
 }
 
-export async function deleteDepartment(id: string) {
-    return fetchApi(`/departments/${id}`, { method: 'DELETE' });
+export async function deleteDepartment(id: string): Promise<void> {
+    return fetchApi<void>(`/departments/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteSemester(id: string) {
-    return fetchApi(`/semesters/${id}`, { method: 'DELETE' });
+export async function deleteSemester(id: string): Promise<void> {
+    return fetchApi<void>(`/semesters/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteSubject(id: string) {
-    return fetchApi(`/subjects/${id}`, { method: 'DELETE' });
+export async function deleteSubject(id: string): Promise<void> {
+    return fetchApi<void>(`/subjects/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteModule(id: string) {
-    return fetchApi(`/modules/${id}`, { method: 'DELETE' });
+export async function deleteModule(id: string): Promise<void> {
+    return fetchApi<void>(`/modules/${id}`, { method: 'DELETE' });
 }
 
-export async function deleteNote(id: string) {
-    return fetchApi(`/notes/${id}`, { method: 'DELETE' });
+export async function deleteNote(id: string): Promise<void> {
+    return fetchApi<void>(`/notes/${id}`, { method: 'DELETE' });
 }
 
 export async function deleteNoteCascade(id: string): Promise<{

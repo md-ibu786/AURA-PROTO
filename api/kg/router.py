@@ -402,7 +402,7 @@ async def _update_firestore_with_retry(
 @router.post("/delete-batch", response_model=BatchDeleteResponse)
 async def delete_batch(request: BatchDeleteRequest):
     """
-    Delete multiple documents from the Knowledge Graph.
+    Delete multiple documents from the Knowledge Graph concurrently.
 
     This completely removes documents from Neo4j:
     - Document nodes
@@ -415,28 +415,22 @@ async def delete_batch(request: BatchDeleteRequest):
         f"Delete batch request: {len(request.file_ids)} documents for module {request.module_id}"
     )
 
-    deleted_count = 0
-    failed_ids = []
-    all_connected_entity_ids: List[str] = []
-
     # Initialize graph manager
     graph_manager = GraphManager(neo4j_driver)
 
-    for doc_id in request.file_ids:
-        # Find note using bounded lookup from tasks module
+    async def _delete_one(doc_id: str):
+        """Delete a single document and return (doc_id, success, entity_ids, error)."""
         note_ref = tasks_find_note_by_id(doc_id, module_id=request.module_id)
 
         if not note_ref:
             logger.warning(f"Note {doc_id} not found, skipping")
-            failed_ids.append(doc_id)
-            continue
+            return (doc_id, False, [], "not found")
 
         note = note_ref.get()
         doc_data = note.to_dict()
         if doc_data is None:
             logger.warning(f"Note {doc_id} has no data, skipping")
-            failed_ids.append(doc_id)
-            continue
+            return (doc_id, False, [], "no data")
         note_path = note_ref.path
 
         # Extract module_id from the note path
@@ -452,41 +446,50 @@ async def delete_batch(request: BatchDeleteRequest):
             logger.warning(
                 f"Note {doc_id} belongs to module {note_module_id}, not {request.module_id}, skipping"
             )
-            failed_ids.append(doc_id)
-            continue
+            return (doc_id, False, [], "wrong module")
 
         # Only delete documents that are actually processed
         if doc_data.get("kg_status") != "ready":
             logger.warning(f"Note {doc_id} is not KG-ready, skipping")
-            failed_ids.append(doc_id)
-            continue
+            return (doc_id, False, [], "not ready")
 
         # Delete from Neo4j
         try:
             success, connected_entities = await graph_manager.delete_document(doc_id)
             if not success:
                 logger.error(f"Failed to delete {doc_id} from Neo4j")
-                failed_ids.append(doc_id)
-                continue
-            # Collect entity IDs for batch orphan cleanup
-            all_connected_entity_ids.extend(connected_entities)
+                return (doc_id, False, [], "neo4j delete failed")
         except Exception as e:
-            logger.error(f"Exception deleting {doc_id} from Neo4j: {e}")
-            failed_ids.append(doc_id)
-            continue
+            return (doc_id, False, [], str(e))
 
         # Reset Firestore status with retry logic
         firestore_success = await _update_firestore_with_retry(note_ref, doc_id)
-        if firestore_success:
+        error_msg = None if firestore_success else "firestore sync failed"
+        # If Firestore failed, still count as deleted (Neo4j succeeded)
+        return (doc_id, True, connected_entities, error_msg)
+
+    # Execute concurrently
+    tasks = [_delete_one(doc_id) for doc_id in request.file_ids]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Aggregate results
+    deleted_count = 0
+    failed_ids = []
+    all_connected_entity_ids: List[str] = []
+    for result in results:
+        if isinstance(result, Exception):
+            continue
+        doc_id, success, entity_ids, error = result
+        if success:
             deleted_count += 1
+            all_connected_entity_ids.extend(entity_ids)
+            if error:
+                logger.error(
+                    f"Document {doc_id} deleted from Neo4j but Firestore update failed. "
+                    "Document counted as deleted but may need manual Firestore cleanup."
+                )
         else:
-            # Neo4j deletion succeeded but Firestore failed - log but don't add to failed_ids
-            # The document IS deleted from KG, Firestore is just out of sync
-            logger.error(
-                f"Document {doc_id} deleted from Neo4j but Firestore update failed. "
-                "Document counted as deleted but may need manual Firestore cleanup."
-            )
-            deleted_count += 1  # Count as deleted since Neo4j succeeded
+            failed_ids.append(doc_id)
 
     # Perform orphan cleanup ONCE after all deletions
     if all_connected_entity_ids:

@@ -48,6 +48,7 @@
  * @note: Automatically disables selection mode when navigating out of modules
  */
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useMobileBreakpoint } from '../../hooks/useMobileBreakpoint';
 import { useExplorerStore } from '../../stores';
 import {
@@ -78,7 +79,37 @@ export function Header() {
         setSelectionMode,
         setDeleteMode,
         setMobileMenuOpen,
-    } = useExplorerStore();
+    } = useExplorerStore(useShallow(s => ({
+        currentPath: s.currentPath,
+        navigateUp: s.navigateUp,
+        setCurrentPath: s.setCurrentPath,
+        viewMode: s.viewMode,
+        setViewMode: s.setViewMode,
+        searchQuery: s.searchQuery,
+        setSearchQuery: s.setSearchQuery,
+        setActiveNode: s.setActiveNode,
+        selectionMode: s.selectionMode,
+        setSelectionMode: s.setSelectionMode,
+        setDeleteMode: s.setDeleteMode,
+        setMobileMenuOpen: s.setMobileMenuOpen,
+    })));
+
+    const [localSearch, setLocalSearch] = useState(searchQuery);
+
+    // Sync local search to store with debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchQuery(localSearch);
+        }, 200);
+        return () => clearTimeout(timer);
+    }, [localSearch, setSearchQuery]);
+
+    // Sync store changes back to local (e.g., when search is cleared programmatically)
+    useEffect(() => {
+        if (searchQuery !== localSearch) {
+            setLocalSearch(searchQuery);
+        }
+    }, [searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const goHome = () => {
         setCurrentPath([]);
@@ -189,11 +220,11 @@ export function Header() {
                         <input
                             type="text"
                             placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            value={localSearch}
+                            onChange={(e) => setLocalSearch(e.target.value)}
                             autoFocus
                             onBlur={() => {
-                                if (!searchQuery) {
+                                if (!localSearch) {
                                     setMobileSearchOpen(false);
                                 }
                             }}
@@ -201,6 +232,7 @@ export function Header() {
                         <button
                             className="nav-btn"
                             onClick={() => {
+                                setLocalSearch('');
                                 setSearchQuery('');
                                 setMobileSearchOpen(false);
                             }}
@@ -224,8 +256,8 @@ export function Header() {
                     <input
                         type="text"
                         placeholder="Search..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        value={localSearch}
+                        onChange={(e) => setLocalSearch(e.target.value)}
                     />
                 </div>
             )}

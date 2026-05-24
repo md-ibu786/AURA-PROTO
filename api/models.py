@@ -60,11 +60,15 @@ class FirestoreUser(pydantic.BaseModel):
         description="Assigned subject IDs (required for staff)",
     )
     createdAt: str = pydantic.Field(
-        default_factory=lambda: datetime.datetime.utcnow().isoformat(),
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat(),
         description="ISO 8601 creation time",
     )
     updatedAt: str = pydantic.Field(
-        default_factory=lambda: datetime.datetime.utcnow().isoformat(),
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat(),
         description="ISO 8601 update time",
     )
     schemaVersion: int = pydantic.Field(

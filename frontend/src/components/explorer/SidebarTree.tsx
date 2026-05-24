@@ -56,6 +56,7 @@ import {
     Package,
     FileText
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SidebarTreeProps {
     nodes: FileSystemNode[];
@@ -72,7 +73,7 @@ const typeIcons = {
     note: FileText,
 };
 
-function CreationItem({ parentId, type }: { parentId: string | null; type: import('../../types').HierarchyType }) {
+function CreationItem({ parentId, type, nodes }: { parentId: string | null; type: import('../../types').HierarchyType; nodes: FileSystemNode[] }) {
     const { cancelCreating, openWarningDialog } = useExplorerStore();
     const queryClient = useQueryClient();
     const [name, setName] = useState('');
@@ -101,17 +102,27 @@ function CreationItem({ parentId, type }: { parentId: string | null; type: impor
                     await api.createDepartment(name, code);
                     break;
                 }
-                case 'semester':
-                    await api.createSemester(parentId!, 1, name);
+                case 'semester': {
+                    const siblings = nodes.filter(n => n.type === 'semester');
+                    let semNum = 1;
+                    if (siblings.length > 0) {
+                        const numbers = siblings.map(s => s.meta?.ordering ?? 0);
+                        semNum = Math.max(...numbers, siblings.length) + 1;
+                    }
+                    await api.createSemester(parentId!, semNum, name);
                     break;
+                }
                 case 'subject': {
                     const subjCode = name.substring(0, 6).toUpperCase().replace(/\s/g, '');
                     await api.createSubject(parentId!, name, subjCode);
                     break;
                 }
-                case 'module':
-                    await api.createModule(parentId!, 1, name);
+                case 'module': {
+                    const siblings = nodes.filter(n => n.type === 'module');
+                    const modNum = siblings.length + 1;
+                    await api.createModule(parentId!, modNum, name);
                     break;
+                }
             }
             await queryClient.invalidateQueries({ queryKey: ['explorer', 'tree'] });
             cancelCreating();
@@ -120,7 +131,7 @@ function CreationItem({ parentId, type }: { parentId: string | null; type: impor
                 openWarningDialog('duplicate', error.message, name);
             } else {
                 console.error(error);
-                alert(`Failed to create: ${(error as Error).message}`);
+                toast.error(`Failed to create: ${(error as Error).message}`);
                 cancelCreating();
             }
         } finally {
@@ -215,7 +226,7 @@ function TreeItem({
                 useExplorerStore.getState().openWarningDialog('duplicate', error.message, renameValue);
             } else {
                 console.error('Failed to rename:', error);
-                alert('Failed to rename item');
+                toast.error('Failed to rename item');
             }
         }
     };
@@ -296,7 +307,7 @@ function TreeItem({
                     )}
                     {creatingParentId === node.id && creatingNodeType && (
                         <div className="tree-children" style={{ marginLeft: undefined }}>
-                            <CreationItem type={creatingNodeType} parentId={node.id} />
+                            <CreationItem type={creatingNodeType} parentId={node.id} nodes={node.children || []} />
                         </div>
                     )}
                 </>
@@ -321,7 +332,7 @@ export function SidebarTree({ nodes, level, ancestors }: SidebarTreeProps) {
 
             {/* Root Level Creation */}
             {level === 0 && creatingParentId === null && creatingNodeType === 'department' && (
-                <CreationItem type='department' parentId={null} />
+                <CreationItem type='department' parentId={null} nodes={nodes} />
             )}
         </div>
     );

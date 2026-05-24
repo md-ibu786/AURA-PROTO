@@ -23,3 +23,5 @@
  * ============================================================================
  */
 export { useExplorerStore } from './useExplorerStore';
+export { useAuthStore, initAuthListener } from './useAuthStore';
+export type { AuthUser, UserRole } from './useAuthStore';

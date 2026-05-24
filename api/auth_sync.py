@@ -27,7 +27,7 @@ USAGE:
 ============================================================================
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -227,7 +227,7 @@ async def sync_user(
             detail=str(exc),
         ) from exc
 
-    timestamp = datetime.utcnow().isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
     user_data = {
         "uid": uid,
         "email": auth_user.email or "",
@@ -278,7 +278,7 @@ async def create_firebase_user(
         if hasattr(auth_client, "set_custom_user_claims"):
             auth_client.set_custom_user_claims(uid, {"role": request.role})
 
-        timestamp = datetime.utcnow().isoformat()
+        timestamp = datetime.now(timezone.utc).isoformat()
         user_data = {
             "uid": uid,
             "email": request.email,
@@ -359,7 +359,7 @@ async def update_firebase_user(
         if update_props:
             auth_client.update_user(uid, **update_props)
 
-        update_data = {"updatedAt": datetime.utcnow().isoformat()}
+        update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
 
         if request.displayName is not None:
             update_data["displayName"] = request.displayName

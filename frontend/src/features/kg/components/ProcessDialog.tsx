@@ -62,7 +62,7 @@ export function ProcessDialog() {
             file_ids: processDialog.fileIds,
             module_id: processDialog.moduleId
         }, {
-            onSuccess: (_data) => {
+            onSuccess: () => {
                 setIsProcessing(false);
                 setIsComplete(true);
             },

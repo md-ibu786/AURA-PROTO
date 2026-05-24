@@ -69,6 +69,7 @@ interface AuthState {
     isLoading: boolean;
     isInitialized: boolean;
     error: string | null;
+    _refreshPromise: Promise<void> | null;
 
     // Computed (as functions)
     isAuthenticated: () => boolean;
@@ -102,6 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     isLoading: true,
     isInitialized: false,
     error: null,
+    _refreshPromise: null,
 
     // Computed functions
     isAuthenticated: () => get().user !== null,
@@ -320,88 +322,123 @@ export const useAuthStore = create<AuthState>((set, get) => ({
      * See Phase 7 research: 07-RESEARCH.md "Open Questions" section.
      */
     refreshUser: async () => {
-        const { firebaseUser } = get();
+        const { firebaseUser, _refreshPromise } = get();
+
+        // Deduplicate concurrent calls
+        if (_refreshPromise) {
+            return _refreshPromise;
+        }
+
         if (!firebaseUser) {
             set({ user: null, isLoading: false });
             return;
         }
 
-        try {
-            const idToken = await firebaseUser.getIdToken();
+        set({ isLoading: true });
 
-            const response = await fetch(`${API_BASE}/auth/me`, {
-                headers: {
-                    'Authorization': `Bearer ${idToken}`,
-                },
-            });
+        const promise = (async () => {
+            try {
+                const idToken = await firebaseUser.getIdToken();
 
-            if (!response.ok) {
-                if (response.status === 401) {
-                    const syncResponse = await fetch(`${API_BASE}/auth/sync`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${idToken}`,
-                        },
-                        body: JSON.stringify({}),
-                    });
+                const response = await fetch(`${API_BASE}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${idToken}`,
+                    },
+                });
 
-                    if (syncResponse.ok) {
-                        const retryResponse = await fetch(`${API_BASE}/auth/me`, {
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        const syncResponse = await fetch(`${API_BASE}/auth/sync`, {
+                            method: 'POST',
                             headers: {
+                                'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${idToken}`,
                             },
+                            body: JSON.stringify({}),
                         });
 
-                        if (retryResponse.ok) {
-                            const retryUserData = await retryResponse.json();
-                            const retryUser: AuthUser = {
-                                id: retryUserData.id,
-                                email: retryUserData.email,
-                                displayName: retryUserData.display_name,
-                                role: retryUserData.role,
-                                departmentId: retryUserData.department_id,
-                                departmentName: retryUserData.department_name,
-                                subjectIds: retryUserData.subject_ids || null,
-                                status: retryUserData.status,
-                            };
-
-                            set({
-                                user: retryUser,
-                                isLoading: false,
+                        if (syncResponse.ok) {
+                            const retryResponse = await fetch(`${API_BASE}/auth/me`, {
+                                headers: {
+                                    'Authorization': `Bearer ${idToken}`,
+                                },
                             });
-                            return;
+
+                            if (retryResponse.ok) {
+                                const retryUserData = await retryResponse.json();
+                                const retryUser: AuthUser = {
+                                    id: retryUserData.id,
+                                    email: retryUserData.email,
+                                    displayName: retryUserData.display_name,
+                                    role: retryUserData.role,
+                                    departmentId: retryUserData.department_id,
+                                    departmentName: retryUserData.department_name,
+                                    subjectIds: retryUserData.subject_ids || null,
+                                    status: retryUserData.status,
+                                };
+
+                                set({
+                                    user: retryUser,
+                                    isLoading: false,
+                                });
+                                return;
+                            }
+                        } else {
+                            console.warn(
+                                'Token sync failed, ' +
+                                'user will be logged out'
+                            );
                         }
-                    } else {
-                        console.warn('Token sync failed, user will be logged out');
                     }
+
+                    // Auth error (not network) — log out
+                    set({ user: null, isLoading: false });
+                    return;
                 }
 
-                set({ user: null, isLoading: false });
-                return;
+                const userData = await response.json();
+
+                const newUser: AuthUser = {
+                    id: userData.id,
+                    email: userData.email,
+                    displayName: userData.display_name,
+                    role: userData.role,
+                    departmentId: userData.department_id,
+                    departmentName: userData.department_name,
+                    subjectIds: userData.subject_ids || null,
+                    status: userData.status,
+                };
+
+                set({
+                    user: newUser,
+                    isLoading: false,
+                });
+            } catch (error) {
+                console.error('Failed to refresh user:', error);
+                // Network error — keep session, don't log out
+                if (
+                    error instanceof TypeError &&
+                    error.message.includes('fetch')
+                ) {
+                    console.warn(
+                        'Network error during refresh, ' +
+                        'keeping session'
+                    );
+                    set({
+                        isLoading: false,
+                        error:
+                            'Network error. ' +
+                            'Please check your connection.',
+                    });
+                } else {
+                    set({ user: null, isLoading: false });
+                }
             }
+        })();
 
-            const userData = await response.json();
-
-            const newUser: AuthUser = {
-                id: userData.id,
-                email: userData.email,
-                displayName: userData.display_name,
-                role: userData.role,
-                departmentId: userData.department_id,
-                departmentName: userData.department_name,
-                subjectIds: userData.subject_ids || null,
-                status: userData.status,
-            };
-
-            set({
-                user: newUser,
-                isLoading: false,
-            });
-        } catch (error) {
-            console.error('Failed to refresh user:', error);
-            set({ user: null, isLoading: false });
-        }
+        set({ _refreshPromise: promise });
+        promise.finally(() => set({ _refreshPromise: null }));
+        return promise;
     },
 
     setUser: (user) => set({ user }),

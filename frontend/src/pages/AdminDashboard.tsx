@@ -25,10 +25,20 @@
  */
 
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { useAuthStore, type UserRole } from '../stores/useAuthStore';
 import { AdminHeader } from '../components/layout/AdminHeader';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { fetchApi } from '../api/client';
+import {
+    createDepartment, deleteDepartment,
+    createSemester, deleteSemester,
+    deleteSubject,
+    updateDepartment, updateSemester, updateSubject,
+} from '../api/explorerApi';
+import { deleteUser } from '../api/userApi';
 import '../styles/index.css';
+import '../styles/admin-dashboard.css';
 
 // User interface for the list
 interface UserItem {
@@ -67,12 +77,10 @@ interface Subject {
     semester_id: string;
 }
 
-const API_BASE = '/api';
-
 type TabType = 'users' | 'hierarchy';
 
 export function AdminDashboard() {
-    const { user, getIdToken } = useAuthStore();
+    const user = useAuthStore(s => s.user);
 
     // Tab state
     const [activeTab, setActiveTab] = useState<TabType>('users');
@@ -132,6 +140,13 @@ export function AdminDashboard() {
     // Delete confirmation state
     const [userToDelete, setUserToDelete] = useState<string | null>(null);
 
+    // Generic confirm dialog state
+    const [confirmAction, setConfirmAction] = useState<{
+        title: string;
+        message: string;
+        onConfirm: () => void;
+    } | null>(null);
+
     // Selected department for semester view
     const [selectedDeptId, setSelectedDeptId] = useState<string>('');
 
@@ -144,42 +159,26 @@ export function AdminDashboard() {
         setError(null);
 
         try {
-            const token = await getIdToken();
-            if (!token) throw new Error('Not authenticated');
-
             // Build query params
             const params = new URLSearchParams();
             if (roleFilter) params.append('role', roleFilter);
             if (departmentFilter) params.append('department_id', departmentFilter);
 
             // Fetch users
-            const usersRes = await fetch(`${API_BASE}/users?${params}`, {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!usersRes.ok) throw new Error('Failed to fetch users');
-            const usersData = await usersRes.json();
+            const usersData = await fetchApi<UserItem[]>(`/users?${params}`);
             setUsers(usersData);
 
             // Fetch departments and subjects grouped by department
-            const deptRes = await fetch('/departments');
-            let fetchedDepartments: Department[] = [];
-            if (deptRes.ok) {
-                const deptData = await deptRes.json();
-                fetchedDepartments = deptData.departments || [];
-                setDepartments(fetchedDepartments);
-            }
+            const deptRes = await fetchApi<{ departments: Department[] }>('/departments');
+            const fetchedDepartments = deptRes.departments || [];
+            setDepartments(fetchedDepartments);
 
             // Fetch subjects grouped by department for staff assignment
             const deptMap = new Map<string, Subject[]>();
             for (const dept of fetchedDepartments) {
                 try {
-                    const deptSubjRes = await fetch(`${API_BASE}/departments/${dept.id}/subjects`, {
-                        headers: { 'Authorization': `Bearer ${token}` },
-                    });
-                    if (deptSubjRes.ok) {
-                        const deptSubjData = await deptSubjRes.json();
-                        deptMap.set(dept.id, deptSubjData.subjects || []);
-                    }
+                    const deptSubjRes = await fetchApi<{ subjects: Subject[] }>(`/departments/${dept.id}/subjects`);
+                    deptMap.set(dept.id, deptSubjRes.subjects || []);
                 } catch {
                     deptMap.set(dept.id, []);
                 }
@@ -190,15 +189,12 @@ export function AdminDashboard() {
         } finally {
             setIsLoading(false);
         }
-    }, [departmentFilter, getIdToken, roleFilter]);
+    }, [departmentFilter, roleFilter]);
 
     const fetchSemesters = useCallback(async (deptId: string) => {
         try {
-            const res = await fetch(`/departments/${deptId}/semesters`);
-            if (res.ok) {
-                const data = await res.json();
-                setSemesters(data.semesters || []);
-            }
+            const res = await fetchApi<{ semesters: Semester[] }>(`/departments/${deptId}/semesters`);
+            setSemesters(res.semesters || []);
         } catch (err) {
             console.error('Failed to fetch semesters', err);
         }
@@ -224,9 +220,6 @@ export function AdminDashboard() {
         setCreateError(null);
 
         try {
-            const token = await getIdToken();
-            if (!token) throw new Error('Not authenticated');
-
             // Build request body based on role
             const requestBody: Record<string, unknown> = {
                 email: createForm.email,
@@ -249,19 +242,10 @@ export function AdminDashboard() {
                 requestBody.department_id = createForm.department_id;
             }
 
-            const response = await fetch(`${API_BASE}/users`, {
+            await fetchApi('/users', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify(requestBody),
             });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Failed to create user');
-            }
 
             // Reset form and refresh list
             setCreateForm({
@@ -289,28 +273,15 @@ export function AdminDashboard() {
         if (!userToDelete) return;
 
         try {
-            const token = await getIdToken();
-            if (!token) throw new Error('Not authenticated');
+            await deleteUser(userToDelete);
 
-            const response = await fetch(`${API_BASE}/users/${userToDelete}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-
-            if (!response.ok) {
-                // If 404, it's already gone, so just update UI
-                if (response.status === 404) {
-                    setUsers(prev => prev.filter(u => u.id !== userToDelete));
-                    return;
-                }
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Failed to delete user');
-            }
-
-            // Refresh list
             fetchData();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete user');
+            if (err instanceof Error && err.message.includes('404')) {
+                setUsers(prev => prev.filter(u => u.id !== userToDelete));
+                return;
+            }
+            toast.error(err instanceof Error ? err.message : 'Failed to delete user');
         } finally {
             setUserToDelete(null);
         }
@@ -324,59 +295,35 @@ export function AdminDashboard() {
         const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
 
         try {
-            const token = await getIdToken();
-            if (!token) throw new Error('Not authenticated');
-
-            const response = await fetch(`${API_BASE}/users/${userId}`, {
+            await fetchApi(`/users/${userId}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ status: newStatus }),
             });
 
-            if (!response.ok) {
-                throw new Error('Failed to update user status');
-            }
-
             fetchData();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to update status');
+            toast.error(err instanceof Error ? err.message : 'Failed to update status');
         }
     };
 
     // Handle updating staff subject assignments
     const handleUpdateSubjects = async () => {
         if (!editingUserId || editingSubjectIds.length === 0) {
-            alert('Please select at least one subject');
+            toast.error('Please select at least one subject');
             return;
         }
 
         try {
-            const token = await getIdToken();
-            if (!token) throw new Error('Not authenticated');
-
-            const response = await fetch(`${API_BASE}/users/${editingUserId}`, {
+            await fetchApi(`/users/${editingUserId}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({ subject_ids: editingSubjectIds }),
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.detail || 'Failed to update subjects');
-            }
-
-            // Close modal and refresh
             setEditingUserId(null);
             setEditingSubjectIds([]);
             fetchData();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to update subjects');
+            toast.error(err instanceof Error ? err.message : 'Failed to update subjects');
         }
     };
 
@@ -385,43 +332,32 @@ export function AdminDashboard() {
         e.preventDefault();
         setDeptLoading(true);
         try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/departments`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(deptForm),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Failed to create department');
-            }
+            await createDepartment(deptForm.name, deptForm.code);
             setDeptForm({ name: '', code: '' });
             setShowDeptForm(false);
             fetchData();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to create department');
+            toast.error(err instanceof Error ? err.message : 'Failed to create department');
         } finally {
             setDeptLoading(false);
         }
     };
 
-    const handleDeleteDepartment = async (deptId: string) => {
-        if (!confirm('Delete this department and all its contents?')) return;
-        try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/departments/${deptId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error('Failed to delete department');
-            fetchData();
-            if (selectedDeptId === deptId) setSelectedDeptId('');
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete department');
-        }
+    const handleDeleteDepartment = (deptId: string) => {
+        setConfirmAction({
+            title: 'Delete Department',
+            message: 'Delete this department and all its contents?',
+            onConfirm: async () => {
+                setConfirmAction(null);
+                try {
+                    await deleteDepartment(deptId);
+                    fetchData();
+                    if (selectedDeptId === deptId) setSelectedDeptId('');
+                } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to delete department');
+                }
+            },
+        });
     };
 
     // Semester CRUD
@@ -429,46 +365,35 @@ export function AdminDashboard() {
         e.preventDefault();
         setSemLoading(true);
         try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/semesters`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(semForm),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Failed to create semester');
-            }
+            await createSemester(semForm.department_id, semForm.semester_number, semForm.name);
             setSemForm({ department_id: selectedDeptId, name: '', semester_number: 1 });
             setShowSemForm(false);
             fetchSemesters(selectedDeptId);
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to create semester');
+            toast.error(err instanceof Error ? err.message : 'Failed to create semester');
         } finally {
             setSemLoading(false);
         }
     };
 
-    const handleDeleteSemester = async (semId: string) => {
-        if (!confirm('Delete this semester and all its contents?')) return;
-        try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/semesters/${semId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error('Failed to delete semester');
-            fetchSemesters(selectedDeptId);
-            if (selectedSemId === semId) {
-                setSelectedSemId('');
-                setSubjects([]);
-            }
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete semester');
-        }
+    const handleDeleteSemester = (semId: string) => {
+        setConfirmAction({
+            title: 'Delete Semester',
+            message: 'Delete this semester and all its contents?',
+            onConfirm: async () => {
+                setConfirmAction(null);
+                try {
+                    await deleteSemester(semId);
+                    fetchSemesters(selectedDeptId);
+                    if (selectedSemId === semId) {
+                        setSelectedSemId('');
+                        setSubjects([]);
+                    }
+                } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to delete semester');
+                }
+            },
+        });
     };
 
     // Subject functions
@@ -478,14 +403,8 @@ export function AdminDashboard() {
             return;
         }
         try {
-            const token = await getIdToken();
-            const res = await fetch(`/semesters/${semesterId}/subjects?department_id=${selectedDeptId}`, {
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setSubjects(data.subjects || []);
-            }
+            const res = await fetchApi<{ subjects: Subject[] }>(`/semesters/${semesterId}/subjects?department_id=${selectedDeptId}`);
+            setSubjects(res.subjects || []);
         } catch (err) {
             console.error('Failed to fetch subjects:', err);
         }
@@ -496,13 +415,8 @@ export function AdminDashboard() {
         if (!selectedSemId) return;
         setSubjLoading(true);
         try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/subjects`, {
+            await fetchApi('/subjects', {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({
                     semester_id: selectedSemId,
                     department_id: selectedDeptId,
@@ -510,33 +424,30 @@ export function AdminDashboard() {
                     code: subjForm.code
                 }),
             });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Failed to create subject');
-            }
             setSubjForm({ semester_id: selectedSemId, name: '', code: '' });
             setShowSubjForm(false);
             fetchSubjects(selectedSemId);
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to create subject');
+            toast.error(err instanceof Error ? err.message : 'Failed to create subject');
         } finally {
             setSubjLoading(false);
         }
     };
 
-    const handleDeleteSubject = async (subjId: string) => {
-        if (!confirm('Delete this subject and all its contents?')) return;
-        try {
-            const token = await getIdToken();
-            const res = await fetch(`${API_BASE}/subjects/${subjId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error('Failed to delete subject');
-            fetchSubjects(selectedSemId);
-        } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to delete subject');
-        }
+    const handleDeleteSubject = (subjId: string) => {
+        setConfirmAction({
+            title: 'Delete Subject',
+            message: 'Delete this subject and all its contents?',
+            onConfirm: async () => {
+                setConfirmAction(null);
+                try {
+                    await deleteSubject(subjId);
+                    fetchSubjects(selectedSemId);
+                } catch (err) {
+                    toast.error(err instanceof Error ? err.message : 'Failed to delete subject');
+                }
+            },
+        });
     };
 
     // Rename handlers
@@ -556,33 +467,16 @@ export function AdminDashboard() {
         if (!renamingId || !renamingType || !renameValue.trim()) return;
 
         try {
-            const token = await getIdToken();
-            let endpoint = '';
-
             switch (renamingType) {
                 case 'department':
-                    endpoint = `${API_BASE}/departments/${renamingId}`;
+                    await updateDepartment(renamingId, { name: renameValue.trim() });
                     break;
                 case 'semester':
-                    endpoint = `${API_BASE}/semesters/${renamingId}`;
+                    await updateSemester(renamingId, { name: renameValue.trim() });
                     break;
                 case 'subject':
-                    endpoint = `${API_BASE}/subjects/${renamingId}`;
+                    await updateSubject(renamingId, { name: renameValue.trim() });
                     break;
-            }
-
-            const res = await fetch(endpoint, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name: renameValue.trim() }),
-            });
-
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || 'Failed to rename');
             }
 
             // Refresh data
@@ -596,7 +490,7 @@ export function AdminDashboard() {
 
             cancelRename();
         } catch (err) {
-            alert(err instanceof Error ? err.message : 'Failed to rename');
+            toast.error(err instanceof Error ? err.message : 'Failed to rename');
         }
     };
 
@@ -606,14 +500,18 @@ export function AdminDashboard() {
             <AdminHeader title="Admin Dashboard" />
 
             {/* Tabs */}
-            <div className="admin-tabs">
+            <div className="admin-tabs" role="tablist">
                 <button
+                    role="tab"
+                    aria-selected={activeTab === 'users'}
                     className={`tab-btn ${activeTab === 'users' ? 'active' : ''}`}
                     onClick={() => setActiveTab('users')}
                 >
                     User Management
                 </button>
                 <button
+                    role="tab"
+                    aria-selected={activeTab === 'hierarchy'}
                     className={`tab-btn ${activeTab === 'hierarchy' ? 'active' : ''}`}
                     onClick={() => setActiveTab('hierarchy')}
                 >
@@ -770,7 +668,7 @@ export function AdminDashboard() {
                                                                             newMap.set(currentDeptForSubjects, newDeptSubjects);
                                                                             setSelectedSubjectsByDept(newMap);
                                                                             const allSelected = Array.from(newMap.values()).flat();
-                                                                            setCreateForm({ ...createForm, subject_ids: allSelected });
+                                                                            setCreateForm(prev => ({ ...prev, subject_ids: allSelected }));
                                                                         }}
                                                                     />
                                                                     <span>{subj.name} ({subj.code})</span>
@@ -1261,13 +1159,18 @@ export function AdminDashboard() {
 
                 {/* Edit Subjects Modal */}
                 {editingUserId && (
-                    <div className="modal-overlay" onClick={() => {
-                        setEditingUserId(null);
-                        setEditingSubjectIds([]);
-                        setEditingCurrentDeptId('');
-                    }}>
+                    <div
+                        className="modal-overlay"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="edit-subjects-title"
+                        onClick={() => {
+                            setEditingUserId(null);
+                            setEditingSubjectIds([]);
+                            setEditingCurrentDeptId('');
+                        }}>
                         <div className="modal-content modal-large" onClick={e => e.stopPropagation()}>
-                            <h3>Edit Subject Access</h3>
+                            <h3 id="edit-subjects-title">Edit Subject Access</h3>
                             <p className="modal-subtitle">Select subjects by department:</p>
 
                             <div className="modal-layout">
@@ -1387,749 +1290,6 @@ export function AdminDashboard() {
                 )}
             </main>
 
-            <style>{`
-                .admin-dashboard {
-                    min-height: 100vh;
-                    background: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .admin-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: var(--spacing-md) var(--spacing-lg);
-                    background: var(--color-bg-secondary);
-                    border-bottom: 1px solid var(--color-border);
-                }
-
-                .header-left h1 {
-                    margin: 0;
-                    font-size: 1.5rem;
-                    color: var(--color-primary);
-                }
-
-                .user-badge {
-                    font-size: 0.875rem;
-                    color: var(--color-text-muted);
-                }
-
-                .header-actions {
-                    display: flex;
-                    gap: var(--spacing-sm);
-                }
-
-                .admin-tabs {
-                    display: flex;
-                    gap: 0;
-                    background: var(--color-bg-secondary);
-                    border-bottom: 1px solid var(--color-border);
-                    padding: 0 var(--spacing-lg);
-                }
-
-                .tab-btn {
-                    padding: var(--spacing-md) var(--spacing-lg);
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    color: var(--color-text-secondary);
-                    border-bottom: 2px solid transparent;
-                    transition: all var(--transition-fast);
-                }
-
-                .tab-btn:hover {
-                    color: var(--color-text-primary);
-                    background: var(--color-bg-hover);
-                }
-
-                .tab-btn.active {
-                    color: var(--color-primary);
-                    border-bottom-color: var(--color-primary);
-                }
-
-                .admin-content {
-                    padding: var(--spacing-lg);
-                    max-width: 1400px;
-                    margin: 0 auto;
-                    width: 100%;
-                    flex: 1;
-                    overflow-y: auto;
-                }
-
-                .stats-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-                    gap: var(--spacing-md);
-                    margin-bottom: var(--spacing-lg);
-                }
-
-                .stat-card {
-                    background: var(--color-bg-secondary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-md);
-                    padding: var(--spacing-lg);
-                    text-align: center;
-                }
-
-                .stat-value {
-                    font-size: 2rem;
-                    font-weight: 700;
-                    color: var(--color-primary);
-                }
-
-                .stat-label {
-                    font-size: 0.875rem;
-                    color: var(--color-text-muted);
-                    margin-top: var(--spacing-xs);
-                }
-
-                .panel {
-                    background: var(--color-bg-secondary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-md);
-                    padding: var(--spacing-lg);
-                }
-
-                .panel-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: var(--spacing-md);
-                }
-
-                .panel-header h2 {
-                    margin: 0;
-                    font-size: 1.125rem;
-                }
-
-                .create-form {
-                    background: var(--color-bg-tertiary);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-md);
-                    margin-bottom: var(--spacing-md);
-                }
-
-                .create-form h3 {
-                    margin: 0 0 var(--spacing-md) 0;
-                    font-size: 1rem;
-                }
-
-                .create-form input {
-                    width: 100%;
-                    padding: 8px 12px;
-                    margin-bottom: var(--spacing-sm);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    background: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                }
-
-                .create-form input:focus {
-                    outline: none;
-                    border-color: var(--color-primary);
-                }
-
-                .form-row {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: var(--spacing-md);
-                    margin-bottom: var(--spacing-md);
-                }
-
-                .form-group {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--spacing-xs);
-                }
-
-                .form-group label {
-                    font-size: 0.875rem;
-                    color: var(--color-text-secondary);
-                }
-
-                .filters {
-                    display: flex;
-                    gap: var(--spacing-sm);
-                    margin-bottom: var(--spacing-md);
-                }
-
-                .data-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                }
-
-                .data-table th,
-                .data-table td {
-                    padding: var(--spacing-sm) var(--spacing-md);
-                    text-align: left;
-                    border-bottom: 1px solid var(--color-border);
-                }
-
-                .data-table th {
-                    font-weight: 600;
-                    color: var(--color-text-secondary);
-                    font-size: 0.75rem;
-                    text-transform: uppercase;
-                }
-
-                .no-data {
-                    text-align: center;
-                    color: var(--color-text-muted);
-                    padding: var(--spacing-xl) !important;
-                }
-
-                .role-badge {
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 0.75rem;
-                    font-weight: 600;
-                    text-transform: uppercase;
-                }
-
-                .role-admin { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
-                .role-staff { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-                .role-student { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-
-                .status-badge {
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    font-size: 0.75rem;
-                }
-
-                .status-active { background: rgba(16, 185, 129, 0.2); color: #34d399; }
-                .status-disabled { background: rgba(239, 68, 68, 0.2); color: #f87171; }
-
-                .actions {
-                    display: flex;
-                    gap: var(--spacing-xs);
-                }
-
-                .btn-small {
-                    padding: var(--spacing-xs) var(--spacing-sm);
-                    font-size: 0.75rem;
-                }
-
-                .btn-danger {
-                    background: rgba(239, 68, 68, 0.2);
-                    color: #f87171;
-                }
-
-                .btn-danger:hover {
-                    background: rgba(239, 68, 68, 0.3);
-                }
-
-                .btn-icon {
-                    width: 24px;
-                    height: 24px;
-                    padding: 0;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
-                }
-
-                .loading {
-                    text-align: center;
-                    padding: var(--spacing-xl);
-                    color: var(--color-text-muted);
-                }
-
-                .error-message {
-                    background: rgba(239, 68, 68, 0.1);
-                    border: 1px solid rgba(239, 68, 68, 0.3);
-                    color: #f87171;
-                    padding: var(--spacing-sm) var(--spacing-md);
-                    border-radius: var(--radius-sm);
-                    margin-bottom: var(--spacing-md);
-                }
-
-                /* Hierarchy Management Styles */
-                .hierarchy-panel {
-                    padding: 0;
-                    overflow: hidden;
-                }
-
-                .hierarchy-grid {
-                    display: grid;
-                    grid-template-columns: repeat(3, 1fr);
-                    min-height: 450px;
-                }
-
-                .hierarchy-column {
-                    padding: var(--spacing-md);
-                    border-right: 1px solid var(--color-border);
-                    display: flex;
-                    flex-direction: column;
-                    background: var(--color-bg-secondary);
-                }
-
-                .hierarchy-column:nth-child(2) {
-                    background: rgba(0, 0, 0, 0.2);
-                }
-
-                .hierarchy-column:nth-child(3) {
-                    background: rgba(0, 0, 0, 0.3);
-                }
-
-                .hierarchy-column:last-child {
-                    border-right: none;
-                }
-
-                .inline-form {
-                    display: flex;
-                    gap: var(--spacing-sm);
-                    margin-bottom: var(--spacing-md);
-                    padding: var(--spacing-sm);
-                    background: var(--color-bg-tertiary);
-                    border-radius: var(--radius-sm);
-                }
-
-                .inline-form input {
-                    flex: 1;
-                }
-
-                .hierarchy-list {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--spacing-xs);
-                }
-
-                .hierarchy-item {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--spacing-sm);
-                    padding: var(--spacing-sm) var(--spacing-md);
-                    background: var(--color-bg-tertiary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    cursor: pointer;
-                    transition: all var(--transition-fast);
-                }
-
-                .hierarchy-item:hover {
-                    border-color: var(--color-primary);
-                    background: var(--color-bg-hover);
-                }
-
-                .hierarchy-item.selected {
-                    border-color: var(--color-primary);
-                    background: var(--color-primary-dim);
-                }
-
-                .item-name {
-                    flex: 1;
-                    font-weight: 500;
-                }
-
-                .item-code, .item-number {
-                    color: var(--color-text-muted);
-                    font-size: 0.75rem;
-                    white-space: nowrap;
-                }
-
-                .item-actions {
-                    display: flex;
-                    gap: 4px;
-                    margin-left: auto;
-                }
-
-                .rename-input {
-                    flex: 1;
-                    padding: 4px 8px;
-                    border-radius: var(--radius-sm);
-                    border: 1px solid var(--color-primary);
-                    background: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                    font-size: 0.875rem;
-                }
-
-                .rename-input:focus {
-                    outline: none;
-                    box-shadow: 0 0 0 2px var(--color-primary-dim);
-                }
-
-                /* Fix status badge truncation */
-                .status-badge {
-                    white-space: nowrap;
-                }
-
-                /* Subject selection styles */
-                .subject-select-container {
-                    max-height: 200px;
-                    overflow-y: auto;
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-sm);
-                    background: var(--color-bg-tertiary);
-                }
-
-                .subject-checkboxes {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--spacing-xs);
-                }
-
-                .subject-checkbox {
-                    display: flex;
-                    align-items: center;
-                    gap: var(--spacing-sm);
-                    padding: var(--spacing-xs);
-                    cursor: pointer;
-                    border-radius: var(--radius-sm);
-                    transition: background var(--transition-fast);
-                }
-
-                .subject-checkbox:hover {
-                    background: var(--color-bg-hover);
-                }
-
-                .subject-checkbox input[type="checkbox"] {
-                    cursor: pointer;
-                    width: 16px;
-                    height: 16px;
-                }
-
-                .form-hint {
-                    color: var(--color-text-muted);
-                    font-size: 0.75rem;
-                    margin-top: 4px;
-                }
-
-                /* Hierarchical Subject Selection Styles */
-                .subject-hierarchy-container {
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-md);
-                    background: var(--color-bg-tertiary);
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--spacing-md);
-                }
-
-                .dept-selection-row {
-                    display: flex;
-                    gap: var(--spacing-sm);
-                }
-
-                .dept-select {
-                    width: calc(50% - var(--spacing-md) / 2);
-                    padding: 8px 12px;
-                    margin-bottom: var(--spacing-sm);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    background: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                    font-size: 0.875rem;
-                }
-
-                .dept-select:focus {
-                    outline: none;
-                    border-color: var(--color-primary);
-                }
-
-                @media (max-width: 768px) {
-                    .dept-select {
-                        width: 100%;
-                    }
-                }
-
-                .subject-selection-panel {
-                    background: var(--color-bg-primary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-sm);
-                }
-
-                .dept-subheading {
-                    margin: 0 0 var(--spacing-sm) 0;
-                    font-size: 0.875rem;
-                    color: var(--color-primary);
-                    font-weight: 600;
-                }
-
-                .no-subjects-msg {
-                    color: var(--color-text-muted);
-                    font-size: 0.875rem;
-                    padding: var(--spacing-sm);
-                    text-align: center;
-                }
-
-                .selected-subjects-summary {
-                    background: var(--color-bg-primary);
-                    border: 1px solid var(--color-primary);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-sm);
-                }
-
-                .selected-subjects-summary h4 {
-                    margin: 0 0 var(--spacing-sm) 0;
-                    font-size: 0.875rem;
-                    color: var(--color-text-primary);
-                }
-
-                .selected-dept-group {
-                    margin-bottom: var(--spacing-xs);
-                    font-size: 0.8rem;
-                }
-
-                .selected-dept-group strong {
-                    color: var(--color-primary);
-                }
-
-                .selected-subj-list {
-                    color: var(--color-text-secondary);
-                    margin-left: var(--spacing-sm);
-                }
-
-                /* Modal styles */
-                .modal-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background: rgba(0, 0, 0, 0.5);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 1000;
-                }
-
-                .modal-content {
-                    background: var(--color-bg-secondary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-md);
-                    padding: var(--spacing-lg);
-                    min-width: 400px;
-                    max-width: 600px;
-                    max-height: 80vh;
-                    overflow-y: auto;
-                }
-
-                .modal-content h3 {
-                    margin-top: 0;
-                    margin-bottom: var(--spacing-sm);
-                    color: var(--color-primary);
-                }
-
-                .subject-edit-list {
-                    max-height: 300px;
-                    overflow-y: auto;
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-sm);
-                    margin: var(--spacing-md) 0;
-                    background: var(--color-bg-tertiary);
-                }
-
-                .modal-actions {
-                    display: flex;
-                    gap: var(--spacing-sm);
-                    justify-content: flex-end;
-                    margin-top: var(--spacing-md);
-                }
-
-                /* Modal with two-panel layout */
-                .modal-large {
-                    min-width: 700px;
-                    max-width: 900px;
-                }
-
-                .modal-subtitle {
-                    color: var(--color-text-muted);
-                    margin-bottom: var(--spacing-md);
-                }
-
-                .modal-layout {
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: var(--spacing-lg);
-                    margin: var(--spacing-md) 0;
-                }
-
-                .modal-left-panel,
-                .modal-right-panel {
-                    background: var(--color-bg-tertiary);
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    padding: var(--spacing-md);
-                    max-height: 400px;
-                    overflow-y: auto;
-                }
-
-                .panel-label {
-                    display: block;
-                    font-size: 0.875rem;
-                    font-weight: 500;
-                    color: var(--color-text-secondary);
-                    margin-bottom: var(--spacing-xs);
-                }
-
-                .dept-select-modal {
-                    width: 100%;
-                    padding: 8px 12px;
-                    border: 1px solid var(--color-border);
-                    border-radius: var(--radius-sm);
-                    background: var(--color-bg-primary);
-                    color: var(--color-text-primary);
-                    margin-bottom: var(--spacing-sm);
-                }
-
-                .panel-subheading {
-                    margin: var(--spacing-sm) 0;
-                    font-size: 0.875rem;
-                    color: var(--color-primary);
-                }
-
-                .modal-subject-list {
-                    margin-top: var(--spacing-sm);
-                }
-
-                .subject-checkboxes-modal {
-                    display: flex;
-                    flex-direction: column;
-                    gap: var(--spacing-xs);
-                }
-
-                .panel-heading {
-                    margin: 0 0 var(--spacing-sm) 0;
-                    font-size: 0.875rem;
-                    color: var(--color-text-primary);
-                }
-
-                .no-selection-msg {
-                    color: var(--color-text-muted);
-                    font-size: 0.875rem;
-                    text-align: center;
-                    padding: var(--spacing-md);
-                }
-
-                .selected-group {
-                    margin-bottom: var(--spacing-sm);
-                }
-
-                .dept-name {
-                    color: var(--color-primary);
-                    font-size: 0.8rem;
-                    display: block;
-                    margin-bottom: 4px;
-                }
-
-                .subj-list {
-                    list-style: none;
-                    margin: 0;
-                    padding: 0;
-                    padding-left: var(--spacing-sm);
-                }
-
-                .subj-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 4px 0;
-                    font-size: 0.8rem;
-                    color: var(--color-text-secondary);
-                    border-bottom: 1px solid var(--color-border);
-                }
-
-                .subj-item:last-child {
-                    border-bottom: none;
-                }
-
-                .btn-remove {
-                    background: transparent;
-                    border: none;
-                    color: var(--color-danger);
-                    cursor: pointer;
-                    font-size: 0.75rem;
-                    padding: 2px 6px;
-                    border-radius: 3px;
-                    transition: background var(--transition-fast);
-                }
-
-                .btn-remove:hover {
-                    background: rgba(239, 68, 68, 0.2);
-                }
-
-                @media (max-width: 768px) {
-                    .form-row {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .hierarchy-grid {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .hierarchy-column {
-                        border-right: none;
-                        border-bottom: 1px solid var(--color-border);
-                        padding: var(--spacing-sm);
-                    }
-
-                    .hierarchy-column .panel-header {
-                        flex-direction: column;
-                        gap: var(--spacing-xs);
-                        align-items: stretch;
-                    }
-
-                    .hierarchy-column .panel-header h2 {
-                        font-size: 1rem;
-                    }
-
-                    .inline-form {
-                        flex-direction: column;
-                    }
-
-                    .hierarchy-item {
-                        padding: var(--spacing-md);
-                        min-height: 44px;
-                    }
-
-                    .item-actions {
-                        gap: var(--spacing-xs);
-                    }
-
-                    .btn-icon {
-                        width: 36px;
-                        height: 36px;
-                        font-size: 1rem;
-                    }
-
-                    /* Smaller stats cards on mobile */
-                    .stats-grid {
-                        grid-template-columns: repeat(2, 1fr);
-                        gap: var(--spacing-sm);
-                        margin-bottom: var(--spacing-md);
-                    }
-
-                    .stat-card {
-                        padding: var(--spacing-sm);
-                    }
-
-                    .stat-value {
-                        font-size: 1.25rem;
-                    }
-
-                    .stat-label {
-                        font-size: 0.75rem;
-                    }
-
-                    /* Sticky name column in user table */
-                    .user-table th:first-child,
-                    .user-table td:first-child {
-                        position: sticky;
-                        left: 0;
-                        background: var(--color-bg-secondary);
-                        z-index: 1;
-                    }
-
-                    .user-table th:first-child {
-                        background: var(--color-bg-tertiary);
-                    }
-                }
-            `}</style>
-
             <ConfirmDialog 
                 isOpen={!!userToDelete}
                 title="Delete User"
@@ -2140,8 +1300,17 @@ export function AdminDashboard() {
                 onConfirm={confirmDeleteUser}
                 onCancel={() => setUserToDelete(null)}
             />
+
+            <ConfirmDialog
+                isOpen={!!confirmAction}
+                title={confirmAction?.title ?? ''}
+                message={confirmAction?.message ?? ''}
+                confirmLabel="Delete"
+                variant="danger"
+                destructive
+                onConfirm={() => confirmAction?.onConfirm()}
+                onCancel={() => setConfirmAction(null)}
+            />
         </div>
     );
 }
-
-export default AdminDashboard;

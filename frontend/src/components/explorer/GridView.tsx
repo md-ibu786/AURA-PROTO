@@ -38,6 +38,7 @@ import {
     Square
 } from 'lucide-react';
 import { KGStatusBadge } from '../../features/kg/components/KGStatusBadge';
+import { toast } from 'sonner';
 
 interface GridViewProps {
     items: FileSystemNode[];
@@ -137,7 +138,7 @@ export function GridView({ items }: GridViewProps) {
                 openWarningDialog('duplicate', error.message, renameValue);
             } else {
                 console.error("Rename failed", error);
-                alert("Rename failed");
+                toast.error("Rename failed");
                 setRenamingNodeId(null);
             }
         }
@@ -176,11 +177,7 @@ export function GridView({ items }: GridViewProps) {
                     // Find max semester number and add 1
                     let semNum = 1;
                     if (existingSemesters.length > 0) {
-                        // Try to find semester numbers from names (e.g., "Semester 3")
-                        const numbers = existingSemesters.map(s => {
-                            const match = s.label.match(/\d+/);
-                            return match ? parseInt(match[0]) : 0;
-                        });
+                        const numbers = existingSemesters.map(s => s.meta?.ordering ?? 0);
                         semNum = Math.max(...numbers, existingSemesters.length) + 1;
                     }
                     await api.createSemester(creatingParentId!, semNum, name);
@@ -205,7 +202,7 @@ export function GridView({ items }: GridViewProps) {
                 // Keep input open
             } else {
                 console.error("Create failed", error);
-                alert(`Failed to create: ${(error as Error).message}`);
+                toast.error(`Failed to create: ${(error as Error).message}`);
                 cancelCreating();
             }
         }

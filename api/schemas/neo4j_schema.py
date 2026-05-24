@@ -353,11 +353,23 @@ VECTOR_INDICES: List[VectorIndexDefinition] = [
     ),
 ]
 
+# ============================================================================
+# ENTITY LOOKUP INDEX DEFINITIONS (per-label for efficient ID lookup)
+# ============================================================================
+
+ENTITY_LOOKUP_INDICES: List[Dict[str, str]] = [
+    {"name": "entity_id_topic", "label": "Topic", "property": "id"},
+    {"name": "entity_id_concept", "label": "Concept", "property": "id"},
+    {"name": "entity_id_methodology", "label": "Methodology", "property": "id"},
+    {"name": "entity_id_finding", "label": "Finding", "property": "id"},
+    {"name": "entity_id_definition", "label": "Definition", "property": "id"},
+    {"name": "entity_id_citation", "label": "Citation", "property": "id"},
+]
+
 
 # ============================================================================
 # FULLTEXT INDEX DEFINITIONS
 # ============================================================================
-
 
 class FulltextIndexDefinition(BaseModel):
     """Definition for a Neo4j fulltext index."""

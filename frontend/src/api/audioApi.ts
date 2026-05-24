@@ -92,7 +92,7 @@ export async function startPipeline(
     formData.append('file', file);
     formData.append('topic', topic);
     if (moduleId !== undefined) {
-        formData.append('moduleId', moduleId.toString());
+        formData.append('moduleId', moduleId);
     }
     return fetchFormData('/audio/process-pipeline', formData);
 }

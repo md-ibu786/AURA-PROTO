@@ -39,13 +39,25 @@
  * @see: types/kg.types.ts - ProcessingQueueItem type
  * @note: Only visible when queue has items
  */
+import { useQueryClient } from '@tanstack/react-query';
 import { useKGProcessing } from '../hooks/useKGProcessing';
 import { Loader2, AlertCircle } from 'lucide-react';
 import type { ProcessingQueueItem } from '../types/kg.types';
 
 export function ProcessingQueue() {
-    const { useProcessingQueue } = useKGProcessing();
+    const { useProcessingQueue, processFiles } = useKGProcessing();
     const { data: queue, isLoading, error } = useProcessingQueue();
+    const queryClient = useQueryClient();
+
+    const handleRetry = (documentId: string, moduleId: string) => {
+        processFiles.mutate({ file_ids: [documentId], module_id: moduleId });
+    };
+
+    const handleDismiss = (documentId: string) => {
+        queryClient.setQueryData(['kg', 'queue'], (old: ProcessingQueueItem[] | undefined) =>
+            old?.filter(item => item.document_id !== documentId) ?? []
+        );
+    };
 
     if (isLoading) return null;
     if (error) return <div className="text-red-500 text-sm p-4">Failed to load queue</div>;
@@ -62,14 +74,18 @@ export function ProcessingQueue() {
 
             <div className="max-h-60 overflow-y-auto">
                 {queue.map((item) => (
-                    <QueueItem key={item.document_id} item={item} />
+                    <QueueItem key={item.document_id} item={item} onRetry={handleRetry} onDismiss={handleDismiss} />
                 ))}
             </div>
         </div>
     );
 }
 
-function QueueItem({ item }: { item: ProcessingQueueItem }) {
+function QueueItem({ item, onRetry, onDismiss }: {
+    item: ProcessingQueueItem;
+    onRetry: (documentId: string, moduleId: string) => void;
+    onDismiss: (documentId: string) => void;
+}) {
     const getStatusColor = (status: string) => {
         switch (status) {
             case 'processing': return 'text-amber-500';
@@ -102,10 +118,26 @@ function QueueItem({ item }: { item: ProcessingQueueItem }) {
                     <span>{Math.round(item.progress)}%</span>
                 </div>
                 {item.error && (
-                    <div className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
-                        <AlertCircle className="h-3 w-3" />
-                        {item.error}
-                    </div>
+                    <>
+                        <div className="text-[10px] text-red-500 flex items-center gap-1 mt-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {item.error}
+                        </div>
+                        <div className="flex gap-2 mt-1">
+                            <button
+                                className="text-[10px] text-blue-500 hover:underline"
+                                onClick={() => onRetry(item.document_id, item.module_id)}
+                            >
+                                Retry
+                            </button>
+                            <button
+                                className="text-[10px] text-zinc-400 hover:underline"
+                                onClick={() => onDismiss(item.document_id)}
+                            >
+                                Dismiss
+                            </button>
+                        </div>
+                    </>
                 )}
             </div>
         </div>

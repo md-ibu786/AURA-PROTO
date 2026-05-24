@@ -30,7 +30,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import '@testing-library/jest-dom';
-import ExplorerPage from './ExplorerPage';
+import { ExplorerPage } from './ExplorerPage';
 import { useExplorerStore } from '../stores';
 import { useAuthStore } from '../stores/useAuthStore';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,7 +38,11 @@ import type { FileSystemNode } from '../types';
 
 // Mock the stores
 vi.mock('../stores', () => ({
-    useExplorerStore: vi.fn(),
+    useExplorerStore: Object.assign(vi.fn(), {
+        getState: vi.fn().mockReturnValue({
+            closeWarningDialog: vi.fn(),
+        }),
+    }),
 }));
 
 vi.mock('../stores/useAuthStore', () => ({
@@ -101,10 +105,6 @@ vi.mock('../components/ui/WarningDialog', () => ({
     WarningDialog: () => <div data-testid="warning-dialog">Warning</div>,
 }));
 
-vi.mock('../features/kg/components/FileSelectionBar', () => ({
-    FileSelectionBar: () => <div data-testid="file-selection-bar">Selection Bar</div>,
-}));
-
 vi.mock('../features/kg/components/ProcessDialog', () => ({
     ProcessDialog: () => <div data-testid="process-dialog">Process Dialog</div>,
 }));
@@ -155,7 +155,9 @@ describe('ExplorerPage', () => {
 
         (useExplorerStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(defaultStoreState);
 
-        (useAuthStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(defaultAuthState);
+        (useAuthStore as unknown as ReturnType<typeof vi.fn>).mockImplementation((selector?: (s: typeof defaultAuthState) => unknown) =>
+            selector ? selector(defaultAuthState) : defaultAuthState
+        );
 
         (useQuery as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
             data: mockTree,

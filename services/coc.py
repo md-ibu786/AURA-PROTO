@@ -253,5 +253,10 @@ def transform_transcript(topic: str, transcript: str) -> str:
 
         return final_output
 
-    except json.JSONDecodeError:
-        return "Error: Model failed to return valid JSON."
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse audit response as JSON: %s", e, exc_info=True
+        )
+        raise ValueError(
+            f"AI refinement returned invalid JSON: {e}"
+        ) from e

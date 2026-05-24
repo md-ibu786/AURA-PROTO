@@ -52,12 +52,14 @@
  */
 
 import { useAuthStore } from '../stores/useAuthStore';
-import { DuplicateError, AuthError } from './errors';
+import { DuplicateError, AuthError, NetworkError, PermissionError } from './errors';
 
 const API_BASE = '/api';
 
 // Shared token refresh promise to prevent concurrent refresh race conditions
 let tokenRefreshPromise: Promise<string | null> | null = null;
+let lastRefreshAttempt = 0;
+const REFRESH_COOLDOWN_MS = 5_000;
 
 export interface BlobResponse {
     blob: Blob;
@@ -85,17 +87,50 @@ async function getAuthHeader(): Promise<Record<string, string>> {
 }
 
 /**
- * Execute a fetch with 401 retry logic.
- * If initial response is 401, attempts token refresh and retries once.
- * Throws AuthError if token refresh fails during retry.
+ * Execute a fetch with timeout, network error handling, and 401 retry logic.
+ *
+ * @param url - Full URL to fetch
+ * @param options - RequestInit options (caller's AbortSignal is linked to internal controller)
+ * @param timeoutMs - Request timeout in milliseconds (default 30s)
+ * @returns Response
+ * @throws NetworkError on timeout, network failure, or AbortError
+ * @throws AuthError if token refresh fails during 401 retry
  */
 async function executeWithRetry(
     url: string,
-    options: RequestInit
+    options: RequestInit,
+    timeoutMs: number = 30_000
 ): Promise<Response> {
-    let response = await fetch(url, options);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Link caller's signal if provided
+    if (options.signal) {
+        options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+
+    let response: Response;
+    try {
+        response = await fetch(url, { ...options, signal: controller.signal });
+    } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') {
+            throw new NetworkError(`Request timed out after ${timeoutMs}ms: ${url}`);
+        }
+        if (e instanceof TypeError) {
+            throw new NetworkError(`Network request failed: ${(e as Error).message}`);
+        }
+        throw e;
+    } finally {
+        clearTimeout(timeoutId);
+    }
 
     if (response.status === 401 && import.meta.env.VITE_USE_MOCK_AUTH !== 'true') {
+        const now = Date.now();
+        if (now - lastRefreshAttempt < REFRESH_COOLDOWN_MS) {
+            throw new AuthError('Token refresh already attempted recently');
+        }
+        lastRefreshAttempt = now;
+
         try {
             // Use shared refresh promise if one is already in progress
             if (!tokenRefreshPromise) {
@@ -110,12 +145,30 @@ async function executeWithRetry(
                     ...options.headers,
                     'Authorization': `Bearer ${newToken}`,
                 };
-                response = await fetch(url, {
-                    ...options,
-                    headers: retryHeaders,
-                });
+                const retryController = new AbortController();
+                const retryTimeoutId = setTimeout(() => retryController.abort(), timeoutMs);
+                try {
+                    response = await fetch(url, {
+                        ...options,
+                        headers: retryHeaders,
+                        signal: retryController.signal,
+                    });
+                } catch (retryError) {
+                    if (retryError instanceof DOMException && retryError.name === 'AbortError') {
+                        throw new NetworkError(`Retry timed out after ${timeoutMs}ms: ${url}`);
+                    }
+                    if (retryError instanceof TypeError) {
+                        throw new NetworkError(`Retry network request failed: ${(retryError as Error).message}`);
+                    }
+                    throw retryError;
+                } finally {
+                    clearTimeout(retryTimeoutId);
+                }
             }
         } catch (e) {
+            if (e instanceof NetworkError || e instanceof AuthError) {
+                throw e;
+            }
             console.error('Token refresh failed', e);
             throw new AuthError('Token refresh failed during retry', e);
         }
@@ -164,7 +217,21 @@ async function parseErrorMessage(response: Response): Promise<string> {
     return bodyText;
 }
 
-// Generic fetch wrapper with error handling
+/**
+ * Generic fetch wrapper for JSON API requests.
+ *
+ * Automatically adds auth headers and Content-Type (only for requests with body).
+ * Handles 204/empty-body responses, 409 duplicate errors, 403 permission errors,
+ * and all other error cases via parseErrorMessage.
+ *
+ * @param endpoint - API endpoint path (e.g. '/users')
+ * @param options - Standard RequestInit; pass { signal: controller.signal } for abort support
+ * @returns Parsed JSON response of type T, or undefined for 204/empty-body
+ * @throws NetworkError on network failures or timeouts
+ * @throws AuthError on token refresh failures or cooldown
+ * @throws DuplicateError on 409 conflicts
+ * @throws PermissionError on 403 forbidden
+ */
 async function fetchApi<T>(
     endpoint: string,
     options?: RequestInit
@@ -175,28 +242,36 @@ async function fetchApi<T>(
     const response = await executeWithRetry(url, {
         ...options,
         headers: {
-            'Content-Type': 'application/json',
+            ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
             ...authHeaders,
             ...options?.headers,
         },
     });
 
     if (!response.ok) {
-        const error = await response.json().catch((e) => {
-            console.warn('Failed to parse error response:', e);
-            return { detail: 'Network error' };
-        });
+        const message = await parseErrorMessage(response);
 
         if (response.status === 409) {
-            const detail = error.detail;
-            if (detail && typeof detail === 'object' && detail.code === 'DUPLICATE_NAME') {
-                throw new DuplicateError(detail.message, detail.code);
+            try {
+                const body = await response.clone().json();
+                if (body?.detail?.code === 'DUPLICATE_NAME') {
+                    throw new DuplicateError(body.detail.message, body.detail.code);
+                }
+            } catch (e) {
+                if (e instanceof DuplicateError) throw e;
             }
         }
 
-        throw new Error(error.detail || `HTTP ${response.status}`);
+        if (response.status === 403) {
+            throw new PermissionError(message);
+        }
+
+        throw new Error(message);
     }
 
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T;
+    }
     return response.json();
 }
 
@@ -211,7 +286,7 @@ async function fetchBlob(
     const response = await executeWithRetry(url, {
         ...options,
         headers: {
-            'Content-Type': 'application/json',
+            ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
             ...authHeaders,
             ...options?.headers,
         },
@@ -247,11 +322,12 @@ async function fetchFormData<T>(
     });
 
     if (!response.ok) {
-        const error = await response.json().catch((e) => {
-            console.warn('Failed to parse error response:', e);
-            return { detail: 'Network error' };
-        });
-        throw new Error(error.detail || `HTTP ${response.status}`);
+        const message = await parseErrorMessage(response);
+        throw new Error(message);
+    }
+
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined as T;
     }
 
     return response.json();
@@ -274,18 +350,15 @@ export async function fetchAuthApi<T>(
     const response = await fetch(url, {
         ...options,
         headers: {
-            'Content-Type': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
             'Authorization': `Bearer ${token}`,
             ...options.headers,
         },
     });
 
     if (!response.ok) {
-        const error = await response.json().catch((e) => {
-            console.warn('Failed to parse error response:', e);
-            return { detail: 'Network error' };
-        });
-        throw new Error(error.detail || `HTTP ${response.status}`);
+        const message = await parseErrorMessage(response);
+        throw new Error(message);
     }
 
     return response.json();
@@ -333,11 +406,9 @@ export async function checkHealth(): Promise<HealthStatus> {
     const fetchHealth = async (endpoint: string): Promise<Response | null> => {
         try {
             const authHeaders = await getAuthHeader();
-            return fetch(endpoint, {
-                headers: authHeaders,
-            });
+            return executeWithRetry(endpoint, { headers: authHeaders });
         } catch (e) {
-            console.warn('Health check auth failed:', e);
+            console.warn('Health check failed:', e);
             return null;
         }
     };
@@ -346,8 +417,12 @@ export async function checkHealth(): Promise<HealthStatus> {
     try {
         const response = await fetchHealth('/health');
         if (response && response.ok) {
-            const healthData = await response.json() as { status: string; version: string };
-            version = healthData.version;
+            const healthData = await response.json();
+            if (typeof healthData?.status !== 'string') {
+                status = 'degraded';
+            } else {
+                version = typeof healthData.version === 'string' ? healthData.version : 'unknown';
+            }
         } else {
             status = 'degraded';
         }
@@ -358,8 +433,12 @@ export async function checkHealth(): Promise<HealthStatus> {
     try {
         const response = await fetchHealth('/ready');
         if (response && response.ok) {
-            const readyData = await response.json() as { status: string; database: string };
-            servicesReady = readyData.status === 'ready';
+            const readyData = await response.json();
+            if (typeof readyData?.status !== 'string') {
+                status = 'degraded';
+            } else {
+                servicesReady = readyData.status === 'ready';
+            }
         } else {
             servicesReady = false;
             status = 'degraded';
@@ -372,8 +451,12 @@ export async function checkHealth(): Promise<HealthStatus> {
     try {
         const response = await fetchHealth('/health/redis');
         if (response && response.ok) {
-            const redisData = await response.json() as { status: string };
-            neo4jConnected = redisData.status === 'healthy';
+            const redisData = await response.json();
+            if (typeof redisData?.status !== 'string') {
+                neo4jConnected = false;
+            } else {
+                neo4jConnected = redisData.status === 'healthy';
+            }
         } else {
             neo4jConnected = false;
         }
@@ -385,7 +468,13 @@ export async function checkHealth(): Promise<HealthStatus> {
     try {
         const response = await fetch('/chat-api/health');
         if (response.ok) {
-            chatStatus = await response.json() as ChatHealthStatus;
+            const chatData = await response.json();
+            if (
+                typeof chatData?.status === 'string' &&
+                typeof chatData?.version === 'string'
+            ) {
+                chatStatus = chatData as ChatHealthStatus;
+            }
         }
     } catch (e) {
         console.warn('Failed to fetch Chat status', e);
@@ -401,6 +490,6 @@ export async function checkHealth(): Promise<HealthStatus> {
 }
 
 // Re-export error classes for backward compatibility and convenience
-export { DuplicateError, AuthError } from './errors';
+export { DuplicateError, AuthError, NetworkError, PermissionError } from './errors';
 export { fetchApi, fetchBlob, fetchFormData, API_BASE };
 // fetchAuthApi is already exported as an async function above

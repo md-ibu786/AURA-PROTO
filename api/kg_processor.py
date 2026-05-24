@@ -196,6 +196,9 @@ except ImportError:
         get_template_extractor,
     )
 
+# Timeout for LLM API calls in seconds
+LLM_CALL_TIMEOUT = 60.0
+
 # ============================================================================
 # CHUNKING CONFIGURATION
 # ============================================================================
@@ -296,6 +299,11 @@ class EntityType(str, Enum):
     FINDING = "Finding"
     DEFINITION = "Definition"
     CITATION = "Citation"
+
+
+# Whitelist for safe Cypher label interpolation
+ALLOWED_ENTITY_TYPES: set[str] = {e.value for e in EntityType}
+# {"Topic", "Concept", "Methodology", "Finding", "Definition", "Citation"}
 
 
 @dataclass
@@ -531,10 +539,14 @@ class GeminiClient:
             logger.error(f"Embedding batch generation failed: {e}")
             return [self._mock_embedding(text) for text in texts]
 
-    def _generate_entity_id(self, name: str, chunk_id: str) -> str:
-        """Generate unique entity ID based on name and chunk."""
-        content = f"{name}:{chunk_id}"
-        return f"entity_{hashlib.md5(content.encode()).hexdigest()[:12]}"
+    def _generate_entity_id(self, name: str, module_id: str) -> str:
+        """Generate deterministic entity ID scoped to module.
+
+        Using module_id instead of chunk_id ensures the same entity name
+        within a module always gets the same ID, reducing dedup burden.
+        """
+        content = f"{name.lower().strip()}:{module_id}"
+        return f"entity_{hashlib.md5(content.encode()).hexdigest()[:16]}"
 
     def _mock_embedding(self, text: str) -> List[float]:
         """Generate mock embedding for testing without API access."""
@@ -543,7 +555,7 @@ class GeminiClient:
         np.random.seed(hash(text) % (2**32))
         return list(np.random.randn(768).astype(np.float64))
 
-    def _mock_entities(self, text: str, chunk_id: str) -> List[Dict[str, Any]]:
+    def _mock_entities(self, text: str, module_id: str) -> List[Dict[str, Any]]:
         """Generate mock entities for testing without API access."""
         # Extract potential entities from text (simple heuristic)
         entities = []
@@ -551,7 +563,7 @@ class GeminiClient:
 
         for word in words:
             if len(word) > 5 and word.isalpha():
-                entity_id = self._generate_entity_id(word, chunk_id)
+                entity_id = self._generate_entity_id(word, module_id)
                 entities.append(
                     {
                         "id": entity_id,
@@ -583,16 +595,22 @@ class GeminiClient:
             cfg = resolve_use_case_config("entity_extraction")
             router = get_default_router()
 
-            response = await router.generate(
-                model=cfg["model"],
-                contents=prompt,
-                provider=cfg["provider"],
-                max_output_tokens=max_tokens,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                router.generate(
+                    model=cfg["model"],
+                    contents=prompt,
+                    provider=cfg["provider"],
+                    max_output_tokens=max_tokens,
+                    temperature=0.2,
+                ),
+                timeout=LLM_CALL_TIMEOUT,
             )
 
             return response.text
 
+        except asyncio.TimeoutError:
+            logger.error(f"LLM call timed out after {LLM_CALL_TIMEOUT}s")
+            return ""
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             return ""
@@ -619,7 +637,7 @@ class GeminiClient:
             return len(text.split())
 
     def _parse_entities_response(
-        self, response_text: str, chunk_id: str
+        self, response_text: str, module_id: str
     ) -> List[Dict[str, Any]]:
         """
         Parse entity extraction response into structured format.
@@ -671,7 +689,7 @@ class GeminiClient:
                 entity = {
                     "id": self._generate_entity_id(
                         item.get("name", "unknown"),
-                        chunk_id,
+                        module_id,
                     ),
                     "name": item.get("name", "Unknown"),
                     "entity_type": entity_type,
@@ -689,6 +707,7 @@ class GeminiClient:
 
         except (json.JSONDecodeError, ValueError) as e:
             logger.warning(f"Failed to parse entity response: {e}")
+            logger.debug(f"Raw response (first 500 chars): {response_text[:500]}")
 
         return entities
 
@@ -714,12 +733,15 @@ class GeminiClient:
             cfg = resolve_use_case_config("entity_extraction")
             router = get_default_router()
 
-            response = await router.generate(
-                model=cfg["model"],
-                contents=prompt,
-                provider=cfg["provider"],
-                max_output_tokens=max_tokens,
-                temperature=0.2,
+            response = await asyncio.wait_for(
+                router.generate(
+                    model=cfg["model"],
+                    contents=prompt,
+                    provider=cfg["provider"],
+                    max_output_tokens=max_tokens,
+                    temperature=0.2,
+                ),
+                timeout=LLM_CALL_TIMEOUT,
             )
             response_text = response.text
 
@@ -900,6 +922,7 @@ class KnowledgeGraphProcessor:
             "template_id": None,
             "template_confidence": None,
             "entities_embedded": 0,
+            "dedup_error": None,
             "status": "processing",
             "error": None,
         }
@@ -1509,6 +1532,7 @@ class KnowledgeGraphProcessor:
                 except Exception as e:
                     logger.warning(f"Semantic deduplication failed: {e}")
                     result["entities_deduplicated"] = len(all_entities)
+                    result["dedup_error"] = str(e)
             else:
                 result["entities_deduplicated"] = len(all_entities)
 
@@ -1597,6 +1621,17 @@ class KnowledgeGraphProcessor:
             result["status"] = "error"
             result["error"] = str(e)
             self._emit_progress("error", 0, 1, f"Processing failed: {e}")
+            # Attempt cleanup of any partially written data
+            try:
+                from api.graph_manager import GraphManager
+                graph_manager = GraphManager(self.driver)
+                success, _ = await graph_manager.delete_document(document_id)
+                if success:
+                    logger.info(f"Cleaned up partial data for {document_id}")
+                else:
+                    logger.warning(f"Partial data cleanup failed for {document_id}")
+            except Exception as cleanup_err:
+                logger.warning(f"Cleanup attempt failed for {document_id}: {cleanup_err}")
 
         return result
 
@@ -1608,7 +1643,7 @@ class KnowledgeGraphProcessor:
         document_map: Dict[str, Dict[str, Any]] | None = None,
     ) -> List[Dict[str, Any]]:
         """
-        Process multiple documents in batch.
+        Process multiple documents in batch concurrently.
 
         Args:
             document_ids: List of document IDs to process
@@ -1619,25 +1654,38 @@ class KnowledgeGraphProcessor:
         Returns:
             List of processing results for each document
         """
-        results = []
-
-        # Prepare document data map
         doc_map = document_map or {}
-
         total = len(document_ids)
-        for i, doc_id in enumerate(document_ids):
-            self._emit_progress(
-                "batch", i + 1, total, f"Processing document {i + 1}/{total}: {doc_id}"
-            )
+        sem = asyncio.Semaphore(3)  # Max 3 concurrent documents
 
-            doc_data = doc_map.get(doc_id)
-            result = await self.process_document(
-                doc_id, module_id, user_id, document_data=doc_data
-            )
-            results.append(result)
+        async def _process_one(index: int, doc_id: str):
+            async with sem:
+                self._emit_progress(
+                    "batch", index + 1, total,
+                    f"Processing document {index + 1}/{total}: {doc_id}",
+                )
+                doc_data = doc_map.get(doc_id)
+                return await self.process_document(
+                    doc_id, module_id, user_id, document_data=doc_data,
+                )
 
-        logger.info(f"Batch processing complete: {len(results)} documents")
-        return results
+        tasks = [_process_one(i, doc_id) for i, doc_id in enumerate(document_ids)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Convert exceptions to error result dicts
+        final_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                final_results.append({
+                    "document_id": document_ids[i],
+                    "status": "error",
+                    "error": str(result),
+                })
+            else:
+                final_results.append(result)
+
+        logger.info(f"Batch processing complete: {len(final_results)} documents")
+        return final_results
 
     # ========================================================================
     # HELPER METHODS (02-03-PLAN)
@@ -1879,6 +1927,11 @@ class KnowledgeGraphProcessor:
         Returns:
             Extracted text content
         """
+        # Sanitize document_id to prevent path traversal
+        if not re.match(r'^[a-zA-Z0-9_-]+$', document_id):
+            logger.warning(f"Invalid document_id format: {document_id}")
+            raise ValueError(f"Invalid document ID: {document_id}")
+
         # If document_data is provided with content, use it
         if document_data and document_data.get("content"):
             return document_data["content"]
@@ -1887,22 +1940,7 @@ class KnowledgeGraphProcessor:
         if file_path:
             return await self._parse_file(file_path)
 
-        # Try to find file based on document_id
-        # Check common locations
-        possible_paths = [
-            f"uploads/{document_id}.pdf",
-            f"uploads/{document_id}.docx",
-            f"uploads/{document_id}.txt",
-            f"documents/{document_id}.pdf",
-            f"documents/{document_id}.docx",
-            f"documents/{document_id}.txt",
-        ]
-
-        for path in possible_paths:
-            if os.path.exists(path):
-                return await self._parse_file(path)
-
-        # Try Firestore if available
+        # Try Firestore first (primary source)
         try:
             from config import db
 
@@ -3464,6 +3502,11 @@ class KnowledgeGraphProcessor:
         if rel_type not in valid_rel_types:
             rel_type = "RELATED_TO"
 
+        if source_type not in ALLOWED_ENTITY_TYPES:
+            raise ValueError(f"Invalid source entity type: {source_type}")
+        if target_type not in ALLOWED_ENTITY_TYPES:
+            raise ValueError(f"Invalid target entity type: {target_type}")
+
         query = f"""
         MATCH (source:{source_type} {{id: $source_id, module_id: $module_id}})
         MATCH (target:{target_type} {{id: $target_id, module_id: $module_id}})
@@ -3482,7 +3525,7 @@ class KnowledgeGraphProcessor:
             "evidence": evidence[:300] if evidence else None,
         }
 
-        session.run(query, params)
+        await asyncio.to_thread(session.run, query, params)
 
     async def _generate_and_store_entity_embeddings(
         self,
@@ -3570,6 +3613,9 @@ class KnowledgeGraphProcessor:
             embedding: 768-dimensional embedding vector
             module_id: Module ID for filtering
         """
+        if entity_type not in ALLOWED_ENTITY_TYPES:
+            raise ValueError(f"Invalid entity type: {entity_type}")
+
         query = f"""
         MATCH (e:{entity_type} {{id: $entity_id, module_id: $module_id}})
         SET e.embedding = $embedding,
@@ -3583,7 +3629,7 @@ class KnowledgeGraphProcessor:
             "embedding": embedding,
         }
 
-        session.run(query, params)
+        await asyncio.to_thread(session.run, query, params)
 
     async def _store_in_neo4j(
         self,
@@ -3591,51 +3637,124 @@ class KnowledgeGraphProcessor:
         module_id: str,
         user_id: str,
         chunks: List[Chunk],
-        entities: List[Entity],
+        all_entities: List[Entity],
     ):
         """
-        Store document, chunks, and entities in Neo4j with module_id tagging.
+        Store document, chunks, and ALL entities in Neo4j within a transaction.
 
-        All nodes are tagged with module_id for filtering and access control.
+        Uses session.execute_write() for all-or-nothing atomicity.
+        Stores ALL extracted entities (not just those attached to chunks).
 
         Args:
             document_id: Document identifier
             module_id: Module ID for tagging
             user_id: User who owns the document
             chunks: List of processed chunks
-            entities: List of extracted entities
+            all_entities: ALL extracted entities (including standalone)
         """
         if not self.driver:
             raise ValueError("Neo4j driver not available")
 
-        with self.driver.session() as session:
-            # Step 1: Create or update Document node with module_id
-            await self._create_document_node(
-                session, document_id, module_id, user_id, chunks
+        def _tx_write(tx):
+            # Step 1: Document node
+            tx.run(
+                """
+                MERGE (d:Document {id: $id})
+                SET d.module_id = $module_id,
+                    d.user_id = $user_id,
+                    d.chunk_count = $chunk_count,
+                    d.updated_at = $updated_at
+                """,
+                {
+                    "id": document_id,
+                    "module_id": module_id,
+                    "user_id": user_id,
+                    "chunk_count": len(chunks),
+                    "updated_at": datetime.utcnow().isoformat(),
+                },
             )
 
-            # Step 2: Create Chunk nodes with embeddings and module_id
+            # Step 2: Chunks + doc-chunk relationships
             for chunk in chunks:
-                await self._create_chunk_node(session, chunk, module_id)
-
-                # Step 3: Link Document to Chunk
-                await self._create_doc_chunk_relationship(
-                    session, document_id, chunk.id
+                tx.run(
+                    """
+                    MERGE (c:Chunk {id: $id})
+                    SET c.text = $text,
+                        c.chunk_labels = $chunk_labels,
+                        c.token_count = $token_count,
+                        c.index = $index,
+                        c.module_id = $module_id,
+                        c.embedding = $embedding
+                    """,
+                    {
+                        "id": chunk.id,
+                        "text": chunk.text[:10000],
+                        "chunk_labels": chunk.chunk_labels or [],
+                        "token_count": chunk.token_count,
+                        "index": chunk.index,
+                        "module_id": module_id,
+                        "embedding": chunk.embedding,
+                    },
+                )
+                tx.run(
+                    """
+                    MATCH (d:Document {id: $doc_id})
+                    MATCH (c:Chunk {id: $chunk_id})
+                    MERGE (d)-[r:HAS_CHUNK]->(c)
+                    """,
+                    {"doc_id": document_id, "chunk_id": chunk.id},
                 )
 
-                # Step 4: Create Entity nodes from chunk entities
-                for entity in chunk.entities:
-                    await self._create_entity_node(session, entity, module_id)
+            # Step 3: ALL entities (not just chunk.entities) — fixes M7
+            now_iso = datetime.utcnow().isoformat()
+            for entity in all_entities:
+                tx.run(
+                    f"""
+                    MERGE (e:{entity.entity_type.value} {{id: $id}})
+                    ON CREATE SET e.created_at = $created_at
+                    SET e.name = $name, e.definition = $definition,
+                        e.module_id = $module_id, e.confidence = $confidence,
+                        e.embedding = $embedding, e.updated_at = $updated_at
+                    """,
+                    {
+                        "id": entity.id,
+                        "name": entity.name,
+                        "definition": entity.definition,
+                        "module_id": module_id,
+                        "confidence": entity.properties.get("confidence", 0.7),
+                        "embedding": entity.embedding,
+                        "created_at": now_iso,
+                        "updated_at": now_iso,
+                    },
+                )
 
-                    # Step 5: Link Chunk to Entity with relevance score from confidence
+            # Step 4: Chunk-entity relationships
+            for chunk in chunks:
+                for entity in chunk.entities:
                     relevance_score = entity.properties.get("confidence", 0.7)
-                    await self._create_chunk_entity_relationship(
-                        session, chunk.id, entity.id, relevance_score
+                    tx.run(
+                        """
+                        MATCH (c:Chunk {id: $chunk_id})
+                        MATCH (e) WHERE e.id = $entity_id
+                        MERGE (c)-[r:CONTAINS_ENTITY]->(e)
+                        SET r.relevance_score = $relevance_score
+                        """,
+                        {
+                            "chunk_id": chunk.id,
+                            "entity_id": entity.id,
+                            "relevance_score": relevance_score,
+                        },
                     )
+
+        def _sync_store():
+            with self.driver.session() as session:
+                session.execute_write(_tx_write)
+
+        await asyncio.to_thread(_sync_store)
 
         logger.info(
             f"Stored in Neo4j: document={document_id}, "
-            f"chunks={len(chunks)}, entities={len(entities)}"
+            f"chunks={len(chunks)}, entities={len(all_entities)}"
         )
 
     async def _create_document_node(
@@ -3650,7 +3769,8 @@ class KnowledgeGraphProcessor:
             d.updated_at = $updated_at
         RETURN d.id
         """
-        session.run(
+        await asyncio.to_thread(
+            session.run,
             query,
             {
                 "id": document_id,
@@ -3682,7 +3802,7 @@ class KnowledgeGraphProcessor:
             "module_id": module_id,
             "embedding": chunk.embedding,
         }
-        session.run(query, params)
+        await asyncio.to_thread(session.run, query, params)
 
     async def _create_doc_chunk_relationship(self, session, doc_id: str, chunk_id: str):
         """Create HAS_CHUNK relationship."""
@@ -3692,10 +3812,13 @@ class KnowledgeGraphProcessor:
         MERGE (d)-[r:HAS_CHUNK]->(c)
         RETURN r
         """
-        session.run(query, {"doc_id": doc_id, "chunk_id": chunk_id})
+        await asyncio.to_thread(session.run, query, {"doc_id": doc_id, "chunk_id": chunk_id})
 
     async def _create_entity_node(self, session, entity: Entity, module_id: str):
         """Create entity node (Topic, Concept, etc.) with module_id and properties."""
+        if entity.entity_type.value not in ALLOWED_ENTITY_TYPES:
+            raise ValueError(f"Invalid entity type: {entity.entity_type.value}")
+
         query = f"""
         MERGE (e:{entity.entity_type.value} {{id: $id}})
         ON CREATE SET e.created_at = $created_at
@@ -3730,7 +3853,7 @@ class KnowledgeGraphProcessor:
             "created_at": now_iso,
             "updated_at": now_iso,
         }
-        session.run(query, params)
+        await asyncio.to_thread(session.run, query, params)
 
     async def _create_chunk_entity_relationship(
         self, session, chunk_id: str, entity_id: str, relevance_score: float = 1.0
@@ -3743,7 +3866,8 @@ class KnowledgeGraphProcessor:
         SET r.relevance_score = $relevance_score
         RETURN r
         """
-        session.run(
+        await asyncio.to_thread(
+            session.run,
             query,
             {
                 "chunk_id": chunk_id,

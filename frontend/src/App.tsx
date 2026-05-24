@@ -32,12 +32,13 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'sonner'
-import ExplorerPage from './pages/ExplorerPage'
+import { ExplorerPage } from './pages/ExplorerPage'
 import { LoginPage } from './pages/LoginPage'
-import AdminDashboard from './pages/AdminDashboard'
+import { AdminDashboard } from './pages/AdminDashboard'
 import { SettingsPage } from './pages/SettingsPage'
 import { UsagePage } from './pages/UsagePage'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { initAuthListener } from './stores/useAuthStore'
 
 
@@ -50,35 +51,49 @@ function App() {
     return (
         <BrowserRouter>
             <Toaster position="bottom-right" richColors closeButton />
-            <Routes>
-                {/* Public route */}
-                <Route path="/login" element={<LoginPage />} />
+            <ErrorBoundary>
+                <Routes>
+                    {/* Public route */}
+                    <Route path="/login" element={
+                        <ErrorBoundary>
+                            <LoginPage />
+                        </ErrorBoundary>
+                    } />
 
-                {/* Protected routes */}
-                <Route path="/admin" element={
-                    <ProtectedRoute requiredRole="admin">
-                        <AdminDashboard />
-                    </ProtectedRoute>
-                } />
+                    {/* Protected routes */}
+                    <Route path="/admin" element={
+                        <ProtectedRoute requiredRole="admin">
+                            <ErrorBoundary>
+                                <AdminDashboard />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    } />
 
-                <Route path="/settings" element={
-                    <ProtectedRoute requiredRole="admin">
-                        <SettingsPage />
-                    </ProtectedRoute>
-                } />
+                    <Route path="/settings" element={
+                        <ProtectedRoute requiredRole="admin">
+                            <ErrorBoundary>
+                                <SettingsPage />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    } />
 
-                <Route path="/usage" element={
-                    <ProtectedRoute requiredRole="admin">
-                        <UsagePage />
-                    </ProtectedRoute>
-                } />
+                    <Route path="/usage" element={
+                        <ProtectedRoute requiredRole="admin">
+                            <ErrorBoundary>
+                                <UsagePage />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    } />
 
-                <Route path="/*" element={
-                    <ProtectedRoute>
-                        <ExplorerPage />
-                    </ProtectedRoute>
-                } />
-            </Routes>
+                    <Route path="/*" element={
+                        <ProtectedRoute excludedRoles={['admin']}>
+                            <ErrorBoundary>
+                                <ExplorerPage />
+                            </ErrorBoundary>
+                        </ProtectedRoute>
+                    } />
+                </Routes>
+            </ErrorBoundary>
         </BrowserRouter>
     )
 }

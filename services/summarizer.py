@@ -111,11 +111,11 @@ def generate_university_notes(topic: str, cleaned_transcript: str) -> str:
         )
         return response.text
     except Exception as e:
-        logger.warning(
+        logger.error(
             "Summarization failed via ModelRouter, provider=%s model=%s: %s",
             cfg["provider"],
             cfg["model"],
             e,
             exc_info=True,
         )
-        return f"Note Generation Failed: {str(e)}"
+        raise RuntimeError(f"Note generation failed: {str(e)}") from e

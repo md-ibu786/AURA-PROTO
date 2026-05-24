@@ -43,7 +43,7 @@ USAGE:
 
 # Load environment variables from .env file BEFORE other imports
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timezone
 import io
 import logging
 import os
@@ -226,12 +226,16 @@ app.add_middleware(SlowAPIMiddleware)
 # CORS MIDDLEWARE
 # =============================================================================
 
+# NOTE: allow_credentials=True is set for CORS cookie compatibility,
+# but authentication uses Bearer tokens (not cookies), making this
+# endpoint inherently CSRF-safe. If cookie-based auth is ever added,
+# implement CSRF token validation.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Add security headers last so they run before CORS on requests.
@@ -363,7 +367,10 @@ async def download_pdf(filename: str, inline: bool = Query(False)):
         filename=filename,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'{disposition}; filename="{filename}"',
+            "Content-Disposition": (
+                f'{disposition}; filename="{filename}"'
+            ),
+            "X-Content-Type-Options": "nosniff",
         },
     )
 
@@ -437,7 +444,7 @@ async def bulk_download_pdfs(payload: BulkPdfDownloadRequest):
     if subject_name and module_name:
         zip_name = f"notes-{subject_name}-{module_name}.zip"
     else:
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         zip_name = f"notes_{timestamp}.zip"
 
     return StreamingResponse(

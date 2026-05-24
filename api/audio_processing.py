@@ -71,6 +71,16 @@ from typing import Any, Dict, Optional
 import os
 import time
 import uuid
+import json
+import threading
+import tempfile
+
+try:
+    import redis as _redis_lib
+    _redis_client = None
+except ImportError:
+    _redis_lib = None
+    _redis_client = None
 
 # Structured logging
 try:
@@ -136,8 +146,78 @@ except (ImportError, ModuleNotFoundError):
 
 router = APIRouter(prefix="/api/audio", tags=["audio-processing"])
 
-# In-memory job status store (for demo; use Redis in production)
+# In-memory job store fallback (use Redis in production)
 job_status_store = {}
+_job_store_lock = threading.Lock()
+
+
+def _get_redis():
+    """Get or lazily initialize the Redis client."""
+    global _redis_client
+    if _redis_lib is None:
+        return None
+    if _redis_client is None:
+        try:
+            redis_url = os.environ.get(
+                "REDIS_URL", "redis://localhost:6379"
+            )
+            _redis_client = _redis_lib.from_url(
+                redis_url, decode_responses=True
+            )
+            _redis_client.ping()
+            logger.info("Redis connected for job store")
+        except Exception:
+            logger.warning(
+                "Redis unavailable, falling back to in-memory job store"
+            )
+            _redis_client = None
+    return _redis_client
+
+
+def _set_job(job_id: str, data: dict) -> None:
+    """Store job data with TTL. Uses Redis if available, else in-memory dict."""
+    data["updated_at"] = time.time()
+    try:
+        redis_client = _get_redis()
+        if redis_client:
+            redis_client.set(
+                f"job:{job_id}",
+                json.dumps(data),
+                ex=JOB_STATUS_TTL_SECONDS,
+            )
+            return
+    except Exception:
+        logger.warning(
+            "Redis set failed, using in-memory store for job %s", job_id
+        )
+    with _job_store_lock:
+        job_status_store[job_id] = data
+
+
+def _get_job(job_id: str) -> Optional[dict]:
+    """Retrieve job data from Redis or in-memory store."""
+    try:
+        redis_client = _get_redis()
+        if redis_client:
+            raw = redis_client.get(f"job:{job_id}")
+            return json.loads(raw) if raw else None
+    except Exception:
+        pass
+    with _job_store_lock:
+        return job_status_store.get(job_id)
+
+
+def _delete_job(job_id: str) -> None:
+    """Delete a job from the store."""
+    try:
+        redis_client = _get_redis()
+        if redis_client:
+            redis_client.delete(f"job:{job_id}")
+            return
+    except Exception:
+        pass
+    with _job_store_lock:
+        job_status_store.pop(job_id, None)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDFS_DIR = os.path.join(BASE_DIR, "pdfs")
@@ -147,6 +227,10 @@ MAX_AUDIO_SIZE = 100 * 1024 * 1024  # 100MB for audio files
 MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
 MIN_AUDIO_SIZE = 1024  # 1KB minimum
 ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
+ALLOWED_AUDIO_MIMES = {
+    "audio/mpeg", "audio/wav", "audio/x-m4a",
+    "audio/ogg", "audio/flac", "application/octet-stream",
+}
 
 # Job status retention constants (T-08-04 mitigation)
 JOB_STATUS_TTL_SECONDS = 300  # 5 minutes - terminal jobs expire after this
@@ -187,7 +271,10 @@ def _cleanup_job_store() -> None:
     active_jobs = []
 
     # Separate active and terminal jobs
-    for job_id, job_data in list(job_status_store.items()):
+    with _job_store_lock:
+        current_store = dict(job_status_store)
+
+    for job_id, job_data in current_store.items():
         if _is_terminal_status(job_data.get("status", "")):
             terminal_jobs.append((job_id, job_data))
         else:
@@ -209,11 +296,14 @@ def _cleanup_job_store() -> None:
         terminal_jobs = terminal_jobs[:max_terminal]
 
     # Rebuild the store with surviving jobs
-    job_status_store.clear()
+    new_store = {}
     for job_id, job_data in active_jobs:
-        job_status_store[job_id] = job_data
+        new_store[job_id] = job_data
     for job_id, job_data in terminal_jobs:
-        job_status_store[job_id] = job_data
+        new_store[job_id] = job_data
+    with _job_store_lock:
+        job_status_store.clear()
+        job_status_store.update(new_store)
 
 
 def validate_file_size(content_length: int, max_size: int, file_type: str) -> None:
@@ -323,12 +413,11 @@ async def upload_document(
         os.makedirs(DOCS_DIR, exist_ok=True)
 
         # Generate unique filename
-        timestamp = int(time.time())
         safe_title = "".join(
             c if c.isalnum() or c in (" ", "-", "_") else "_" for c in title
         )
         safe_title = safe_title.replace(" ", "_")[:50]
-        filename = f"{safe_title}_{timestamp}{file_ext}"
+        filename = f"{safe_title}_{uuid.uuid4().hex[:8]}{file_ext}"
         filepath = os.path.join(DOCS_DIR, filename)
 
         # Save file
@@ -354,7 +443,10 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        logger.error(f"Upload failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Upload failed. Please try again."
+        )
 
 
 @router.post("/transcribe", response_model=TranscribeResponse)
@@ -369,6 +461,13 @@ async def transcribe_audio(file: UploadFile = File(...)):
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported file format {file_ext}. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}",
+            )
+
+        # Content-type check (secondary validation)
+        if file.content_type and file.content_type not in ALLOWED_AUDIO_MIMES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid content type '{file.content_type}'. Expected audio file.",
             )
 
         # Read file bytes
@@ -394,11 +493,15 @@ async def transcribe_audio(file: UploadFile = File(...)):
     except ValueError as e:
         return TranscribeResponse(success=False, error=str(e))
     except Exception as e:
+        logger.error(f"Transcription failed: {e}", exc_info=True)
         error_msg = str(e)
         if "timed out" in error_msg.lower():
-            error_msg = "Transcription timed out. Please try a shorter recording or check your connection."
+            return TranscribeResponse(
+                success=False,
+                error="Transcription timed out. Please try a shorter recording or check your connection.",
+            )
         return TranscribeResponse(
-            success=False, error=f"Transcription failed: {error_msg}"
+            success=False, error="Transcription failed. Please try again."
         )
 
 
@@ -415,7 +518,10 @@ async def refine_transcript(request: RefineRequest):
 
         return RefineResponse(success=True, refinedTranscript=refined)
     except Exception as e:
-        return RefineResponse(success=False, error=f"Refinement failed: {str(e)}")
+        logger.error(f"Refinement failed: {e}", exc_info=True)
+        return RefineResponse(
+            success=False, error="Refinement failed. Please try again."
+        )
 
 
 @router.post("/summarize", response_model=SummarizeResponse)
@@ -433,7 +539,10 @@ async def summarize_transcript(request: SummarizeRequest):
 
         return SummarizeResponse(success=True, notes=notes)
     except Exception as e:
-        return SummarizeResponse(success=False, error=f"Summarization failed: {str(e)}")
+        logger.error(f"Summarization failed: {e}", exc_info=True)
+        return SummarizeResponse(
+            success=False, error="Summarization failed. Please try again."
+        )
 
 
 @router.post("/generate-pdf", response_model=GeneratePdfResponse)
@@ -448,13 +557,7 @@ async def generate_pdf(request: GeneratePdfRequest):
         # Ensure pdfs directory exists
         os.makedirs(PDFS_DIR, exist_ok=True)
 
-        # Generate unique filename
-        timestamp = int(time.time())
-        safe_title = "".join(
-            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in request.title
-        )
-        safe_title = safe_title.replace(" ", "_")[:50]
-        filename = f"{safe_title}_{timestamp}.pdf"
+        filename = _make_pdf_filename(request.title)
         filepath = os.path.join(PDFS_DIR, filename)
 
         # Generate PDF
@@ -483,69 +586,126 @@ async def generate_pdf(request: GeneratePdfRequest):
             success=True, pdfUrl=pdf_url, noteId=note_id, warning=warning_message
         )
     except Exception as e:
+        logger.error(f"PDF generation failed: {e}", exc_info=True)
         return GeneratePdfResponse(
-            success=False, error=f"PDF generation failed: {str(e)}"
+            success=False, error="PDF generation failed. Please try again."
         )
 
 
+def _get_audio_duration(file_path: str) -> float:
+    """Get audio duration in seconds using ffprobe. Returns 0 on failure."""
+    import subprocess as _subprocess
+    try:
+        result = _subprocess.run(
+            [
+                "ffprobe", "-v", "quiet", "-print_format", "json",
+                "-show_format", file_path,
+            ],
+            capture_output=True, text=True, timeout=30,
+        )
+        info = json.loads(result.stdout)
+        return float(info["format"]["duration"])
+    except Exception:
+        return 0
+
+
+def _make_pdf_filename(topic: str) -> str:
+    """Generate a safe, unique PDF filename from a topic string."""
+    safe_title = "".join(
+        c if c.isalnum() or c in (" ", "-", "_") else "_" for c in topic
+    )
+    safe_title = safe_title.replace(" ", "_")[:50]
+    return f"{safe_title}_{uuid.uuid4().hex[:8]}.pdf"
+
+
+MAX_AUDIO_DURATION_SECONDS = 3 * 3600  # 3 hours
+
+
 def _run_pipeline(
-    job_id: str, audio_bytes: bytes, topic: str, module_id: Optional[str]
+    job_id: str, temp_path: str, topic: str, module_id: Optional[str]
 ):
     """Background task to run the full processing pipeline."""
+    # Weighted progress: transcription (60%), refinement (20%),
+    # summarization (10%), PDF (10%). Transcription is the longest step.
     try:
-        # Step 1: Transcribe
-        job_status_store[job_id] = _add_timestamp(
+        # Pre-check audio duration via ffprobe before hitting Deepgram
+        duration_seconds = _get_audio_duration(temp_path)
+        if duration_seconds > MAX_AUDIO_DURATION_SECONDS:
+            raise ValueError(
+                f"Audio duration ({duration_seconds / 3600:.1f} hours) "
+                f"exceeds maximum allowed "
+                f"({MAX_AUDIO_DURATION_SECONDS / 3600:.0f} hours). "
+                f"Please upload a shorter recording."
+            )
+
+        # Step 1: Transcribe — read temp file, then delete immediately
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "transcribing",
                 "progress": 10,
                 "message": "Transcribing audio...",
             }
-        )
+        ))
+
+        with open(temp_path, "rb") as f:
+            audio_bytes = f.read()
+        os.unlink(temp_path)
+        temp_path = None
 
         result = process_audio_file(audio_bytes)
+        del audio_bytes
+
         transcript = result.get("text", "")
 
         if not transcript:
             raise ValueError("Transcription returned empty result")
 
+        # Validate audio duration from transcript metadata (fallback)
+        transcript_duration = result.get("duration", 0)
+        if (
+            transcript_duration > MAX_AUDIO_DURATION_SECONDS
+            and duration_seconds == 0
+        ):
+            raise ValueError(
+                f"Audio duration ({transcript_duration / 3600:.1f} hours) "
+                f"exceeds maximum allowed "
+                f"({MAX_AUDIO_DURATION_SECONDS / 3600:.0f} hours). "
+                f"Please upload a shorter recording."
+            )
+
         # Step 2: Refine
-        job_status_store[job_id] = _add_timestamp(
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "refining",
                 "progress": 35,
                 "message": "Refining transcript...",
             }
-        )
+        ))
 
         refined = transform_transcript(topic, transcript)
 
         # Step 3: Summarize
-        job_status_store[job_id] = _add_timestamp(
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "summarizing",
                 "progress": 60,
                 "message": "Generating notes...",
             }
-        )
+        ))
 
         notes = generate_university_notes(topic, refined)
 
         # Step 4: Generate PDF
-        job_status_store[job_id] = _add_timestamp(
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "generating_pdf",
                 "progress": 85,
                 "message": "Creating PDF...",
             }
-        )
+        ))
 
         os.makedirs(PDFS_DIR, exist_ok=True)
-        timestamp = int(time.time())
-        safe_title = "".join(
-            c if c.isalnum() or c in (" ", "-", "_") else "_" for c in topic
-        )
-        safe_title = safe_title.replace(" ", "_")[:50]
-        filename = f"{safe_title}_{timestamp}.pdf"
+        filename = _make_pdf_filename(topic)
         filepath = os.path.join(PDFS_DIR, filename)
 
         create_pdf(notes, topic, filepath)
@@ -560,39 +720,51 @@ def _run_pipeline(
             except Exception as e:
                 logger.error(f"Failed to save note to database: {e}", exc_info=True)
                 # Track partial failure - PDF was created but DB save failed
-                if "warnings" not in job_status_store[job_id]:
-                    job_status_store[job_id]["warnings"] = []
-                job_status_store[job_id]["warnings"].append(
+                job_data = _get_job(job_id) or {}
+                if "warnings" not in job_data:
+                    job_data["warnings"] = []
+                job_data["warnings"].append(
                     f"PDF generated but note record creation failed: {str(e)}"
                 )
+                _set_job(job_id, _add_timestamp(job_data))
 
         # Complete - cleanup first to make room if needed, then record terminal state
         _cleanup_job_store()
-        job_status_store[job_id] = _add_timestamp(
-            {
-                "status": "complete",
-                "progress": 100,
-                "message": "Processing complete!",
-                "result": {
-                    "transcript": transcript,
-                    "refinedTranscript": refined,
-                    "notes": notes,
-                    "pdfUrl": pdf_url,
-                    "noteId": note_id,
-                },
-            }
-        )
+        existing = _get_job(job_id) or {}
+        complete_status = {
+            "status": "complete",
+            "progress": 100,
+            "message": "Processing complete!",
+            "result": {
+                "transcript": transcript,
+                "refinedTranscript": refined,
+                "notes": notes,
+                "pdfUrl": pdf_url,
+                "noteId": note_id,
+            },
+        }
+        if "warnings" in existing:
+            complete_status["warnings"] = existing["warnings"]
+        _set_job(job_id, _add_timestamp(complete_status))
 
     except Exception as e:
         _cleanup_job_store()
-        job_status_store[job_id] = _add_timestamp(
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "error",
                 "progress": 0,
                 "message": f"Error: {str(e)}",
                 "result": None,
             }
-        )
+        ))
+    finally:
+        if temp_path and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                logger.warning(
+                    "Failed to clean up temp file: %s", temp_path
+                )
 
 
 @router.post("/process-pipeline")
@@ -607,34 +779,75 @@ async def start_pipeline(
     Returns a job ID to poll for status.
     """
     try:
-        audio_bytes = await file.read()
+        # Validate extension
+        file_ext = os.path.splitext(file.filename or "")[1].lower()
+        if file_ext not in ALLOWED_AUDIO_EXTENSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file format {file_ext}. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}",
+            )
 
-        if not audio_bytes:
-            raise HTTPException(status_code=400, detail="Empty audio file")
+        # Content-type check (secondary validation)
+        if file.content_type and file.content_type not in ALLOWED_AUDIO_MIMES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid content type '{file.content_type}'. Expected audio file.",
+            )
+
+        # Write audio to temp file to avoid keeping entire file in memory
+        tmp = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=os.path.splitext(file.filename or ".bin")[1],
+        )
+        try:
+            content = await file.read()
+            if not content:
+                raise HTTPException(
+                    status_code=400, detail="Empty audio file"
+                )
+            tmp.write(content)
+            tmp.flush()
+            tmp.close()
+            temp_path = tmp.name
+        except HTTPException:
+            tmp.close()
+            os.unlink(tmp.name)
+            raise
+        except Exception:
+            tmp.close()
+            os.unlink(tmp.name)
+            raise
 
         # Validate file size
-        validate_file_size(len(audio_bytes), MAX_AUDIO_SIZE, "Audio")
+        content_size = os.path.getsize(temp_path)
+        validate_file_size(content_size, MAX_AUDIO_SIZE, "Audio")
 
         # Cleanup before creating new job to maintain bounded store
         _cleanup_job_store()
 
         # Create job
         job_id = str(uuid.uuid4())
-        job_status_store[job_id] = _add_timestamp(
+        _set_job(job_id, _add_timestamp(
             {
                 "status": "pending",
                 "progress": 0,
                 "message": "Starting pipeline...",
             }
-        )
+        ))
 
         # Start background task
-        background_tasks.add_task(_run_pipeline, job_id, audio_bytes, topic, moduleId)
+        background_tasks.add_task(_run_pipeline, job_id, temp_path, topic, moduleId)
 
         return {"jobId": job_id, "status": "pending"}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Pipeline start failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to start processing pipeline. Please try again.",
+        )
 
 
 @router.get("/pipeline-status/{job_id}", response_model=PipelineStatusResponse)
@@ -646,10 +859,9 @@ async def get_pipeline_status(job_id: str):
     # Cleanup first to evict any expired terminal jobs
     _cleanup_job_store()
 
-    if job_id not in job_status_store:
+    status = _get_job(job_id)
+    if status is None:
         raise HTTPException(status_code=404, detail="Job not found")
-
-    status = job_status_store[job_id]
 
     return PipelineStatusResponse(
         jobId=job_id,

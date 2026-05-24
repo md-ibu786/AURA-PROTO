@@ -25,6 +25,7 @@ USAGE:
 ============================================================================
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -34,6 +35,8 @@ from firebase_admin import auth as firebase_auth
 from firebase_admin import credentials
 from firebase_admin import firestore
 from google.cloud.firestore_v1.async_client import AsyncClient
+
+logger = logging.getLogger(__name__)
 
 
 # Load environment variables from .env
@@ -249,3 +252,22 @@ def get_auth():
 
 
 auth = get_auth()
+
+# ── Production safety guard ──────────────────────────────────────────
+if IS_PRODUCTION:
+    if not USE_REAL_FIREBASE:
+        raise RuntimeError(
+            "CRITICAL: USE_REAL_FIREBASE must be 'true' in production. "
+            "Mock authentication is not allowed in production environments."
+        )
+    if os.getenv("TESTING", "false").lower() == "true":
+        raise RuntimeError(
+            "CRITICAL: TESTING must be 'false' in production. "
+            "Test mode bypasses authentication checks."
+        )
+    logger.info("Production auth guard: real Firebase auth confirmed")
+elif not USE_REAL_FIREBASE:
+    logger.warning(
+        "AUTH WARNING: Mock authentication is active. "
+        "Ensure USE_REAL_FIREBASE=true in production."
+    )

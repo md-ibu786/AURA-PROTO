@@ -33,11 +33,14 @@ USAGE:
 ============================================================================
 """
 
+import logging
 import os
 
 from firebase_admin import auth
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+logger = logging.getLogger(__name__)
 
 try:
     from config import get_auth, get_db
@@ -72,27 +75,28 @@ async def verify_firebase_token(token: str) -> dict:
     try:
         auth_client = get_auth()
         # Allow 30 seconds of clock skew to prevent "Token used too early" errors
-        decoded_token = auth_client.verify_id_token(token, clock_skew_seconds=30)
+        decoded_token = auth_client.verify_id_token(
+            token, clock_skew_seconds=30
+        )
         return decoded_token
     except auth.InvalidIdTokenError as exc:
-        print(f"DEBUG: Invalid token error: {exc}")
-        error_detail = str(exc)
-        # Check if token is expired or revoked for specific error messages
+        logger.warning("Invalid token: %s", exc)
         if isinstance(exc, auth.ExpiredIdTokenError):
-            error_detail = f"Authentication token has expired: {error_detail}"
+            error_detail = "Authentication token has expired"
         elif isinstance(exc, auth.RevokedIdTokenError):
-            error_detail = f"Authentication token has been revoked: {error_detail}"
+            error_detail = "Authentication token has been revoked"
         else:
-            error_detail = f"Invalid authentication token: {error_detail}"
+            error_detail = "Invalid or expired authentication token"
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=error_detail,
             headers={"WWW-Authenticate": "Bearer"},
         )
     except Exception as exc:
+        logger.error("Authentication failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication failed: {str(exc)}",
+            detail="Authentication failed",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

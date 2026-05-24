@@ -31,10 +31,14 @@ USAGE:
 ============================================================================
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
+import logging
+
+from fastapi import APIRouter, HTTPException, Depends, Request, status
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 try:
     from config import db, auth as firebase_auth
@@ -42,12 +46,14 @@ try:
     from models import CreateUserInput, FirestoreUser, UpdateUserInput
     from validators import normalize_user_data
     from validators import validate_user_role_constraints
+    from limiter import limiter
 except ImportError:
     from api.config import db, auth as firebase_auth
     from api.auth import get_current_user, require_admin
     from api.models import CreateUserInput, FirestoreUser, UpdateUserInput
     from api.validators import normalize_user_data
     from api.validators import validate_user_role_constraints
+    from api.limiter import limiter
 
 from google.cloud.firestore import FieldFilter
 
@@ -58,20 +64,38 @@ router = APIRouter(prefix="/api", tags=["users"])
 # ========== HELPERS ==========
 
 
-def _merge_custom_claims(user_id: str, updates: dict[str, str]) -> None:
-    """Merge updates into existing Firebase custom claims."""
+def _merge_custom_claims(
+    user_id: str, updates: dict[str, str]
+) -> bool:
+    """Merge updates into existing Firebase custom claims.
+
+    Args:
+        user_id: Firebase Auth UID.
+        updates: Claims to merge (e.g., {"role": "admin"}).
+
+    Returns:
+        bool: True if claims were updated successfully.
+    """
     if not updates:
-        return
-    safe_updates = {key: value for key, value in updates.items() if value}
+        return True
+    safe_updates = {
+        key: value for key, value in updates.items() if value
+    }
     if not safe_updates:
-        return
+        return True
     try:
         user_record = firebase_auth.get_user(user_id)
         claims = user_record.custom_claims or {}
         claims.update(safe_updates)
         firebase_auth.set_custom_user_claims(user_id, claims)
-    except Exception:
-        pass
+        return True
+    except Exception as exc:
+        logger.error(
+            "Failed to update custom claims for %s: %s",
+            user_id,
+            exc,
+        )
+        return False
 
 
 # ========== MODELS ==========
@@ -97,19 +121,17 @@ class UserResponse(BaseModel):
 
 
 @router.get("/auth/me", response_model=UserResponse)
-async def get_me(user: FirestoreUser = Depends(get_current_user)):
+@limiter.limit("30/minute")
+async def get_me(
+    request: Request,
+    user: FirestoreUser = Depends(get_current_user),
+):
     """
     Get the current authenticated user's profile.
 
     Returns:
         UserResponse: Current user's details including role and department
     """
-    # Fetch additional details from Firestore
-    user_doc = db.collection("users").document(user.uid).get()  # type: ignore[misc]
-    user_data = user_doc.to_dict() if user_doc.exists else {}
-    if user_data is None:
-        user_data = {}
-
     # Get department name if assigned
     department_name = None
     if user.departmentId:
@@ -121,7 +143,7 @@ async def get_me(user: FirestoreUser = Depends(get_current_user)):
             department_name = dept_dict.get("name") if dept_dict else None
 
     # Get subject info for staff users
-    subject_ids = user_data.get("subjectIds")
+    subject_ids = user.subjectIds
     subject_names = None
     if user.role == "staff" and subject_ids:
         from hierarchy_crud import find_doc_by_id
@@ -145,8 +167,8 @@ async def get_me(user: FirestoreUser = Depends(get_current_user)):
         subject_ids=subject_ids if user.role == "staff" else None,
         subject_names=subject_names,
         status=user.status,
-        created_at=user_data.get("createdAt"),
-        updated_at=user_data.get("updatedAt"),
+        created_at=user.createdAt,
+        updated_at=user.updatedAt,
     )
 
 
@@ -331,7 +353,7 @@ async def create_user(
         )
 
         # Store user profile in Firestore
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         user_doc_data = normalize_user_data(
             {
                 "uid": firebase_user.uid,
@@ -520,7 +542,7 @@ async def update_user(
         ) from exc
 
     # Build update dict
-    updates = {"updatedAt": datetime.utcnow().isoformat()}
+    updates = {"updatedAt": datetime.now(timezone.utc).isoformat()}
 
     if update_data.displayName is not None:
         updates["displayName"] = update_data.displayName
@@ -530,8 +552,12 @@ async def update_user(
                 user_id,
                 display_name=update_data.displayName,
             )
-        except Exception:
-            pass  # Non-critical, continue with Firestore update
+        except Exception as exc:
+            logger.warning(
+                "Failed to sync display name for %s: %s",
+                user_id,
+                exc,
+            )
 
     if update_data.email is not None:
         existing_users = (
@@ -548,9 +574,19 @@ async def update_user(
                 )
         updates["email"] = update_data.email
         try:
-            firebase_auth.update_user(user_id, email=update_data.email)
-        except Exception:
-            pass
+            firebase_auth.update_user(
+                user_id, email=update_data.email
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to sync email for %s: %s",
+                user_id,
+                exc,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update email in authentication system",
+            ) from exc
 
     if update_data.role is not None:
         updates["role"] = update_data.role
@@ -592,13 +628,31 @@ async def update_user(
         if update_data.status == "disabled":
             try:
                 firebase_auth.update_user(user_id, disabled=True)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error(
+                    "CRITICAL: Failed to disable user %s "
+                    "in Firebase Auth: %s",
+                    user_id,
+                    exc,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=(
+                        "Failed to disable user in "
+                        "authentication system"
+                    ),
+                ) from exc
         elif update_data.status == "active":
             try:
-                firebase_auth.update_user(user_id, disabled=False)
-            except Exception:
-                pass
+                firebase_auth.update_user(
+                    user_id, disabled=False
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to re-enable user %s: %s",
+                    user_id,
+                    exc,
+                )
 
     claim_updates = {}
     if update_data.role is not None:
