@@ -41,6 +41,42 @@ if _api_dir not in sys.path:
 import api.audio_processing as ap_module  # noqa: E402
 
 
+class TestJobStoreTTLBehavior:
+    """Tests Redis TTL behavior for active vs terminal job states."""
+
+    def test_set_job_active_status_has_no_ttl(self):
+        """Active jobs should not set Redis TTL to avoid premature expiry."""
+        mock_redis = MagicMock()
+
+        with patch("api.audio_processing._get_redis", return_value=mock_redis):
+            ap_module._set_job(
+                "job-active",
+                {
+                    "status": "transcribing",
+                    "progress": 20,
+                },
+            )
+
+        _, kwargs = mock_redis.set.call_args
+        assert "ex" not in kwargs
+
+    def test_set_job_terminal_status_has_ttl(self):
+        """Terminal jobs should set Redis TTL for cleanup."""
+        mock_redis = MagicMock()
+
+        with patch("api.audio_processing._get_redis", return_value=mock_redis):
+            ap_module._set_job(
+                "job-complete",
+                {
+                    "status": "complete",
+                    "progress": 100,
+                },
+            )
+
+        _, kwargs = mock_redis.set.call_args
+        assert kwargs.get("ex") == ap_module.JOB_STATUS_TTL_SECONDS
+
+
 class TestPipelineDBFailureHandling:
     """Tests for database failure handling in _run_pipeline."""
 

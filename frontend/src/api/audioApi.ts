@@ -40,6 +40,8 @@
  * ============================================================================
  */
 import { fetchApi, fetchFormData } from './client';
+
+const START_PIPELINE_TIMEOUT_MS = 30 * 60 * 1000;
 import type {
     TranscribeResponse,
     RefineRequest,
@@ -94,7 +96,9 @@ export async function startPipeline(
     if (moduleId !== undefined) {
         formData.append('moduleId', moduleId);
     }
-    return fetchFormData('/audio/process-pipeline', formData);
+    return fetchFormData('/audio/process-pipeline', formData, {
+        timeoutMs: START_PIPELINE_TIMEOUT_MS,
+    });
 }
 
 // Get pipeline status

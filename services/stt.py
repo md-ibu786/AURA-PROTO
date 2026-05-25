@@ -31,6 +31,10 @@ from typing import Any, BinaryIO, Dict, Optional, Union
 
 from deepgram import DeepgramClient
 
+DEFAULT_TRANSCRIPTION_TIMEOUT_SECONDS = float(
+    os.getenv("DEEPGRAM_TIMEOUT_SECONDS", str(3 * 3600 + 300))
+)
+
 
 def _read_audio_bytes(audio_input: Union[BinaryIO, bytes, io.BytesIO]) -> bytes:
     """
@@ -98,6 +102,30 @@ def _transcribe_with_deepgram(
     raise RuntimeError("Unsupported Deepgram SDK API surface.")
 
 
+def _extract_duration_seconds(response: Any, response_data: Any) -> float:
+    """Extract audio duration in seconds from Deepgram response metadata."""
+    # SDK object path
+    try:
+        metadata = getattr(response, "metadata", None)
+        if metadata is not None:
+            duration = getattr(metadata, "duration", None)
+            if duration is not None:
+                return float(duration)
+    except (TypeError, ValueError):
+        pass
+
+    # Serialized dict path
+    if isinstance(response_data, dict):
+        metadata = response_data.get("metadata")
+        if isinstance(metadata, dict) and metadata.get("duration") is not None:
+            try:
+                return float(metadata["duration"])
+            except (TypeError, ValueError):
+                return 0.0
+
+    return 0.0
+
+
 def process_audio_file(
     audio_input: Union[BinaryIO, bytes, io.BytesIO],
     timeout_seconds: Optional[float] = None,
@@ -108,12 +136,14 @@ def process_audio_file(
     Args:
         audio_input: A file-like object (from Streamlit's file uploader)
             or raw bytes containing audio data.
-        timeout_seconds: Optional timeout in seconds. Defaults to 600 (10 minutes)
-            for typical audio files.
+        timeout_seconds: Optional timeout in seconds. Defaults to
+            DEFAULT_TRANSCRIPTION_TIMEOUT_SECONDS (~3h 5m), aligned with
+            audio-processing max duration constraints.
 
     Returns:
         dict: A dictionary containing:
               - "text": The full transcript text.
+              - "duration": Duration in seconds (0 when unavailable).
               - "full_response": The raw JSON response from Deepgram.
 
     Raises:
@@ -132,9 +162,9 @@ def process_audio_file(
             "file is only processed once (or use UploadedFile.getvalue())."
         )
 
-    # Default timeout: 10 minutes for audio transcription
+    # Default timeout aligned with server-side max audio duration.
     if timeout_seconds is None:
-        timeout_seconds = 600.0
+        timeout_seconds = DEFAULT_TRANSCRIPTION_TIMEOUT_SECONDS
 
     # Initialize Deepgram client
     try:
@@ -155,11 +185,21 @@ def process_audio_file(
             timeout=timeout_seconds,
         )
 
+        # Ensure we return a serializable dict, not the Deepgram object.
+        response_data = (
+            response.to_dict() if hasattr(response, "to_dict") else response
+        )
+
         # Extract transcript
         # Deepgram Nova-3 with smart_format typically returns formatted
         # paragraphs.
         transcript_text = ""
-        if response and response.results and response.results.channels:
+        if (
+            response
+            and hasattr(response, "results")
+            and response.results
+            and response.results.channels
+        ):
             channel = response.results.channels[0]
             if channel.alternatives:
                 # Use 'paragraphs' if available for better formatting, and
@@ -169,13 +209,25 @@ def process_audio_file(
                     transcript_text = alt.paragraphs.transcript
                 else:
                     transcript_text = alt.transcript
+        elif isinstance(response_data, dict):
+            channels = (
+                response_data.get("results", {})
+                .get("channels", [])
+            )
+            if channels:
+                alternatives = channels[0].get("alternatives", [])
+                if alternatives:
+                    alt = alternatives[0]
+                    paragraphs = alt.get("paragraphs")
+                    if isinstance(paragraphs, dict):
+                        transcript_text = paragraphs.get("transcript", "")
+                    if not transcript_text:
+                        transcript_text = alt.get("transcript", "")
 
         return {
             "text": transcript_text,
-            # Ensure we return a serializable dict, not the Deepgram object
-            "full_response": (
-                response.to_dict() if hasattr(response, "to_dict") else response
-            ),
+            "duration": _extract_duration_seconds(response, response_data),
+            "full_response": response_data,
         }
 
     except Exception as e:

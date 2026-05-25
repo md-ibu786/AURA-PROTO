@@ -4,7 +4,7 @@
 
 ## PROJECT OVERVIEW
 
-Full-stack hierarchy + note mgmt system: React 18 + Vite frontend, FastAPI backend, Firebase Firestore, Neo4j knowledge graph, AI audio processing.
+Full-stack hierarchy and note management system with React 18 + Vite frontend, FastAPI backend, Firebase Firestore, Neo4j knowledge graph, and AI-powered audio processing.
 
 **Tech Stack:**
 - **Frontend:** React 18, TypeScript 5.6, Vite, Zustand, TanStack Query, Tailwind CSS
@@ -26,13 +26,13 @@ npm run test:e2e:ui      # Run E2E tests with UI
 npm run test:e2e:headed  # Run E2E tests with visible browser
 ```
 
-**Single unit test:**
+**Run a single unit test:**
 ```bash
 npm test -- src/components/MyComponent.test.tsx
 npm test -- --grep "test name pattern"
 ```
 
-**Single E2E test:**
+**Run a single E2E test:**
 ```bash
 npx playwright test tests/explorer.spec.ts
 npx playwright test --grep "test name pattern"
@@ -45,20 +45,20 @@ cd api
 python -m uvicorn main:app --reload --port 8000  # Start backend server
 ```
 
-**All backend tests (from project root):**
+**Run all backend tests (from project root):**
 ```bash
 pytest                           # All tests
 pytest -v                        # Verbose output
 pytest --cov=api --cov-report=html  # With coverage
 ```
 
-**Single test file:**
+**Run a single test file:**
 ```bash
 pytest api/test_kg_processor.py
 pytest test_women_empowerment.py
 ```
 
-**Specific test function:**
+**Run a specific test function:**
 ```bash
 pytest api/test_kg_processor.py::test_function_name
 pytest -k "test_name_pattern"  # Run tests matching pattern
@@ -71,18 +71,18 @@ npm run test:e2e:ui           # Run E2E tests with Playwright UI
 npm run test:e2e:headed       # Run E2E tests with visible browser
 ```
 
-**Single E2E test:**
+**Run a single E2E test:**
 ```bash
 npx playwright test e2e/explorer.spec.ts
 npx playwright test --grep "test name pattern"
 npx playwright test --debug  # Debug mode
 ```
 
-> **Note:** Root `e2e/` deprecated. All E2E tests in `frontend/e2e/`.
+> **Note:** The root-level `e2e/` directory is deprecated. All E2E tests live in `frontend/e2e/`.
 
 ### Python Environment
-- **ALWAYS use root venv** for all Python tasks
-- **NEVER install deps globally** or create local venvs
+- **ALWAYS use the root virtual environment** for all Python tasks
+- **NEVER install dependencies globally** or create local venvs
 ```bash
 # Activate venv (Windows)
 .venv\Scripts\activate
@@ -110,29 +110,29 @@ pip install -r requirements.txt
 - **Avoid type assertions** (`as SomeType`) unless justified
 - **DO NOT use `{}` type** — use `unknown`, `Record<string, unknown>`, or `object`
 - Prefer `T[]` for simple types, `Array<T>` for complex unions
-- Use optional params (`?`) over `| undefined`
+- Use optional parameters (`?`) instead of `| undefined`
 
 **Classes:**
-- Use TypeScript `private`/`protected` modifiers, not `#private` fields
-- **NEVER use `public` modifier** (default)
-- Mark readonly props with `readonly`
+- Use TypeScript's `private`/`protected` modifiers, not `#private` fields
+- **NEVER use `public` modifier** (it's the default)
+- Mark readonly properties with `readonly`
 
 **Strings & Operators:**
-- Single quotes (`'`) for strings
-- Template literals (`` ` ``) for interpolation/multi-line
-- Always `===` and `!==` (never `==` or `!=`)
-- End statements with semicolons
+- Use single quotes (`'`) for strings
+- Use template literals (`` ` ``) for interpolation and multi-line strings
+- Always use `===` and `!==` (never `==` or `!=`)
+- Explicitly end statements with semicolons (no ASI reliance)
 
-**Naming:**
+**Naming Conventions:**
 - `UpperCamelCase`: Classes, interfaces, types, enums, decorators
-- `lowerCamelCase`: Variables, params, functions, methods, properties
+- `lowerCamelCase`: Variables, parameters, functions, methods, properties
 - `CONSTANT_CASE`: Global constants, enum values
 - **DO NOT use `_` prefix/suffix** for identifiers
 
 **Comments:**
-- `/** JSDoc */` for docs, `//` for implementation
+- Use `/** JSDoc */` for documentation, `//` for implementation comments
 - **DO NOT declare types in JSDoc** (redundant in TypeScript)
-- Comments must add info, not restate code
+- Comments must add information, not restate code
 
 **File Headers (MANDATORY for all .ts/.tsx files):**
 ```typescript
@@ -165,36 +165,36 @@ pip install -r requirements.txt
 ### Python (Google Python Style Guide)
 
 **Imports:**
-- `import x` for packages/modules
-- `from x import y` only when `y` is submodule
-- Group: stdlib, third-party, application
+- Use `import x` for packages/modules
+- Use `from x import y` only when `y` is a submodule
+- Group imports: standard library, third-party, application
 - Each import on separate line
 
 **Formatting:**
-- **80 char max line length**
-- **4 spaces indent** (no tabs)
-- Two blank lines between top-level defs
-- One blank line between method defs
+- **Line length: 80 characters maximum**
+- **Indentation: 4 spaces** (never tabs)
+- Two blank lines between top-level definitions
+- One blank line between method definitions
 
-**Naming:**
+**Naming Conventions:**
 - `snake_case`: Modules, functions, methods, variables
 - `PascalCase`: Classes
 - `ALL_CAPS_WITH_UNDERSCORES`: Constants
 - `_internal`: Single leading underscore for internal members
 
 **Docstrings:**
-- `"""triple double quotes"""`
-- Every public module, function, class, method needs docstring
+- Use `"""triple double quotes"""`
+- Every public module, function, class, and method must have a docstring
 - Start with one-line summary
-- Include `Args:`, `Returns:`, `Raises:` sections
+- Include `Args:`, `Returns:`, and `Raises:` sections
 
 **Best Practices:**
-- Run `pylint` before committing
+- Run `pylint` on code before committing
 - Use built-in exception classes
-- Avoid mutable defaults (no `[]` or `{}`)
-- Implicit false checks: `if not my_list:`
-- `if foo is None:` for None checks
-- Type annotations for public APIs
+- Avoid mutable default arguments (no `[]` or `{}` as defaults)
+- Use implicit false checks: `if not my_list:`
+- Use `if foo is None:` to check for None
+- Type annotations strongly encouraged for public APIs
 
 **File Headers (MANDATORY for all .py files):**
 ```python
@@ -231,7 +231,7 @@ USAGE:
 **TypeScript:**
 - **NEVER leave empty catch blocks** `catch(e) {}`
 - Always handle or log errors
-- Custom error classes for specific cases (e.g., `DuplicateError`)
+- Use custom error classes for specific cases (e.g., `DuplicateError`)
 ```typescript
 try {
     await riskyOperation();
@@ -246,8 +246,8 @@ try {
 ```
 
 **Python:**
-- Specific exception types
-- Never bare `except:`
+- Use specific exception types
+- Never use bare `except:` clauses
 ```python
 try:
     risky_operation()
@@ -306,29 +306,29 @@ AURA-NOTES-MANAGER/
 
 **API Layer:**
 - Typed fetch wrappers in `frontend/src/api/`
-- `DuplicateError` class for 409 conflicts
+- Custom `DuplicateError` class for 409 conflicts
 - Vite proxy: `/api`, `/departments`, `/semesters`, `/subjects`, `/pdfs` → `127.0.0.1:8001`
 
 **State Management:**
-- Zustand for UI/auth only (`useExplorerStore`, `useAuthStore`)
-- Server state via TanStack Query
-- Clear separation enforced
+- Zustand for UI/auth state only (`useExplorerStore`, `useAuthStore`)
+- Server state via TanStack Query (React Query)
+- Clear separation enforced to prevent state management confusion
 
 **Feature Modules:**
-- KG features in `frontend/src/features/kg/`
-- Feature-based org for complex domains
+- Knowledge Graph features in `frontend/src/features/kg/`
+- Feature-based organization for complex domains
 
 **Testing:**
-- Vitest: Unit with `@testing-library/react` + `@tanstack/react-query`
-- Jest: Firestore security rules
-- Playwright: E2E (sequential for DB consistency)
+- Vitest: Unit tests with `@testing-library/react` and `@tanstack/react-query`
+- Jest: Firestore security rules testing
+- Playwright: E2E testing (sequential for DB consistency)
 
 **Where to Look:**
 
 | Task | Location |
 |------|----------|
 | API integration | `frontend/src/api/client.ts`, `frontend/src/api/explorerApi.ts` |
-| State mgmt | `frontend/src/stores/useExplorerStore.ts`, `frontend/src/stores/useAuthStore.ts` |
+| State management | `frontend/src/stores/useExplorerStore.ts`, `frontend/src/stores/useAuthStore.ts` |
 | Page structure | `frontend/src/pages/ExplorerPage.tsx`, `frontend/src/pages/LoginPage.tsx` |
 | Knowledge Graph | `frontend/src/features/kg/` |
 | Service connections | `frontend/src/integration/` |
@@ -339,56 +339,59 @@ AURA-NOTES-MANAGER/
 ## AGENT BEST PRACTICES
 
 ### Research-First Principle
-- **ALWAYS web-search before implementing** unfamiliar libs, APIs, patterns
-- **NEVER assume** lib behavior — verify with official docs
-- **Search first** for: new npm packages, Python libs, framework features, external APIs
+- **ALWAYS web-search before implementing** unfamiliar libraries, APIs, or patterns
+- **NEVER assume** library behavior — verify with official documentation
+- **Search first** when encountering: new npm packages, Python libraries, framework features, or external APIs
 
 ### Before Starting
-- **Read code first** — understand before modifying
-- **Use subagents for exploration** — conserve context
-- **Check existing patterns** — maintain consistency
+- **Read relevant code first** — understand before modifying
+- **Use subagents for exploration** — conserve context for complex searches
+- **Check existing patterns** — maintain consistency with codebase
 
 ### During Implementation
 - **Write tests BEFORE or WITH code** — TDD when appropriate
-- **Type safety first** — never suppress errors with `as any`, `@ts-ignore`
+- **Type safety first** — never suppress type errors with `as any`, `@ts-ignore`
 - **Minimal changes** — fix bugs without refactoring unrelated code
 - **File headers required** — add to all new/significantly modified files
-- **Error handling** — never empty catch blocks `catch(e) {}`
+- **Error handling** — never leave empty catch blocks `catch(e) {}`
 
 ### Before Completing
-- **Run build/lint** — no compilation errors
-- **Run relevant tests** — verify functionality, not compilation
-- **Check regressions** — no new errors
-- **Verify all requirements** — complete only when 100% confident
+- **Run build/lint** — ensure no compilation errors
+- **Run relevant tests** — verify functionality, not just compilation
+- **Check for regressions** — ensure no new errors introduced
+- **Verify all requirements** — task complete only when 100% confident
 
 ### Certainty Before Conclusion
 - **NEVER declare complete** without 100% confidence
-- **Verify every requirement** addressed
-- **Check regressions**: Run tests before claiming fix
+- **Verify every requirement** from the original request is addressed
+- **Check for regressions**: Run relevant tests before claiming fix
 - **If uncertain, ask**: Better to clarify than ship broken code
 
 ### Use Sub-Agents to Extend Sessions
-- Use sub-agents whenever possible to conserve context window
-- Critical for **long-running tasks** with multiple files
-- Benefits: fresh context per subtask, parallel execution, domain focus
+- **Use suitable and available sub-agents whenever possible** to extend the current session by conserving the context window
+- Sub-agents are crucial for **long-running tasks** that involve multiple files, complex exploration, or extensive modifications
+- Launching sub-agents allows:
+  - Fresh context windows for each subtask
+  - Parallel execution of independent operations
+  - Better focus on specific domains (visual, documentation, debugging)
 
 ### Never
 - ❌ Skip verification (build, lint, tests)
-- ❌ Guess lib behavior — search docs first
-- ❌ Partial-ship — complete all requirements or ask
-- ❌ Assume knowledge — read code before changing
-- ❌ Empty catch blocks or suppress type errors
+- ❌ Guess library behavior — search documentation first
+- ❌ Partial-ship — complete all requirements or ask for clarification
+- ❌ Assume knowledge — read the code before changing
+- ❌ Leave empty catch blocks or suppress type errors
 - ❌ Use `any` type or type assertions without justification
 - ❌ Skip file headers on new/modified files
 
 ## QUICK REFERENCE
 
 **Common Tasks:**
-- API changes → Test with backend on port 8000
+- API changes → Test with backend running on port 8000
 - Frontend changes → Test with dev server on port 5173
-- Full E2E → Both servers + `npm test` in e2e/
-- Type errors → `npm run build` in frontend/
-- Python tests → `pytest` from project root with venv
+- Full E2E flow → Both servers + `npm test` in e2e/
+- Type errors → Run `npm run build` in frontend/
+- Python tests → Run `pytest` from project root with venv activated
 
 **Key Files:**
 - Frontend API client: `frontend/src/api/client.ts`

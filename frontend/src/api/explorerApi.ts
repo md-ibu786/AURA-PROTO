@@ -52,6 +52,8 @@ import type {
     MoveResponse
 } from '../types';
 
+const DOWNLOAD_ZIP_TIMEOUT_MS = 5 * 60 * 1000;
+
 // Get full hierarchy tree
 export async function getExplorerTree(depth: number = 5): Promise<FileSystemNode[]> {
     return fetchApi<FileSystemNode[]>(`/explorer/tree?depth=${depth}`);
@@ -184,14 +186,20 @@ export async function downloadNotesZip(
     subjectName?: string,
     moduleName?: string
 ): Promise<BlobResponse> {
-    return fetchBlob('/pdfs/zip', {
-        method: 'POST',
-        body: JSON.stringify({
-            filenames,
-            subject_name: subjectName,
-            module_name: moduleName,
-        }),
-    });
+    return fetchBlob(
+        '/pdfs/zip',
+        {
+            method: 'POST',
+            body: JSON.stringify({
+                filenames,
+                subject_name: subjectName,
+                module_name: moduleName,
+            }),
+        },
+        {
+            timeoutMs: DOWNLOAD_ZIP_TIMEOUT_MS,
+        }
+    );
 }
 
 // Unified rename function

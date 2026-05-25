@@ -66,6 +66,10 @@ export interface BlobResponse {
     filename: string | null;
 }
 
+export interface RequestConfig {
+    timeoutMs?: number;
+}
+
 /**
  * Get authentication header for API requests.
  * Throws AuthError if token retrieval fails unexpectedly.
@@ -226,6 +230,7 @@ async function parseErrorMessage(response: Response): Promise<string> {
  *
  * @param endpoint - API endpoint path (e.g. '/users')
  * @param options - Standard RequestInit; pass { signal: controller.signal } for abort support
+ * @param requestConfig - Optional per-request timeout override
  * @returns Parsed JSON response of type T, or undefined for 204/empty-body
  * @throws NetworkError on network failures or timeouts
  * @throws AuthError on token refresh failures or cooldown
@@ -234,32 +239,51 @@ async function parseErrorMessage(response: Response): Promise<string> {
  */
 async function fetchApi<T>(
     endpoint: string,
-    options?: RequestInit
+    options?: RequestInit,
+    requestConfig: RequestConfig = {}
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
+    const timeoutMs = requestConfig.timeoutMs ?? 30_000;
 
-    const response = await executeWithRetry(url, {
-        ...options,
-        headers: {
-            ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
-            ...authHeaders,
-            ...options?.headers,
+    const response = await executeWithRetry(
+        url,
+        {
+            ...options,
+            headers: {
+                ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+                ...authHeaders,
+                ...options?.headers,
+            },
         },
-    });
+        timeoutMs
+    );
 
     if (!response.ok) {
-        const message = await parseErrorMessage(response);
-
+        let duplicateError: DuplicateError | null = null;
         if (response.status === 409) {
             try {
                 const body = await response.clone().json();
-                if (body?.detail?.code === 'DUPLICATE_NAME') {
-                    throw new DuplicateError(body.detail.message, body.detail.code);
+                if (
+                    isRecord(body) &&
+                    isRecord(body.detail) &&
+                    body.detail.code === 'DUPLICATE_NAME' &&
+                    typeof body.detail.message === 'string'
+                ) {
+                    duplicateError = new DuplicateError(
+                        body.detail.message,
+                        String(body.detail.code)
+                    );
                 }
-            } catch (e) {
-                if (e instanceof DuplicateError) throw e;
+            } catch {
+                // If clone JSON parsing fails, fall back to generic message handling.
             }
+        }
+
+        const message = await parseErrorMessage(response);
+
+        if (duplicateError) {
+            throw duplicateError;
         }
 
         if (response.status === 403) {
@@ -278,19 +302,25 @@ async function fetchApi<T>(
 // Fetch wrapper for Blob responses (downloads)
 async function fetchBlob(
     endpoint: string,
-    options?: RequestInit
+    options?: RequestInit,
+    requestConfig: RequestConfig = {}
 ): Promise<BlobResponse> {
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
+    const timeoutMs = requestConfig.timeoutMs ?? 30_000;
 
-    const response = await executeWithRetry(url, {
-        ...options,
-        headers: {
-            ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
-            ...authHeaders,
-            ...options?.headers,
+    const response = await executeWithRetry(
+        url,
+        {
+            ...options,
+            headers: {
+                ...(options?.body ? { 'Content-Type': 'application/json' } : {}),
+                ...authHeaders,
+                ...options?.headers,
+            },
         },
-    });
+        timeoutMs
+    );
 
     if (!response.ok) {
         const message = await parseErrorMessage(response);
@@ -308,18 +338,24 @@ async function fetchBlob(
 // Fetch wrapper for FormData (no Content-Type header)
 async function fetchFormData<T>(
     endpoint: string,
-    formData: FormData
+    formData: FormData,
+    requestConfig: RequestConfig = {}
 ): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
     const authHeaders = await getAuthHeader();
+    const timeoutMs = requestConfig.timeoutMs ?? 30_000;
 
-    const response = await executeWithRetry(url, {
-        method: 'POST',
-        headers: {
-            ...authHeaders,
+    const response = await executeWithRetry(
+        url,
+        {
+            method: 'POST',
+            headers: {
+                ...authHeaders,
+            },
+            body: formData,
         },
-        body: formData,
-    });
+        timeoutMs
+    );
 
     if (!response.ok) {
         const message = await parseErrorMessage(response);

@@ -62,6 +62,7 @@ USAGE:
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from typing import Optional
+import asyncio
 import os
 import logging
 
@@ -708,11 +709,11 @@ async def delete_note_cascade(
         - "document_only": No KG data found, only document deleted
         - "kg_failed": KG deletion failed, document NOT deleted (rollback)
     """
-    doc_ref = find_doc_by_id("notes", note_id)
+    doc_ref = await asyncio.to_thread(find_doc_by_id, "notes", note_id)
     if not doc_ref:
         raise HTTPException(status_code=404, detail="Note not found")
 
-    note_doc = doc_ref.get()
+    note_doc = await asyncio.to_thread(doc_ref.get)
     note_data = note_doc.to_dict()
     if note_data is None:
         raise HTTPException(status_code=404, detail="Note data not found")
@@ -771,7 +772,7 @@ async def delete_note_cascade(
             logger.warning(f"Cascade delete: Failed to remove PDF file: {e}")
 
     # Step 3: Delete Firestore document
-    doc_ref.delete()
+    await asyncio.to_thread(doc_ref.delete)
     logger.info(f"Cascade delete: Removed Firestore document {note_id}")
 
     # Determine cascade status

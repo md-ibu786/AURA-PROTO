@@ -476,9 +476,15 @@ async def delete_batch(request: BatchDeleteRequest):
     deleted_count = 0
     failed_ids = []
     all_connected_entity_ids: List[str] = []
-    for result in results:
+    for idx, result in enumerate(results):
         if isinstance(result, Exception):
+            failed_doc_id = request.file_ids[idx]
+            failed_ids.append(failed_doc_id)
+            logger.error(
+                f"Unhandled exception deleting {failed_doc_id}: {result}"
+            )
             continue
+
         doc_id, success, entity_ids, error = result
         if success:
             deleted_count += 1

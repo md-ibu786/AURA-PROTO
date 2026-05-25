@@ -252,10 +252,6 @@ class GraphManager:
             logger.warning(f"Failed to get entity by ID {entity_id}: {e}")
             return None
 
-        except Exception as e:
-            logger.warning(f"Failed to get entity by ID {entity_id}: {e}")
-            return None
-
     async def get_entities_by_name(
         self,
         name: str,

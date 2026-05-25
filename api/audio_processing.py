@@ -175,16 +175,20 @@ def _get_redis():
 
 
 def _set_job(job_id: str, data: dict) -> None:
-    """Store job data with TTL. Uses Redis if available, else in-memory dict."""
+    """Store job data. Terminal jobs use TTL; active jobs persist."""
     data["updated_at"] = time.time()
     try:
         redis_client = _get_redis()
         if redis_client:
-            redis_client.set(
-                f"job:{job_id}",
-                json.dumps(data),
-                ex=JOB_STATUS_TTL_SECONDS,
-            )
+            redis_key = f"job:{job_id}"
+            if _is_terminal_status(data.get("status", "")):
+                redis_client.set(
+                    redis_key,
+                    json.dumps(data),
+                    ex=JOB_STATUS_TTL_SECONDS,
+                )
+            else:
+                redis_client.set(redis_key, json.dumps(data))
             return
     except Exception:
         logger.warning(
@@ -228,8 +232,17 @@ MAX_DOCUMENT_SIZE = 50 * 1024 * 1024  # 50MB for documents
 MIN_AUDIO_SIZE = 1024  # 1KB minimum
 ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".m4a", ".ogg", ".flac"}
 ALLOWED_AUDIO_MIMES = {
-    "audio/mpeg", "audio/wav", "audio/x-m4a",
-    "audio/ogg", "audio/flac", "application/octet-stream",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/vnd.wave",
+    "audio/x-m4a",
+    "audio/m4a",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/flac",
+    "application/octet-stream",
 }
 
 # Job status retention constants (T-08-04 mitigation)
@@ -619,6 +632,7 @@ def _make_pdf_filename(topic: str) -> str:
 
 
 MAX_AUDIO_DURATION_SECONDS = 3 * 3600  # 3 hours
+TRANSCRIPTION_TIMEOUT_SECONDS = MAX_AUDIO_DURATION_SECONDS + 300  # +5m buffer
 
 
 def _run_pipeline(
@@ -652,7 +666,17 @@ def _run_pipeline(
         os.unlink(temp_path)
         temp_path = None
 
-        result = process_audio_file(audio_bytes)
+        timeout_seconds = TRANSCRIPTION_TIMEOUT_SECONDS
+        if duration_seconds > 0:
+            timeout_seconds = min(
+                TRANSCRIPTION_TIMEOUT_SECONDS,
+                max(600, int(duration_seconds + 300)),
+            )
+
+        result = process_audio_file(
+            audio_bytes,
+            timeout_seconds=timeout_seconds,
+        )
         del audio_bytes
 
         transcript = result.get("text", "")
@@ -661,7 +685,14 @@ def _run_pipeline(
             raise ValueError("Transcription returned empty result")
 
         # Validate audio duration from transcript metadata (fallback)
-        transcript_duration = result.get("duration", 0)
+        transcript_duration = 0.0
+        transcript_duration_raw = result.get("duration")
+        if transcript_duration_raw is not None:
+            try:
+                transcript_duration = float(transcript_duration_raw)
+            except (TypeError, ValueError):
+                transcript_duration = 0.0
+
         if (
             transcript_duration > MAX_AUDIO_DURATION_SECONDS
             and duration_seconds == 0
